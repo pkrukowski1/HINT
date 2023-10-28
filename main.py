@@ -334,7 +334,6 @@ def evaluate_previous_tasks(hypernetwork,
                             target_network,
                             dataframe_results,
                             list_of_permutations,
-                            sparsity_parameter,
                             parameters):
     """
     Evaluate the target network according to the weights generated
@@ -356,9 +355,6 @@ def evaluate_previous_tasks(hypernetwork,
       *list_of_permutations*: (hypnettorch.data module), e.g. in the case
                               of PermutedMNIST it will be
                               special.permuted_mnist.PermutedMNISTList
-      *sparsity_parameter*: (float) defines which percentage of weights
-                            of the target network should be left: it will
-                            be (100-sparsity_parameter)%
       *parameters* a dictionary containing the following keys:
         -device- string: 'cuda' or 'cpu', defines in which device calculations
                  will be performed
@@ -385,14 +381,8 @@ def evaluate_previous_tasks(hypernetwork,
         # output: task id
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
-        hypernetwork_weights = hypernetwork.forward(cond_id=task)
-        masks = prepare_network_sparsity(
-            hypernetwork_weights,
-            sparsity_parameter
-        )
-        target_weights = apply_mask_to_weights_of_network(
-            target_network,
-            masks)
+        target_weights, _, _, _ = hypernetwork.forward(cond_id=task)
+        
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
@@ -951,8 +941,6 @@ if __name__ == "__main__":
             'target_hidden_layers': hyperparameters["target_hidden_layers"],
             'resnet_number_of_layer_groups': hyperparameters["resnet_number_of_layer_groups"],
             'resnet_widening_factor': hyperparameters["resnet_widening_factor"],
-            'adaptive_sparsity': hyperparameters["adaptive_sparsity"],
-            'sparsity_parameter': sparsity_parameter,
             'learning_rate': learning_rate,
             'best_model_selection_method': hyperparameters['best_model_selection_method'],
             'lr_scheduler': hyperparameters["lr_scheduler"],

@@ -154,7 +154,6 @@ def set_hyperparameters(dataset,
                 'embedding_sizes': [24],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
-                'norm_regularizer_masking_opts': [True, False],
                 'betas': [0.001, 0.0005, 0.005],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'sparsity_parameters': [0],
@@ -168,7 +167,7 @@ def set_hyperparameters(dataset,
             elif part == 1:
                 hyperparams['best_model_selection_method'] = 'last_model'
             hyperparams['saving_folder'] = (
-                './Results/grid_search_tanh/adaptive_sparsity/'
+                './Results/grid_search_tanh/'
                 f'permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/'
             )
 
@@ -177,12 +176,10 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'seed': [3],
                 'embedding_sizes': [24],
-                'sparsity_parameters': [0],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.0005],
                 'lambdas': [0.001],
-                'norm_regularizer_masking_opts': [True],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'best_model_selection_method': 'last_model'
             }
@@ -203,7 +200,6 @@ def set_hyperparameters(dataset,
         hyperparams['chunk_size'] = 100
         hyperparams['chunk_emb_size'] = 8
         hyperparams['use_chunks'] = False
-        hyperparams['adaptive_sparsity'] = True
         hyperparams['use_batch_norm'] = False
         # Directly related to the MNIST dataset
         hyperparams['padding'] = 2
@@ -215,13 +211,11 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 'seed': [5],
-                'sparsity_parameters': [0],
                 'embedding_sizes': [48],
                 'betas': [0.01],
                 'lambdas': [0.1],
                 'learning_rates': [0.001],
                 'batch_sizes': [32],
-                'norm_regularizer_masking_opts': [False],
                 'hypernetworks_hidden_layers': [[100]],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
@@ -259,7 +253,7 @@ def set_hyperparameters(dataset,
             else:
                 raise ValueError(f'Wrong argument: {part}!')
             hyperparams['saving_folder'] = (
-                './Results/grid_search_tanh/adaptive_sparsity/'
+                './Results/grid_search_tanh/'
                 f'CIFAR-100_single_seed/'
                 f'part_{part}_ResNet_stronger_reg/'
             )
@@ -269,12 +263,10 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'seed': [3],
                 'embedding_sizes': [48],
-                'sparsity_parameters': [0],
                 'betas': [0.01],
                 'lambdas': [1],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
-                'norm_regularizer_masking_opts': [False],
                 'hypernetworks_hidden_layers': [[100]],
                 'use_batch_norm': True,
                 'use_chunks': False,
@@ -290,17 +282,15 @@ def set_hyperparameters(dataset,
             elif part == 1:
                 hyperparams['embedding_sizes'] = [48]
                 hyperparams['hypernetworks_hidden_layers'] = [[100]]
-                hyperparams['sparsity_parameters'] = [0]
                 hyperparams['betas'] = [0.01]
                 hyperparams['lambdas'] = [0.01]
-                hyperparams['norm_regularizer_masking_opts'] = [False]
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
                 hyperparams['resnet_widening_factor'] = None
             else:
                 raise ValueError(f'Wrong argument: {part}!')
             hyperparams['saving_folder'] = (
-                './Results/grid_search_tanh/adaptive_sparsity/'
+                './Results/grid_search_tanh/'
                 f'CIFAR-100_single_seed/'
                 f'part_{part}_final_run/'
             )
@@ -318,7 +308,6 @@ def set_hyperparameters(dataset,
         hyperparams['chunk_size'] = 100
         hyperparams['chunk_emb_size'] = 32
         # hyperparams['use_chunks'] = False
-        hyperparams['adaptive_sparsity'] = True
         hyperparams['padding'] = None
         hyperparams['best_model_selection_method'] = 'val_loss'
 
@@ -327,10 +316,8 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
-                'norm_regularizer_masking_opts': [False],
                 'betas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
-                'sparsity_parameters': [0],
                 'lambdas': [0.001],
                 # seed is not for optimization but for ensuring multiple results
                 'seed': [1, 2, 3, 4, 5],
@@ -344,16 +331,12 @@ def set_hyperparameters(dataset,
                 hyperparams['embedding_sizes'] = [96]
                 hyperparams['hypernetworks_hidden_layers'] = [[50, 50]]
                 hyperparams['betas'] = [0.01]
-                hyperparams['sparsity_parameters'] = [30]
                 hyperparams['lambdas'] = [0.0001]
-            elif part == 2:
-                hyperparams['sparsity_parameters'] = [30]
-                hyperparams['norm_regularizer_masking_opts'] = [True]
             else:
                 raise ValueError('Not implemented subset of hyperparameters!')
 
             hyperparams['saving_folder'] = (
-                './Results/grid_search_tanh/adaptive_sparsity/'
+                './Results/grid_search_tanh/'
                 f'split_mnist/augmented/ICLR_models/part_{part}/'
             )
 
@@ -362,12 +345,10 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'seed': [3],
                 'embedding_sizes': [128],
-                'sparsity_parameters': [30],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001],
                 'lambdas': [0.001],
-                'norm_regularizer_masking_opts': [True],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'augmentation': True,
                 'best_model_selection_method': 'last_model',
@@ -388,7 +369,6 @@ def set_hyperparameters(dataset,
         hyperparams['chunk_emb_size'] = 96
         hyperparams['use_chunks'] = False
         hyperparams['use_batch_norm'] = False
-        hyperparams['adaptive_sparsity'] = True
         hyperparams['padding'] = None
         # hyperparams['best_model_selection_method'] = 'val_loss'
 
@@ -399,7 +379,6 @@ def set_hyperparameters(dataset,
     hyperparams['activation_function'] = torch.nn.ReLU()
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
-    hyperparams['save_consecutive_masks'] = False
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     hyperparams['perturbated_epsilon'] = 0.05
     hyperparams['calculate_area_mode'] = True
