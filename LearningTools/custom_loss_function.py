@@ -26,6 +26,10 @@ class IBP_Loss(nn.Module):
                        in the $L^{\infty}$ metric
         """
 
+        # calculate lower and upper logits
+        z_l = mu_pred - eps_pred
+        z_u = mu_pred + eps_pred
+
         # standard cross-entropy loss component
         loss_fit = self.bce_loss_func(mu_pred, y)
 
