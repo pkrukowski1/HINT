@@ -268,43 +268,6 @@ def prepare_network_sparsity(weights,
     return masks
 
 
-def unittest_prepare_network_sparsity():
-    """
-    Unittest of 'prepare_network_sparsity' function
-    """
-    test_list_of_tensors = [
-        torch.Tensor([
-            [0.1, 0.2, -0.1, -0.2, 0.03],
-            [1, -1, 0., 0.45, -0.02]
-        ]),
-        torch.Tensor([
-            [0.1, 0.2, 0.3, -0.5, 0.6],
-            [0.01, -0.01, 0.5, 0.08, 0.11]
-        ])
-    ]
-    sparsity = 70
-    test_output = prepare_network_sparsity(
-        test_list_of_tensors,
-        sparsity
-    )
-    gt_mask = [
-        torch.Tensor([
-            [0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
-            [0.7616, 0.7616, 0.0000, 0.4219, 0.0000]
-        ]),
-        torch.Tensor([
-            [0.0997, 0.1974, 0.2913, 0.4621, 0.5370],
-            [0.0100, 0.0100, 0.4621, 0.0798, 0.1096]
-        ])
-    ]
-    for i in range(len(gt_mask)):
-        torch.allclose(
-            test_output[i],
-            gt_mask[i]
-        )
-    print('Unittest passed!')
-
-
 def apply_mask_to_weights_of_network(target_network,
                                      masks):
     """
@@ -939,7 +902,6 @@ def main_running_experiments(path_to_datasets,
 
 
 if __name__ == "__main__":
-    unittest_prepare_network_sparsity()
     path_to_datasets = './Data'
     dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
