@@ -396,11 +396,13 @@ def set_hyperparameters(dataset,
         raise ValueError('This dataset is not implemented!')
 
     # General hyperparameters
-    hyperparams['activation_function'] = torch.nn.ELU()
+    hyperparams['activation_function'] = torch.nn.ReLU()
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['save_consecutive_masks'] = False
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    hyperparams['perturbated_epsilon'] = 0.05
+    hyperparams['calculate_area_mode'] = True
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)
     return hyperparams
 

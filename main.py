@@ -17,6 +17,8 @@ from datetime import datetime
 from itertools import product
 from torchpercentile import Percentile
 from copy import deepcopy
+from LearningTools.custom_loss_function import IBP_Loss
+from Models.hmlp_ibp import HMLP_IBP
 
 from datasets import (
     set_hyperparameters,
@@ -460,10 +462,8 @@ def train_single_task(hypernetwork,
                       dataset_list_of_tasks,
                       current_no_of_task):
     """
-    Train two neural networks: a hypernetwork will generate a sparse
-    binary mask and the weights of the target neural network are multiplied by
-    this binary mask creating a sparse network. This module operates
-    on a single training task with a specific number.
+    Train two neural networks: a hypernetwork will generate the weights of the target neural network.
+    This module operates on a single training task with a specific number.
 
     Arguments:
     ----------
@@ -744,8 +744,9 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         target_network
     )
     if not use_chunks:
-        hypernetwork = HMLP(
-            target_network.param_shapes[no_of_batch_norm_layers:],
+        hypernetwork = HMLP_IBP(
+            perturbated_eps=parameters['perturbated_epsilon']
+            target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
             uncond_in_size=0,
             cond_in_size=parameters['embedding_size'],
             activation_fn=parameters['activation_function'],
@@ -753,18 +754,19 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             num_cond_embs=parameters['number_of_tasks']).to(
                 parameters['device'])
     else:
-        hypernetwork = ChunkedHMLP(
-            target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
-            chunk_size=parameters['chunk_size'],
-            chunk_emb_size=parameters['chunk_emb_size'],
-            cond_in_size=parameters['embedding_size'],
-            activation_fn=parameters['activation_function'],
-            layers=parameters['hypernetwork_hidden_layers'],
-            num_cond_embs=parameters['number_of_tasks']).to(
-                parameters['device']
-        )
+        raise Exception("Not implemented yet!")
+        # hypernetwork = ChunkedHMLP(
+        #     target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
+        #     chunk_size=parameters['chunk_size'],
+        #     chunk_emb_size=parameters['chunk_emb_size'],
+        #     cond_in_size=parameters['embedding_size'],
+        #     activation_fn=parameters['activation_function'],
+        #     layers=parameters['hypernetwork_hidden_layers'],
+        #     num_cond_embs=parameters['number_of_tasks']).to(
+        #         parameters['device']
+        # )
 
-    criterion = nn.CrossEntropyLoss()
+    criterion = IBP_Loss(calculate_area=parameters['calculate_mode'])
     dataframe = pd.DataFrame(columns=[
         'after_learning_of_task', 'tested_task', 'accuracy'])
 
@@ -987,7 +989,9 @@ if __name__ == "__main__":
             'grid_search_folder': hyperparameters["saving_folder"],
             'save_masks': hyperparameters["save_consecutive_masks"],
             'name_suffix': f'mask_sparsity_{sparsity_parameter}',
-            'summary_results_filename': summary_results_filename
+            'summary_results_filename': summary_results_filename,
+            'calculation_mode': hyperparameters["calculation_mode"],
+            'perturbated_epsilon': hyperparameters["perturbated_epsilon"]
         }
 
         os.makedirs(parameters['saving_folder'], exist_ok=True)

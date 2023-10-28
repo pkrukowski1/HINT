@@ -22,9 +22,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, eps_perturbated=0.05): 
+    def __init__(self, perturbated_eps=0.05, *args, **kwargs): 
         super().__init__(activation_fn=nn.ReLU()) # for now only ReLU is supported
-        self.eps_perturbated = eps_perturbated
+        self.perturbated_eps = perturbated_eps
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
@@ -91,26 +91,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
-        eps_per_T = self.eps_perturbated * torch.ones_like(h) # perturbation radii
+        eps_per_T = self.perturbated_eps * torch.ones_like(h) # perturbation radii
 
-        # for i in range(0, len(self._hidden_dims), 2 if self._use_bias else 1):
-        #     b = None
-        #     if self._use_bias:
-        #         b = weights[i+1]
-
-        #     per_eps = per_eps @ torch.abs(weights[i]).T
-        #     h = h @ weights[i].T + b[i]
-
-        #     if self._act_fn is not None:
-        #         # Right now this method works only with ReLU function
-        #         # h = self._act_fn(h)
-
-        #         z_l, z_u = h - per_eps, h + per_eps
-        #         z_l, z_u = F.relu(z_l), F.relu(z_u)
-        #         h, per_eps = (z_u + z_l) / 2, (z_u - z_l) / 2
-
-        #     if self._dropout is not None:
-        #         h = self._dropout(h)
         for i in range(len(fc_weights)):
             eps_per_T = eps_per_T @ torch.abs(fc_weights[i]).T # Update radii
             h = h @ fc_weights[i].T + fc_biases[i]             # Update embeddings

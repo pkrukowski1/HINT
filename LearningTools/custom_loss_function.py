@@ -8,10 +8,10 @@ import torch.nn.functional as F
 
 class IBP_Loss(nn.Module):
 
-    def __init__(self, calculate_area=False):
+    def __init__(self, calculate_area_mode=False):
         super().__init__()
         self.bce_loss_func  = nn.CrossEntropyLoss()
-        self.calculate_area = calculate_area
+        self.calculate_area_mode = calculate_area_mode
     
     def forward(self, mu_pred, y, eps_pred, eps, kappa=0.5):
         """
@@ -40,7 +40,7 @@ class IBP_Loss(nn.Module):
         loss_spec = self.bce_loss_func(z,y)
 
         # MSE loss corresponding to lengths of radii
-        loss_eps = (eps_pred.sum(dim=1).mean() - eps.sum(dim=1).mean()).pow(2) if not self.calculate_area \
+        loss_eps = (eps_pred.sum(dim=1).mean() - eps.sum(dim=1).mean()).pow(2) if not self.calculate_area_mode \
               else (eps_pred.prod(dim=1).mean() - eps.prod(dim=1).mean()).pow(2)
 
         # total loss calculation
