@@ -556,21 +556,11 @@ def train_single_task(hypernetwork,
         )
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
-        # Get weights of the hypernetwork and apply binary mask
-        # to the target network
-        hnet_weights = hypernetwork.forward(cond_id=current_no_of_task)
 
-        current_sparsity_parameter = parameters['sparsity_parameter']
-        if current_no_of_task == 0 and parameters['adaptive_sparsity']:
-            current_sparsity_parameter = calculate_current_threshold(
-                iteration + 1,
-                parameters['sparsity_parameter'],
-                parameters['number_of_iterations']
-            )
-        masks = prepare_network_sparsity(
-            hnet_weights,
-            current_sparsity_parameter
-        )
+        # Get weights, lower logit, upper logit and radii
+        # returned by the hypernetwork
+        target_weights, z_l, z_u, radii_pred = hypernetwork.forward(cond_id=current_no_of_task)
+
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
             # Add another regularizer for weights, e.g. according
@@ -578,18 +568,15 @@ def train_single_task(hypernetwork,
             # changes in weights between consecutive tasks.
             # ATTENTION! This norm is not calculated for batch
             # normalization layers
-            # This norm is applied BEFORE the multiplication by
-            # mask from the hypernetwork
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network)
-            for no_of_layer in range(len(masks)):
+            for no_of_layer in range(len(list(target_network.children()))):
                 if parameters['norm_regularizer_masking']:
                     loss_norm_target_regularizer += torch.norm(
                         (target_network.weights[
                             no_of_layer + no_of_batch_norm_layers] -
                          previous_target_weights[
-                             no_of_layer + no_of_batch_norm_layers]) *
-                        masks[no_of_layer],
+                             no_of_layer + no_of_batch_norm_layers]),
                         p=parameters['norm']
                     )
                 else:
@@ -600,15 +587,20 @@ def train_single_task(hypernetwork,
                             no_of_layer + no_of_batch_norm_layers],
                         p=parameters['norm']
                     )
-        target_weights = apply_mask_to_weights_of_network(
-            target_network,
-            masks)
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
         prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
-        loss_current_task = criterion(prediction, gt_output)
+
+        # TODO Add kappa parameter scheduling
+        loss_current_task = criterion(
+            y_pred=prediction,
+            y=gt_output,
+            eps_pred=radii_pred,
+            z_l=z_l,
+            z_u=z_u
+        )
         loss_regularization = 0.
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -662,15 +654,7 @@ def train_single_task(hypernetwork,
                     best_val_accuracy = accuracy
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
-            if parameters['save_masks']:
-                filename = (
-                    f'mask_task_{current_no_of_task}_'
-                    f'iteration_{iteration}_'
-                )
-                write_pickle_file(
-                    f'{parameters["saving_folder"]}/{filename}',
-                    masks
-                )
+            
             if parameters['number_of_epochs'] is not None and \
                parameters['lr_scheduler'] and \
                (((iteration + 1) % no_of_iterations_per_epoch) == 0):
@@ -745,7 +729,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     )
     if not use_chunks:
         hypernetwork = HMLP_IBP(
-            perturbated_eps=parameters['perturbated_epsilon']
+            perturbated_eps=parameters['perturbated_epsilon'],
             target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
             uncond_in_size=0,
             cond_in_size=parameters['embedding_size'],
@@ -766,7 +750,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         #         parameters['device']
         # )
 
-    criterion = IBP_Loss(calculate_area=parameters['calculate_mode'])
+    criterion = IBP_Loss(calculate_area_mode=parameters['calculate_area_mode'])
     dataframe = pd.DataFrame(columns=[
         'after_learning_of_task', 'tested_task', 'accuracy'])
 
