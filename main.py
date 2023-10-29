@@ -419,7 +419,11 @@ def train_single_task(hypernetwork,
 
         # Get weights, lower logit, upper logit and radii
         # returned by the hypernetwork
-        target_weights, z_l, z_u, radii_pred = hypernetwork.forward(cond_id=current_no_of_task)
+        target_weights = hypernetwork.forward(cond_id=current_no_of_task,
+                                                ibp_mode=False)
+        
+        z_l, z_u, mu_pred, _ = hypernetwork.forward(cond_id=current_no_of_task,
+                                                           ibp_mode=True)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -441,7 +445,7 @@ def train_single_task(hypernetwork,
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-        prediction     = target_network.forward(tensor_input,
+        prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
        
         eps = hyperparameters["perturbated_epsilon"] * torch.ones_like(tensor_input)
@@ -450,8 +454,7 @@ def train_single_task(hypernetwork,
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
-            eps_pred=radii_pred,
-            eps=eps,
+            mu_pred=mu_pred,
             z_l=z_l,
             z_u=z_u
         )

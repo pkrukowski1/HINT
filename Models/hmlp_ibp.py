@@ -23,11 +23,13 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, target_shapes, perturbated_eps=0.05, dim_hidden=100): 
-        super().__init__(target_shapes=target_shapes, activation_fn=nn.ReLU()) # for now only ReLU is supported
-        self.perturbated_eps = perturbated_eps
+    def __init__(self, target_shapes, cond_in_size, dim_hidden=100, *args, **kwargs): 
+        super().__init__(target_shapes=target_shapes, cond_in_size=cond_in_size, activation_fn=nn.ReLU()) # for now only ReLU is supported
+        self.perturbated_eps = kwargs['perturbated_eps']
+        self.dim_in  = cond_in_size
+        self.dim_out = cond_in_size
         self.ibp_layers = nn.ModuleList([
-                            nn.Linear(self._cond_in_size, dim_hidden),
+                            nn.Linear(self.dim_in, dim_hidden),
                             nn.ReLU(),
                             nn.Linear(dim_hidden, dim_hidden),
                             nn.ReLU(),
@@ -35,7 +37,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                             nn.ReLU(),
                             nn.Linear(dim_hidden, dim_hidden),
                             nn.ReLU(),
-                            nn.Linear(dim_hidden, self._cond_in_size)
+                            nn.Linear(dim_hidden, self.dim_out)
                         ])
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
@@ -108,7 +110,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         if not ibp_mode:
             for i in range(len(fc_weights)):
                 last_layer = i == (len(fc_weights) - 1)
-
                 h = F.linear(h, fc_weights[i], bias=fc_biases[i])
 
                 if not last_layer:
@@ -117,7 +118,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                         h = self.batchnorm_layers[i].forward(h, running_mean=None,
                             running_var=None, weight=bn_scales[i],
                             bias=bn_shifts[i], stats_id=condition)
-
+                    
                     # Dropout
                     if self._dropout_rate != -1:
                         h = self._dropout(h)
@@ -125,22 +126,37 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     # Non-linearity
                     if self._act_fn is not None:
                         h = self._act_fn(h)
-
+                    
             ### Split output into target shapes ###
             ret = self._flat_to_ret_format(h, ret_format)
-
             return ret
         
         # ibp head
         else:
-            for layer in self.ibp_layers:
+            eps = self.perturbated_eps * torch.ones_like(h)
+
+            h, eps = h.T, eps.T
+
+            middle_layers = self.ibp_layers[:-1]
+            last_layer    = self.ibp_layers[-1]
+
+            for layer in middle_layers:
                 if isinstance(layer, nn.Linear):
-                    mu  = layer._parameters["weight"] @ mu + layer._parameters["bias"][:,None]
+                    h  = layer._parameters["weight"] @ h + layer._parameters["bias"][:,None]
                     eps = torch.abs(layer._parameters["weight"]) @ eps
                 elif isinstance(layer, nn.ReLU):
-                    z_l, z_u = mu - eps, mu + eps
+                    z_l, z_u = h - eps, h + eps
                     z_l, z_u = F.relu(z_l), F.relu(z_u)
-                    mu, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
+                    h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
                 else:
                     raise NotImplementedError
-            return z_l, z_u, mu, eps
+
+            h  = last_layer._parameters["weight"] @ h + last_layer._parameters["bias"][:,None]
+            eps = torch.abs(last_layer._parameters["weight"]) @ eps
+            z_l, z_u = h - eps, h + eps
+            z_l, z_u = F.relu(z_l), F.relu(z_u)
+            h, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
+
+            h, eps = h.T, eps.T
+
+            return z_l, z_u, h, eps

@@ -151,7 +151,7 @@ def set_hyperparameters(dataset,
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [24],
+                'embedding_sizes': [128],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001, 0.0005, 0.005],
@@ -189,7 +189,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 100
+        hyperparams['number_of_iterations'] = 500
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]
