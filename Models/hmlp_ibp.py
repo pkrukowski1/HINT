@@ -8,6 +8,7 @@ from hypnettorch.hnets.hnet_interface import HyperNetInterface
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class HMLP_IBP(HMLP, HyperNetInterface):
 
@@ -22,13 +23,24 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, perturbated_eps=0.05, *args, **kwargs): 
-        super().__init__(activation_fn=nn.ReLU()) # for now only ReLU is supported
+    def __init__(self, target_shapes, perturbated_eps=0.05, dim_hidden=100): 
+        super().__init__(target_shapes=target_shapes, activation_fn=nn.ReLU()) # for now only ReLU is supported
         self.perturbated_eps = perturbated_eps
+        self.ibp_layers = nn.ModuleList([
+                            nn.Linear(self._cond_in_size, dim_hidden),
+                            nn.ReLU(),
+                            nn.Linear(dim_hidden, dim_hidden),
+                            nn.ReLU(),
+                            nn.Linear(dim_hidden, dim_hidden),
+                            nn.ReLU(),
+                            nn.Linear(dim_hidden, dim_hidden),
+                            nn.ReLU(),
+                            nn.Linear(dim_hidden, self._cond_in_size)
+                        ])
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
-                ret_format='squeezed'):
+                ret_format='squeezed', ibp_mode=False):
         """Compute the weights of a target network.
 
         Args:
@@ -91,20 +103,44 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
-        eps_per_T = self.perturbated_eps * torch.ones_like(h) # perturbation radii
 
-        for i in range(len(fc_weights)):
-            eps_per_T = eps_per_T @ torch.abs(fc_weights[i]).T # Update radii
-            h = h @ fc_weights[i].T + fc_biases[i]             # Update embeddings
+        # Weight head
+        if not ibp_mode:
+            for i in range(len(fc_weights)):
+                last_layer = i == (len(fc_weights) - 1)
 
-            # Apply non-linearity
-            h = self._act_fn(h)
+                h = F.linear(h, fc_weights[i], bias=fc_biases[i])
 
-            # Calculate lower and upper logit
-            z_l, z_u = h - eps_per_T, h + eps_per_T
-            z_l, z_u = self._act_fn(z_l), self._act_fn(z_u)            
+                if not last_layer:
+                    # Batch-norm
+                    if self._use_batch_norm:
+                        h = self.batchnorm_layers[i].forward(h, running_mean=None,
+                            running_var=None, weight=bn_scales[i],
+                            bias=bn_shifts[i], stats_id=condition)
 
-        ### Split output into target shapes ###
-        ret = self._flat_to_ret_format(h, ret_format)
+                    # Dropout
+                    if self._dropout_rate != -1:
+                        h = self._dropout(h)
 
-        return ret, z_l, z_u, eps_per_T
+                    # Non-linearity
+                    if self._act_fn is not None:
+                        h = self._act_fn(h)
+
+            ### Split output into target shapes ###
+            ret = self._flat_to_ret_format(h, ret_format)
+
+            return ret
+        
+        # ibp head
+        else:
+            for layer in self.ibp_layers:
+                if isinstance(layer, nn.Linear):
+                    mu  = layer._parameters["weight"] @ mu + layer._parameters["bias"][:,None]
+                    eps = torch.abs(layer._parameters["weight"]) @ eps
+                elif isinstance(layer, nn.ReLU):
+                    z_l, z_u = mu - eps, mu + eps
+                    z_l, z_u = F.relu(z_l), F.relu(z_u)
+                    mu, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
+                else:
+                    raise NotImplementedError
+            return z_l, z_u, mu, eps

@@ -80,26 +80,6 @@ def get_shapes_of_network(model):
     return shapes_of_model
 
 
-def calculate_current_threshold(current_iteration,
-                                max_sparsity,
-                                no_of_last_iteration):
-    """
-    Change the value of sparsity according to the current number
-    of iteration, the number of iteration for which sparsity
-    should achieve the maximum level, and the desired maximum level
-    of sparsity.
-    """
-    assert current_iteration >= 0.
-    assert no_of_last_iteration >= 0.
-    assert 100. >= max_sparsity >= 0.
-    if current_iteration >= no_of_last_iteration:
-        return max_sparsity
-    else:
-        coefficient = max_sparsity / no_of_last_iteration
-        current_sparsity = coefficient * current_iteration
-        return current_sparsity
-
-
 def calculate_number_of_iterations(number_of_samples,
                                    batch_size,
                                    number_of_epochs):
@@ -219,115 +199,6 @@ def calculate_accuracy(data,
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
                     gt_classes.numel()) * 100.
     return accuracy
-
-
-def prepare_network_sparsity(weights,
-                             threshold,
-                             verbose=False):
-    """
-    Function for selection of top N% of weights in consecutive
-    network layers
-
-    Arguments:
-    ----------
-       *weights*: list of torch.Tensor objects containing weights
-                  of the network
-       *threshold*: float from the range (0, 100) for the selection
-                    of most important weights
-       *verbose*: optional Boolean defining whether additional information
-                  should be written
-
-    Returns:
-    --------
-       *masks*: list of torch.Tensor objects containing binary
-                values indicating which weights were selected
-                as the most important ones (1) and which ones
-                are considered as the insignificant ones
-    """
-    masks = []
-    for i in range(len(weights)):
-        revalued_layer = torch.abs(torch.tanh(weights[i]))
-        if i < (len(weights) - 1):
-            percentile_value = Percentile()(
-                revalued_layer.flatten(), [threshold])
-            assert type(percentile_value.item()) == float
-            zeros_weights = torch.zeros(revalued_layer.shape,
-                                        device=revalued_layer.device)
-            mask = torch.where(
-                revalued_layer >= percentile_value,
-                revalued_layer,
-                zeros_weights
-            )
-            masks.append(mask)
-        else:
-            masks.append(revalued_layer)
-
-        if verbose:
-            ratio = torch.sum(masks[-1] > 0.).item() / torch.numel(masks[-1])
-            print(f'The ratio of non-zero elements: {ratio}')
-
-    return masks
-
-
-def apply_mask_to_weights_of_network(target_network,
-                                     masks):
-    """
-    Multiply each weight of the *target_network* by the value
-    defined in the *masks* list
-
-    Arguments:
-    ----------
-       *target_network*: an instance of the hypnettorch.mnets, i.e.
-                         a network which will be a target
-                         network in tandem with a hypernetwork
-       *masks*: list of torch.Tensor objects containing values
-                of masks for the target network
-
-    Returns:
-    --------
-       A modified weights of the target network
-    """
-    num_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
-    print(f'num of batch norm layers: {num_of_batch_norm_layers}')
-    if 'weights' in dir(target_network):
-        target_network_weights = target_network.weights
-    else:
-        target_network_weights = target_network
-
-    if type(target_network_weights) == list:
-        total_no_of_layers = len(target_network_weights)
-    else:
-        total_no_of_layers = len([*target_network_weights.parameters()])
-    print(f'len masks: {len(masks)}')
-    print(f'total no of layers: {total_no_of_layers}')
-
-    if num_of_batch_norm_layers > 0:
-        assert (len(masks) + num_of_batch_norm_layers) == \
-            total_no_of_layers
-    else:
-        assert len(masks) == total_no_of_layers
-
-    masked_weights = []
-    if num_of_batch_norm_layers > 0:
-        # Append batch normalization layers, if any
-        for i in range(num_of_batch_norm_layers):
-            masked_weights.append(target_network_weights[i])
-    # Batch normalization layers are located at the beginning
-    # of the network's parameter list
-    for no_of_layer in range(len(masks)):
-        assert masks[no_of_layer].shape == \
-            target_network_weights[no_of_layer + num_of_batch_norm_layers].shape
-        if no_of_layer == len(masks) - 1:
-            masked_weights.append(
-                target_network_weights[no_of_layer + num_of_batch_norm_layers])
-        else:
-            masked_weights.append(
-                target_network_weights[no_of_layer + num_of_batch_norm_layers] *
-                masks[no_of_layer])
-    return masked_weights
-
 
 def evaluate_previous_tasks(hypernetwork,
                             target_network,
@@ -560,33 +431,27 @@ def train_single_task(hypernetwork,
             no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
                 target_network)
             for no_of_layer in range(len(list(target_network.children()))):
-                if parameters['norm_regularizer_masking']:
-                    loss_norm_target_regularizer += torch.norm(
-                        (target_network.weights[
-                            no_of_layer + no_of_batch_norm_layers] -
-                         previous_target_weights[
-                             no_of_layer + no_of_batch_norm_layers]),
-                        p=parameters['norm']
-                    )
-                else:
-                    loss_norm_target_regularizer += torch.norm(
-                        target_network.weights[
-                            no_of_layer + no_of_batch_norm_layers] -
-                        previous_target_weights[
-                            no_of_layer + no_of_batch_norm_layers],
-                        p=parameters['norm']
-                    )
+                loss_norm_target_regularizer += torch.norm(
+                    target_network.weights[
+                        no_of_layer + no_of_batch_norm_layers] -
+                    previous_target_weights[
+                        no_of_layer + no_of_batch_norm_layers],
+                    p=parameters['norm']
+                )
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-        prediction = target_network.forward(tensor_input,
+        prediction     = target_network.forward(tensor_input,
                                             weights=target_weights)
+       
+        eps = hyperparameters["perturbated_epsilon"] * torch.ones_like(tensor_input)
 
         # TODO Add kappa parameter scheduling
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
             eps_pred=radii_pred,
+            eps=eps,
             z_l=z_l,
             z_u=z_u
         )
@@ -739,7 +604,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         #         parameters['device']
         # )
 
-    criterion = IBP_Loss(calculate_area_mode=parameters['calculate_area_mode'])
+    criterion = IBP_Loss(calculation_area_mode=parameters['calculation_area_mode'])
     dataframe = pd.DataFrame(columns=[
         'after_learning_of_task', 'tested_task', 'accuracy'])
 
@@ -777,7 +642,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             target_network,
             dataframe,
             dataset_list_of_tasks,
-            parameters['sparsity_parameter'],
             parameters={
                 'device': parameters['device'],
                 'use_batch_norm_memory': use_batch_norm_memory,
@@ -789,7 +653,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             'tested_task': 'int'
         })
         dataframe.to_csv(f'{parameters["saving_folder"]}/'
-                         f'results_{parameters["name_suffix"]}.csv',
+                         f'results.csv',
                          sep=';')
     return hypernetwork, target_network, dataframe
 
@@ -860,7 +724,7 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
-        f'{parameters["beta"]};{parameters["sparsity_parameter"]};'
+        f'{parameters["beta"]};'
         f'{parameters["norm"]};{parameters["lambda"]};'
         f'{np.mean(accuracies)};{np.std(accuracies)}'
     )
@@ -871,14 +735,14 @@ def main_running_experiments(path_to_datasets,
     )
 
     load_path = (f'{parameters["saving_folder"]}/'
-                 f'results_{parameters["name_suffix"]}.csv')
+                 f'results.csv')
     plot_heatmap(load_path)
     return hypernetwork, target_network, dataframe
 
 
 if __name__ == "__main__":
     path_to_datasets = './Data'
-    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
     create_grid_search = True
     if create_grid_search:
@@ -894,8 +758,7 @@ if __name__ == "__main__":
         'dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;'
         'use_chunks;chunk_emb_size;target_network;target_hidden_layers;'
         'layer_groups;widening;norm_regularizer_masking;final_model;optimizer;'
-        'hypernet_activation_function;learning_rate;batch_size;beta;'
-        'sparsity;norm;lambda;mean_accuracy;std_accuracy'
+        'hypernet_activation_function;learning_rate;batch_size;beta;norm;lambda;mean_accuracy;std_accuracy'
     )
     append_row_to_file(
         f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv',
@@ -907,23 +770,19 @@ if __name__ == "__main__":
                 hyperparameters["learning_rates"],
                 hyperparameters["betas"],
                 hyperparameters["hypernetworks_hidden_layers"],
-                hyperparameters["sparsity_parameters"],
                 hyperparameters["lambdas"],
                 hyperparameters["batch_sizes"],
-                hyperparameters["norm_regularizer_masking_opts"],
                 hyperparameters["seed"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
         beta = elements[2]
         hypernetwork_hidden_layers = elements[3]
-        sparsity_parameter = elements[4]
-        lambda_par = elements[5]
-        batch_size = elements[6]
-        norm_regularizer_masking = elements[7]
+        lambda_par = elements[4]
+        batch_size = elements[5]
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
-        seed = elements[8]
+        seed = elements[6]
 
         parameters = {
             'input_shape': hyperparameters["shape"],
@@ -932,7 +791,6 @@ if __name__ == "__main__":
             'seed': seed,
             'hypernetwork_hidden_layers': hypernetwork_hidden_layers,
             'activation_function': hyperparameters["activation_function"],
-            'norm_regularizer_masking': norm_regularizer_masking,
             'use_chunks': hyperparameters["use_chunks"],
             'chunk_size': hyperparameters["chunk_size"],
             'chunk_emb_size': hyperparameters["chunk_emb_size"],
@@ -958,10 +816,8 @@ if __name__ == "__main__":
             'device': hyperparameters["device"],
             'saving_folder': f'{hyperparameters["saving_folder"]}{no}/',
             'grid_search_folder': hyperparameters["saving_folder"],
-            'save_masks': hyperparameters["save_consecutive_masks"],
-            'name_suffix': f'mask_sparsity_{sparsity_parameter}',
             'summary_results_filename': summary_results_filename,
-            'calculation_mode': hyperparameters["calculation_mode"],
+            'calculation_area_mode': hyperparameters["calculation_area_mode"],
             'perturbated_epsilon': hyperparameters["perturbated_epsilon"]
         }
 
@@ -969,7 +825,7 @@ if __name__ == "__main__":
         # start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_parameters(parameters["saving_folder"],
                         parameters,
-                        name=f'parameters_{parameters["name_suffix"]}.csv')
+                        name=f'parameters.csv')
 
         # Important! Seed is set before the preparation of the dataset!
         if seed is not None:
