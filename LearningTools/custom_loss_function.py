@@ -13,7 +13,7 @@ class IBP_Loss(nn.Module):
         self.bce_loss_func         = nn.CrossEntropyLoss()
         self.calculation_area_mode = calculation_area_mode
     
-    def forward(self, y_pred, y, mu_pred, z_l, z_u, kappa=0.5):
+    def forward(self, y_pred, y, z_l, z_u, kappa=0.5):
         """
         Arguments:
         ----------
@@ -31,7 +31,7 @@ class IBP_Loss(nn.Module):
         loss_fit = self.bce_loss_func(y_pred, y)
 
         # worst-case loss component
-        tmp = nn.functional.one_hot(y, mu_pred.size(-1))
+        tmp = nn.functional.one_hot(y, y_pred.size(-1))
         
         z = torch.where(tmp.bool(), z_l, z_u)
 

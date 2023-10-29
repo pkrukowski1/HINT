@@ -251,7 +251,7 @@ def evaluate_previous_tasks(hypernetwork,
         # output: task id
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
-        target_weights, _, _, _ = hypernetwork.forward(cond_id=task)
+        target_weights, _, _ = hypernetwork.forward(cond_id=task)
         
         accuracy = calculate_accuracy(
             currently_tested_task,
@@ -419,11 +419,8 @@ def train_single_task(hypernetwork,
 
         # Get weights, lower logit, upper logit and radii
         # returned by the hypernetwork
-        target_weights = hypernetwork.forward(cond_id=current_no_of_task,
-                                                ibp_mode=False)
         
-        z_l, z_u, mu_pred, _ = hypernetwork.forward(cond_id=current_no_of_task,
-                                                           ibp_mode=True)
+        target_weights, z_l, z_u = hypernetwork.forward(cond_id=current_no_of_task)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -447,6 +444,10 @@ def train_single_task(hypernetwork,
         # give 'current_no_of_task' as a value for the 'condition' argument.
         prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
+        prediction_zu = target_network.forward(tensor_input,
+                                                weights=z_u)
+        prediction_zl = target_network.forward(tensor_input,
+                                                weights=z_l)
        
         eps = hyperparameters["perturbated_epsilon"] * torch.ones_like(tensor_input)
 
@@ -454,9 +455,8 @@ def train_single_task(hypernetwork,
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
-            mu_pred=mu_pred,
-            z_l=z_l,
-            z_u=z_u
+            z_l=prediction_zl,
+            z_u=prediction_zu
         )
         loss_regularization = 0.
         if current_no_of_task > 0:

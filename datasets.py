@@ -189,7 +189,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 500
+        hyperparams['number_of_iterations'] = 10
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]

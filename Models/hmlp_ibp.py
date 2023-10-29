@@ -42,7 +42,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
-                ret_format='squeezed', ibp_mode=False):
+                ret_format='squeezed'):
         """Compute the weights of a target network.
 
         Args:
@@ -106,57 +106,66 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         ### Process inputs through network ###
 
-        # Weight head
-        if not ibp_mode:
-            for i in range(len(fc_weights)):
-                last_layer = i == (len(fc_weights) - 1)
-                h = F.linear(h, fc_weights[i], bias=fc_biases[i])
+        eps = self.perturbated_eps * torch.ones_like(h)
 
-                if not last_layer:
-                    # Batch-norm
-                    if self._use_batch_norm:
-                        h = self.batchnorm_layers[i].forward(h, running_mean=None,
-                            running_var=None, weight=bn_scales[i],
-                            bias=bn_shifts[i], stats_id=condition)
-                    
-                    # Dropout
-                    if self._dropout_rate != -1:
-                        h = self._dropout(h)
+        for i in range(len(fc_weights)):
+            last_layer = i == (len(fc_weights) - 1)
+            h = F.linear(h, fc_weights[i], bias=fc_biases[i])
+            eps = F.linear(eps, fc_weights[i], bias=torch.zeros_like(fc_biases[i]))
 
-                    # Non-linearity
-                    if self._act_fn is not None:
-                        h = self._act_fn(h)
-                    
-            ### Split output into target shapes ###
-            ret = self._flat_to_ret_format(h, ret_format)
-            return ret
+            if not last_layer:
+                # Batch-norm
+                if self._use_batch_norm:
+                    h = self.batchnorm_layers[i].forward(h, running_mean=None,
+                        running_var=None, weight=bn_scales[i],
+                        bias=bn_shifts[i], stats_id=condition)
+                
+                # Dropout
+                if self._dropout_rate != -1:
+                    h = self._dropout(h)
+
+                # Non-linearity
+                if self._act_fn is not None:
+                    h = self._act_fn(h)
+                    z_l, z_u = h - eps, h + eps
+                    z_l, z_u = self._act_fn(z_l), self._act_fn(z_u)
+                    h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
+
+        z_l, z_u = h - eps, h + eps
+
+        ### Split output into target shapes ###
+        ret = self._flat_to_ret_format(h, ret_format)
+        ret_zl = self._flat_to_ret_format(z_l, ret_format)
+        ret_zu = self._flat_to_ret_format(z_u, ret_format)
+
+        return ret, ret_zl, ret_zu
         
         # ibp head
-        else:
-            eps = self.perturbated_eps * torch.ones_like(h)
+        # else:
+        #     eps = self.perturbated_eps * torch.ones_like(h)
 
-            h, eps = h.T, eps.T
+        #     h, eps = h.T, eps.T
 
-            middle_layers = self.ibp_layers[:-1]
-            last_layer    = self.ibp_layers[-1]
+        #     middle_layers = self.ibp_layers[:-1]
+        #     last_layer    = self.ibp_layers[-1]
 
-            for layer in middle_layers:
-                if isinstance(layer, nn.Linear):
-                    h  = layer._parameters["weight"] @ h + layer._parameters["bias"][:,None]
-                    eps = torch.abs(layer._parameters["weight"]) @ eps
-                elif isinstance(layer, nn.ReLU):
-                    z_l, z_u = h - eps, h + eps
-                    z_l, z_u = F.relu(z_l), F.relu(z_u)
-                    h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
-                else:
-                    raise NotImplementedError
+        #     for layer in middle_layers:
+        #         if isinstance(layer, nn.Linear):
+        #             h  = layer._parameters["weight"] @ h + layer._parameters["bias"][:,None]
+        #             eps = torch.abs(layer._parameters["weight"]) @ eps
+        #         elif isinstance(layer, nn.ReLU):
+        #             z_l, z_u = h - eps, h + eps
+        #             z_l, z_u = F.relu(z_l), F.relu(z_u)
+        #             h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
+        #         else:
+        #             raise NotImplementedError
 
-            h  = last_layer._parameters["weight"] @ h + last_layer._parameters["bias"][:,None]
-            eps = torch.abs(last_layer._parameters["weight"]) @ eps
-            z_l, z_u = h - eps, h + eps
-            z_l, z_u = F.relu(z_l), F.relu(z_u)
-            h, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
+        #     h  = last_layer._parameters["weight"] @ h + last_layer._parameters["bias"][:,None]
+        #     eps = torch.abs(last_layer._parameters["weight"]) @ eps
+        #     z_l, z_u = h - eps, h + eps
+        #     z_l, z_u = F.relu(z_l), F.relu(z_u)
+        #     h, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
 
-            h, eps = h.T, eps.T
+        #     h, eps = h.T, eps.T
 
-            return z_l, z_u, h, eps
+            # return z_l, z_u, h, eps
