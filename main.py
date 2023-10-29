@@ -251,7 +251,7 @@ def evaluate_previous_tasks(hypernetwork,
         # output: task id
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
-        target_weights, _, _ = hypernetwork.forward(cond_id=task)
+        target_weights = hypernetwork.forward(cond_id=task)
         
         accuracy = calculate_accuracy(
             currently_tested_task,
@@ -420,7 +420,8 @@ def train_single_task(hypernetwork,
         # Get weights, lower logit, upper logit and radii
         # returned by the hypernetwork
         
-        target_weights, z_l, z_u = hypernetwork.forward(cond_id=current_no_of_task)
+        target_weights, z_l, z_u = hypernetwork.forward(cond_id=current_no_of_task, 
+                                                        calculate_edge_logits=True)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:

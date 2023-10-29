@@ -42,5 +42,4 @@ class IBP_Loss(nn.Module):
 
         # total loss calculation
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec #+ loss_eps
-        
         return total_loss

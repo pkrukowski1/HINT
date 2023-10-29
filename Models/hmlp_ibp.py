@@ -42,7 +42,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
-                ret_format='squeezed'):
+                ret_format='squeezed', calculate_edge_logits = False):
         """Compute the weights of a target network.
 
         Args:
@@ -135,10 +135,13 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
-        ret_zl = self._flat_to_ret_format(z_l, ret_format)
-        ret_zu = self._flat_to_ret_format(z_u, ret_format)
+        if calculate_edge_logits:
+            ret_zl = self._flat_to_ret_format(z_l, ret_format)
+            ret_zu = self._flat_to_ret_format(z_u, ret_format)
 
-        return ret, ret_zl, ret_zu
+            return ret, ret_zl, ret_zu
+        else:
+            return ret
         
         # ibp head
         # else:
