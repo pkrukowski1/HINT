@@ -29,17 +29,22 @@ class IBP_Loss(nn.Module):
         total_loss (torch.Tensor): total calculated loss
         """
 
-        # standard cross-entropy loss component
+        # Standard cross-entropy loss component
         loss_fit = self.bce_loss_func(y_pred, y)
 
-        # worst-case loss component
+        # Worst-case loss component
         tmp = nn.functional.one_hot(y, y_pred.size(-1))
         
-        # calculate worst-case prediction logits
+        # Calculate worst-case prediction logits
         z = torch.where(tmp.bool(), z_l, z_u)
 
+        # Calculate worst case component error
         loss_spec = self.bce_loss_func(z,y)
         
+        # Calculate total loss
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec
+        
+        # worst_case_err = (z.argmax(dim=1) != y).float().sum()
+        # print(f"Worst case error: {worst_case_err:.10f}")
 
         return total_loss
