@@ -382,6 +382,7 @@ def set_hyperparameters(dataset,
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     hyperparams['perturbated_epsilon'] = 0.05
     hyperparams['calculation_area_mode'] = True
+    hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)
     return hyperparams
 

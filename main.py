@@ -114,8 +114,7 @@ def get_number_of_batch_normalization_layer(target_network):
 
     Arguments:
     ----------
-      *target_network* (hypnettorch.mnets instance) a target network for which
-                       a mask will be created
+      *target_network* (hypnettorch.mnets instance) a target network
     """
     if 'batchnorm_layers' in dir(target_network):
         if target_network.batchnorm_layers is None:
@@ -417,11 +416,10 @@ def train_single_task(hypernetwork,
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
-        # Get weights, lower logit, upper logit and radii
+        # Get weights, lower weights and upper weights
         # returned by the hypernetwork
-        
-        target_weights, z_l, z_u = hypernetwork.forward(cond_id=current_no_of_task, 
-                                                        calculate_edge_logits=True)
+        target_weights, lower_weights, upper_weights = hypernetwork.forward(cond_id=current_no_of_task, 
+                                                                            calculate_edge_logits=True)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -446,19 +444,27 @@ def train_single_task(hypernetwork,
         prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
         prediction_zu = target_network.forward(tensor_input,
-                                                weights=z_u)
+                                                weights=upper_weights)
         prediction_zl = target_network.forward(tensor_input,
-                                                weights=z_l)
+                                                weights=lower_weights)
        
         eps = hyperparameters["perturbated_epsilon"] * torch.ones_like(tensor_input)
+        
+        # The kappa hyperparameter scheduling
+        if iteration < hyperparameters["number_of_iterations"] // 2:
+            kappa = max(1 - 0.00005*iteration, hyperparameters["kappa"])
+        else:
+            kappa = hyperparameters["kappa"]
 
         # TODO Add kappa parameter scheduling
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
             z_l=prediction_zl,
-            z_u=prediction_zu
+            z_u=prediction_zu,
+            kappa=kappa
         )
+
         loss_regularization = 0.
         if current_no_of_task > 0:
             loss_regularization = hreg.calc_fix_target_reg(
@@ -723,7 +729,6 @@ def main_running_experiments(path_to_datasets,
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
         f'{parameters["resnet_widening_factor"]};'
-        f'{parameters["norm_regularizer_masking"]};'
         f'{parameters["best_model_selection_method"]};'
         f'{parameters["optimizer"]};'
         f'{parameters["activation_function"]};'
@@ -748,7 +753,7 @@ if __name__ == "__main__":
     path_to_datasets = './Data'
     dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
-    create_grid_search = True
+    create_grid_search = False
     if create_grid_search:
         summary_results_filename = 'grid_search_results'
     else:
@@ -761,7 +766,7 @@ if __name__ == "__main__":
     header = (
         'dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;'
         'use_chunks;chunk_emb_size;target_network;target_hidden_layers;'
-        'layer_groups;widening;norm_regularizer_masking;final_model;optimizer;'
+        'layer_groups;widening;final_model;optimizer;'
         'hypernet_activation_function;learning_rate;batch_size;beta;norm;lambda;mean_accuracy;std_accuracy'
     )
     append_row_to_file(
@@ -822,7 +827,8 @@ if __name__ == "__main__":
             'grid_search_folder': hyperparameters["saving_folder"],
             'summary_results_filename': summary_results_filename,
             'calculation_area_mode': hyperparameters["calculation_area_mode"],
-            'perturbated_epsilon': hyperparameters["perturbated_epsilon"]
+            'perturbated_epsilon': hyperparameters["perturbated_epsilon"],
+            'kappa': hyperparameters["kappa"]
         }
 
         os.makedirs(parameters['saving_folder'], exist_ok=True)
