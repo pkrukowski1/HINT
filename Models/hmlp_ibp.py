@@ -105,7 +105,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
-        # fc_weights = [torch.abs(fc_weights[i]) for i in range(len(fc_weights))]
         eps = self.perturbated_eps * torch.ones_like(h)
 
         for i in range(len(fc_weights)):
@@ -143,32 +142,4 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         else:
             return ret
         
-        # ibp head
-        # else:
-        #     eps = self.perturbated_eps * torch.ones_like(h)
-
-        #     h, eps = h.T, eps.T
-
-        #     middle_layers = self.ibp_layers[:-1]
-        #     last_layer    = self.ibp_layers[-1]
-
-        #     for layer in middle_layers:
-        #         if isinstance(layer, nn.Linear):
-        #             h  = layer._parameters["weight"] @ h + layer._parameters["bias"][:,None]
-        #             eps = torch.abs(layer._parameters["weight"]) @ eps
-        #         elif isinstance(layer, nn.ReLU):
-        #             z_l, z_u = h - eps, h + eps
-        #             z_l, z_u = F.relu(z_l), F.relu(z_u)
-        #             h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
-        #         else:
-        #             raise NotImplementedError
-
-        #     h  = last_layer._parameters["weight"] @ h + last_layer._parameters["bias"][:,None]
-        #     eps = torch.abs(last_layer._parameters["weight"]) @ eps
-        #     z_l, z_u = h - eps, h + eps
-        #     z_l, z_u = F.relu(z_l), F.relu(z_u)
-        #     h, eps  = (z_u + z_l) / 2, (z_u - z_l) / 2
-
-        #     h, eps = h.T, eps.T
-
-            # return z_l, z_u, h, eps
+       
