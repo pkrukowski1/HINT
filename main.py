@@ -115,6 +115,7 @@ def get_number_of_batch_normalization_layer(target_network):
     Arguments:
     ----------
       *target_network* (hypnettorch.mnets instance) a target network
+      *target_network* (hypnettorch.mnets instance) a target network
     """
     if 'batchnorm_layers' in dir(target_network):
         if target_network.batchnorm_layers is None:
