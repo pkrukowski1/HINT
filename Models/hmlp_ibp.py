@@ -23,26 +23,23 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, target_shapes, cond_in_size, dim_hidden=100, num_cond_embs=1, *args, **kwargs): 
-        super().__init__(target_shapes=target_shapes, cond_in_size=cond_in_size, activation_fn=nn.ReLU(), num_cond_embs=num_cond_embs) # for now only ReLU is supported
-        self.perturbated_eps = kwargs['perturbated_eps']
-        self.dim_in  = cond_in_size
-        self.dim_out = cond_in_size
-        self.ibp_layers = nn.ModuleList([
-                            nn.Linear(self.dim_in, dim_hidden),
-                            nn.ReLU(),
-                            nn.Linear(dim_hidden, dim_hidden),
-                            nn.ReLU(),
-                            nn.Linear(dim_hidden, dim_hidden),
-                            nn.ReLU(),
-                            nn.Linear(dim_hidden, dim_hidden),
-                            nn.ReLU(),
-                            nn.Linear(dim_hidden, self.dim_out)
-                        ])
+    def __init__(self, 
+                target_shapes, 
+                cond_in_size, 
+                dim_hidden=100, 
+                num_cond_embs=1,  
+                *args, 
+                **kwargs): 
+        
+        super().__init__(target_shapes=target_shapes,
+                        cond_in_size=cond_in_size,
+                        activation_fn=nn.ReLU(),        # For now only ReLU is supported
+                        num_cond_embs=num_cond_embs) 
     
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
-                ret_format='squeezed', calculate_edge_logits = False):
+                ret_format='squeezed', calculate_edge_logits = False,
+                perturbated_eps = 0.05):
         """Compute the weights of a target network.
 
         Args:
@@ -105,7 +102,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
-        eps = self.perturbated_eps * torch.ones_like(h)
+        eps = perturbated_eps * torch.ones_like(h)
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)

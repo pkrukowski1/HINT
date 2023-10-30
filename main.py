@@ -404,6 +404,9 @@ def train_single_task(hypernetwork,
                 optimizer, 'max', factor=np.sqrt(0.1), patience=5,
                 min_lr=0.5e-6, cooldown=0, verbose=True
             )
+    # The kappa and epsilon hyperparameters scheduling
+    iterations_to_adjust = hyperparameters["number_of_iterations"] // 2
+
     for iteration in range(parameters['number_of_iterations']):
         current_batch = current_dataset_instance.next_train_batch(
             parameters['batch_size']
@@ -417,10 +420,19 @@ def train_single_task(hypernetwork,
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
+        # Adjust kappa and epsilon
+        if iteration < iterations_to_adjust:
+            kappa = max(1 - 0.00005*iteration, hyperparameters["kappa"])
+            eps   = iteration / (iterations_to_adjust-1) * hyperparameters["perturbated_epsilon"]
+        else:
+            kappa = hyperparameters["kappa"]
+            eps   = hyperparameters["perturbated_epsilon"]
+
         # Get weights, lower weights and upper weights
         # returned by the hypernetwork
         target_weights, lower_weights, upper_weights = hypernetwork.forward(cond_id=current_no_of_task, 
-                                                                            calculate_edge_logits=True)
+                                                                            calculate_edge_logits=True,
+                                                                            perturbated_eps=eps)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -439,6 +451,8 @@ def train_single_task(hypernetwork,
                         no_of_layer + no_of_batch_norm_layers],
                     p=parameters['norm']
                 )
+    
+
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
@@ -448,16 +462,8 @@ def train_single_task(hypernetwork,
                                                 weights=upper_weights)
         prediction_zl = target_network.forward(tensor_input,
                                                 weights=lower_weights)
-       
-        eps = hyperparameters["perturbated_epsilon"] * torch.ones_like(tensor_input)
         
-        # The kappa hyperparameter scheduling
-        if iteration < hyperparameters["number_of_iterations"] // 2:
-            kappa = max(1 - 0.00005*iteration, hyperparameters["kappa"])
-        else:
-            kappa = hyperparameters["kappa"]
 
-        # TODO Add kappa parameter scheduling
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
