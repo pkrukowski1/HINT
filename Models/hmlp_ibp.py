@@ -23,8 +23,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, target_shapes, cond_in_size, dim_hidden=100, *args, **kwargs): 
-        super().__init__(target_shapes=target_shapes, cond_in_size=cond_in_size, activation_fn=nn.ReLU()) # for now only ReLU is supported
+    def __init__(self, target_shapes, cond_in_size, dim_hidden=100, num_cond_embs=1, *args, **kwargs): 
+        super().__init__(target_shapes=target_shapes, cond_in_size=cond_in_size, activation_fn=nn.ReLU(), num_cond_embs=num_cond_embs) # for now only ReLU is supported
         self.perturbated_eps = kwargs['perturbated_eps']
         self.dim_in  = cond_in_size
         self.dim_out = cond_in_size
@@ -105,13 +105,14 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
-
+        # fc_weights = [torch.abs(fc_weights[i]) for i in range(len(fc_weights))]
         eps = self.perturbated_eps * torch.ones_like(h)
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)
+
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
-            eps = F.linear(eps, fc_weights[i], bias=torch.zeros_like(fc_biases[i]))
+            eps = F.linear(eps, fc_weights[i]**2, bias=torch.zeros_like(fc_biases[i]))
 
             if not last_layer:
                 # Batch-norm
@@ -126,7 +127,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
                 # Non-linearity
                 if self._act_fn is not None:
-                    h = self._act_fn(h)
                     z_l, z_u = h - eps, h + eps
                     z_l, z_u = self._act_fn(z_l), self._act_fn(z_u)
                     h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2

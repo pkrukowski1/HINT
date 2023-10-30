@@ -39,7 +39,7 @@ class IBP_Loss(nn.Module):
         # # MSE loss corresponding to lengths of radii
         # loss_eps = (eps_pred.sum(dim=1).mean() - eps.sum(dim=1).mean()).pow(2) if not self.calculation_area_mode \
         #       else (eps_pred.prod(dim=1).mean() - eps.prod(dim=1).mean()).pow(2)
-
+        
         # total loss calculation
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec #+ loss_eps
         return total_loss
