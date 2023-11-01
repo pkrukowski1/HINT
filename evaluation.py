@@ -9,11 +9,9 @@ from datasets import (
     prepare_split_mnist_tasks
 )
 from main import (
-    apply_mask_to_weights_of_network,
     calculate_accuracy,
     get_number_of_batch_normalization_layer,
     load_pickle_file,
-    prepare_network_sparsity,
     set_seed
 )
 from hypnettorch.mnets import MLP
@@ -194,19 +192,6 @@ def load_and_evaluate_networks(path_to_datasets,
                 forward_transfer=forward_transfer
             )
 
-        # Prepare sparsed mask and apply it to the target network
-        masks = prepare_network_sparsity(
-            hypernetwork_output,
-            hyperparameters['sparsity_parameters']
-        )
-        random_masks = prepare_network_sparsity(
-            random_hypernetwork_output,
-            hyperparameters['sparsity_parameters']
-        )
-        random_weights = apply_mask_to_weights_of_network(
-            random_model,
-            random_masks
-        )
         # Load and prepare target network
         loaded_target_model = load_pickle_file(
             f'{path_to_stored_networks}target_network_after_{loading_task}_task.pt')
@@ -410,13 +395,7 @@ def get_network_logits_for_all_inputs_all_tasks(path_to_stored_networks,
             cond_id=task,
             weights=hnet_weights
         )
-        masks = prepare_network_sparsity(
-            hypernetwork_output,
-            hyperparameters['sparsity_parameters']
-        )
-        target_masked_weights = apply_mask_to_weights_of_network(
-            target_loaded_weights,
-            masks)
+        
         currently_tested_task = dataset_tasks_list[task]
         target_network.eval()
         with torch.no_grad():

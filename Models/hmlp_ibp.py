@@ -108,7 +108,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             last_layer = i == (len(fc_weights) - 1)
 
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
-            eps = F.linear(eps, fc_weights[i]**2, bias=torch.zeros_like(fc_biases[i]))
+            eps = F.linear(eps, fc_weights[i]**2, 
+                           bias=torch.zeros_like(fc_biases[i]))
 
             if not last_layer:
                 # Batch-norm
