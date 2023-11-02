@@ -314,6 +314,56 @@ def plot_heatmap(load_path):
     plt.savefig(load_path.replace('.csv', '.pdf'), dpi=300)
     plt.close()
 
+def plot_intervals_around_embeddings(tasks_embeddings,
+                                     trained_radii,
+                                     save_path,
+                                     n_embs_to_plot=20):
+    """
+    Plot intervals with trained radii around tasks' embeddings
+
+    Argument:
+    ---------
+        *task_embeddings*: (torch.Tensor) contains tasks' embeddings
+        *trained_radii*: (torch.Tensor) contains trained radii around
+                        tasks' embeddings
+        *save_path*: (string) contains path where the plot will be saved,
+        *n_embs_to_plot*: (int) number of embeddings to be plotted
+    """
+    
+    # Check if these two tensors have the same length
+    assert len(tasks_embeddings) == len(trained_radii)
+
+    # Send tensors to the CPU device and convert into numpy objects
+    tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
+    trained_radii    = trained_radii.cpu().detach().numpy()[0][:n_embs_to_plot]
+
+    # Generate an x axis
+    x = [_ for _ in range(len(tasks_embeddings))]
+
+    # Create a scatter plot
+    plt.scatter(x, tasks_embeddings, color='blue', marker='o')
+
+    # Draw horizontal lines around the dots
+    for i in range(len(x)):
+        plt.hlines(tasks_embeddings[i], xmin=x[i] - trained_radii[i],
+                    xmax=x[i] + trained_radii[i], colors='red', linewidth=2)
+
+    # Add labels and a legend
+    plt.xlabel("Embedding's coordinate")
+    plt.ylabel('Radii')
+    plt.title('Intervals around embeddings')
+    plt.xticks(x)
+    plt.grid()
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300)
+
+    # Show the plot
+    plt.show()
+
+    # Close the plot
+    plt.close()
+
+
 
 def train_single_task(hypernetwork,
                       target_network,
@@ -433,7 +483,6 @@ def train_single_task(hypernetwork,
         target_weights, lower_weights, upper_weights = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                             calculate_edge_logits=True,
                                                                             perturbated_eps=eps)
-
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
             # Add another regularizer for weights, e.g. according
@@ -493,7 +542,6 @@ def train_single_task(hypernetwork,
         #  print(f'loss: {loss}')
         loss.backward()
         optimizer.step()
-
         if parameters['number_of_epochs'] is None:
             condition = (iteration % 100 == 0) or \
                         (iteration == (parameters['number_of_iterations'] - 1))
@@ -757,7 +805,12 @@ def main_running_experiments(path_to_datasets,
 
     load_path = (f'{parameters["saving_folder"]}/'
                  f'results.csv')
+    interval_plot_save_path = (f'{parameters["saving_folder"]}/'
+                 f'intervals_around_embeddings.png')
     plot_heatmap(load_path)
+    plot_intervals_around_embeddings(tasks_embeddings=hypernetwork.tasks_embeddings,
+                                     trained_radii=hypernetwork.trained_radii,
+                                     save_path=interval_plot_save_path)
     return hypernetwork, target_network, dataframe
 
 
@@ -781,6 +834,7 @@ if __name__ == "__main__":
         'layer_groups;widening;final_model;optimizer;'
         'hypernet_activation_function;learning_rate;batch_size;beta;norm;lambda;mean_accuracy;std_accuracy'
     )
+
     append_row_to_file(
         f'{hyperparameters["saving_folder"]}{summary_results_filename}.csv',
         header

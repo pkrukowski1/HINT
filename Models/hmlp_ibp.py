@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from copy import deepcopy
+
 class HMLP_IBP(HMLP, HyperNetInterface):
 
     """
@@ -36,8 +38,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                         activation_fn=nn.ReLU(),       # For now only ReLU is supported
                         num_cond_embs=num_cond_embs) 
         
-        self._trained_radii = torch.zeros(cond_in_size) # Initialize an empty tensor for intervals
-                                                        # around embeddings
+        self._trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
+                                                           # around embeddings
+        self._tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
 
     # Implement a getter method for trained radii
     @property
@@ -49,6 +52,15 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     def trained_radii(self, val):
         self._trained_radii = val
 
+    # Implement a getter method for embedding
+    @property
+    def tasks_embeddings(self):
+        return self._tasks_embeddings
+    
+    # Implement a setter method for embedding
+    @tasks_embeddings.setter
+    def tasks_embeddings(self, val):
+        self._tasks_embeddings = val
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
@@ -143,9 +155,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
 
         z_l, z_u = h - eps, h + eps
-
-        # Update the trained radii
-        self.trained_radii = eps
+        self.trained_radii    = eps # Update the trained radii
+        self.tasks_embeddings = h   # Update the embedding
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
