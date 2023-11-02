@@ -33,9 +33,23 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         super().__init__(target_shapes=target_shapes,
                         cond_in_size=cond_in_size,
-                        activation_fn=nn.ReLU(),        # For now only ReLU is supported
+                        activation_fn=nn.ReLU(),       # For now only ReLU is supported
                         num_cond_embs=num_cond_embs) 
+        
+        self._trained_radii = torch.zeros(cond_in_size) # Initialize an empty tensor for intervals
+                                                        # around embeddings
+
+    # Implement a getter method for trained radii
+    @property
+    def trained_radii(self):
+        return self._trained_radii
     
+    # Implement a setter method for trained radii
+    @trained_radii.setter
+    def trained_radii(self, val):
+        self._trained_radii = val
+
+
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
                 ret_format='squeezed', calculate_edge_logits = False,
@@ -129,6 +143,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
 
         z_l, z_u = h - eps, h + eps
+
+        # Update the trained radii
+        self.trained_radii = eps
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
