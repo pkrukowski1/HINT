@@ -516,8 +516,13 @@ def train_single_task(hypernetwork,
                     'number_of_task': current_no_of_task
                 },
                 evaluation_dataset='validation')
+            
+            # Get the worst case error
+            worst_case_error = criterion.worst_case_error
+
             print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
-                  f' loss: {loss.item()}, validation accuracy: {accuracy}')
+                  f' loss: {loss.item()}, validation accuracy: {accuracy},'
+                  f' worst case error: {worst_case_error}')
             # If the accuracy on the validation dataset is higher
             # than previously
             if parameters['best_model_selection_method'] == 'val_loss':

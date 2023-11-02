@@ -204,7 +204,7 @@ def set_hyperparameters(dataset,
         # Directly related to the MNIST dataset
         hyperparams['padding'] = 2
         hyperparams['shape'] = (28 + 2 * hyperparams['padding'])**2
-        hyperparams['number_of_tasks'] = 10
+        hyperparams['number_of_tasks'] = 5
         hyperparams['augmentation'] = False
 
     elif dataset == 'CIFAR100':
