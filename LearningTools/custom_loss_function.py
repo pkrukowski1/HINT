@@ -11,7 +11,9 @@ class IBP_Loss(nn.Module):
         super().__init__()
         self.bce_loss_func         = nn.CrossEntropyLoss()
         self.calculation_area_mode = calculation_area_mode
+        self.worst_case_error      = 0.0
     
+
     def forward(self, y_pred, y, z_l, z_u, kappa=0.5):
         """
         Arguments:
@@ -40,6 +42,8 @@ class IBP_Loss(nn.Module):
 
         # Calculate worst case component error
         loss_spec = self.bce_loss_func(z,y)
+
+        self.worst_case_error = (z.argmax(dim=1) != y).float().sum().item()
         
         # Calculate total loss
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec
