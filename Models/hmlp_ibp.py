@@ -38,34 +38,15 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                         activation_fn=nn.ReLU(),       # For now only ReLU is supported
                         num_cond_embs=num_cond_embs) 
         
-        self._trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
+        self.trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
                                                            # around embeddings
-        self._tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
+        self.tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
 
-    # Implement a getter method for trained radii
-    @property
-    def trained_radii(self):
-        return self._trained_radii
-    
-    # Implement a setter method for trained radii
-    @trained_radii.setter
-    def trained_radii(self, val):
-        self._trained_radii = val
-
-    # Implement a getter method for embedding
-    @property
-    def tasks_embeddings(self):
-        return self._tasks_embeddings
-    
-    # Implement a setter method for embedding
-    @tasks_embeddings.setter
-    def tasks_embeddings(self, val):
-        self._tasks_embeddings = val
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
-                ret_format='squeezed', calculate_edge_logits = False,
-                perturbated_eps = 0.05):
+                ret_format='squeezed', return_extended_output = False,
+                perturbated_eps = 0.5):
         """Compute the weights of a target network.
 
         Args:
@@ -75,6 +56,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 ``stats_id`` to the method
                 :meth:`utils.batchnorm_layer.BatchNormLayer.forward` if batch
                 normalization is used.
+            return_extended_output (bool): if true, then the function returns target weights,
+                                            lower target weight, upper target weights and predicted radii 
+                                            of intervals 
 
         Returns:
             (list or torch.Tensor): See docstring of method
@@ -155,16 +139,16 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
 
         z_l, z_u = h - eps, h + eps
-        self.trained_radii    = eps # Update the trained radii
-        self.tasks_embeddings = h   # Update the embedding
-
+        self.trained_radii    = eps # Store the trained radii
+        self.tasks_embeddings = h   # Store the embedding
+        
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
-        if calculate_edge_logits:
+        if return_extended_output:
             ret_zl = self._flat_to_ret_format(z_l, ret_format)
             ret_zu = self._flat_to_ret_format(z_u, ret_format)
 
-            return ret, ret_zl, ret_zu
+            return ret, ret_zl, ret_zu, eps
         else:
             return ret
         

@@ -345,8 +345,8 @@ def plot_intervals_around_embeddings(tasks_embeddings,
 
     # Draw horizontal lines around the dots
     for i in range(len(x)):
-        plt.hlines(tasks_embeddings[i], xmin=x[i] - trained_radii[i],
-                    xmax=x[i] + trained_radii[i], colors='red', linewidth=2)
+        plt.vlines(tasks_embeddings[i], ymin=x[i] - trained_radii[i],
+                    ymax=x[i] + trained_radii[i], colors='red', linewidth=2)
 
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
@@ -478,11 +478,12 @@ def train_single_task(hypernetwork,
             kappa = hyperparameters["kappa"]
             eps   = hyperparameters["perturbated_epsilon"]
 
-        # Get weights, lower weights and upper weights
+        # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
-        target_weights, lower_weights, upper_weights = hypernetwork.forward(cond_id=current_no_of_task, 
-                                                                            calculate_edge_logits=True,
+        target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_id=current_no_of_task, 
+                                                                            return_extended_output=True,
                                                                             perturbated_eps=eps)
+        
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
             # Add another regularizer for weights, e.g. according
@@ -518,6 +519,8 @@ def train_single_task(hypernetwork,
             y=gt_output,
             z_l=prediction_zl,
             z_u=prediction_zu,
+            radii=radii,
+            eps=eps,
             kappa=kappa
         )
 
@@ -570,7 +573,8 @@ def train_single_task(hypernetwork,
 
             print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
-                  f' worst case error: {worst_case_error}')
+                  f' worst case error: {worst_case_error},'
+                  f' predicted radii mean: {radii.mean().item()}')
             # If the accuracy on the validation dataset is higher
             # than previously
             if parameters['best_model_selection_method'] == 'val_loss':

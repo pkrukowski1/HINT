@@ -189,7 +189,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 5
+        hyperparams['number_of_iterations'] = 2000
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -380,7 +380,7 @@ def set_hyperparameters(dataset,
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    hyperparams['perturbated_epsilon'] = 0.05
+    hyperparams['perturbated_epsilon'] = 0.5
     hyperparams['calculation_area_mode'] = True
     hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)
