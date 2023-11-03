@@ -316,7 +316,8 @@ def plot_heatmap(load_path):
 
 def plot_intervals_around_embeddings(tasks_embeddings,
                                      trained_radii,
-                                     save_path,
+                                     save_folder,
+                                     no_of_task,
                                      n_embs_to_plot=20):
     """
     Plot intervals with trained radii around tasks' embeddings
@@ -326,12 +327,17 @@ def plot_intervals_around_embeddings(tasks_embeddings,
         *task_embeddings*: (torch.Tensor) contains tasks' embeddings
         *trained_radii*: (torch.Tensor) contains trained radii around
                         tasks' embeddings
-        *save_path*: (string) contains path where the plot will be saved,
+        *save_folder*: (string) contains folder where the plot will be saved,
+        *no_of taks*: (int) number of currently learned task
         *n_embs_to_plot*: (int) number of embeddings to be plotted
     """
     
     # Check if these two tensors have the same length
     assert len(tasks_embeddings) == len(trained_radii)
+
+    # Check if folder exists, if it doesn't then create the folder
+    if not os.path.exists(save_folder):
+        os.mkdir(save_folder)
 
     # Send tensors to the CPU device and convert into numpy objects
     tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
@@ -347,6 +353,9 @@ def plot_intervals_around_embeddings(tasks_embeddings,
     for i in range(len(x)):
         plt.vlines(tasks_embeddings[i], ymin=x[i] - trained_radii[i],
                     ymax=x[i] + trained_radii[i], colors='red', linewidth=2)
+
+    # Create a save path
+    save_path = f'{save_folder}/intervals_around_tasks_embeddings_{no_of_task}.png'
 
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
@@ -711,6 +720,15 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 f'target_network_after_{no_of_task}_task',
                 target_network.weights
             )
+
+        # Create intervals over tasks' embeddings plot
+        interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
+        
+        plot_intervals_around_embeddings(tasks_embeddings=hypernetwork.tasks_embeddings,
+                                     trained_radii=hypernetwork.trained_radii,
+                                     save_folder=interval_plot_save_path,
+                                     no_of_task=no_of_task)
+        
         dataframe = evaluate_previous_tasks(
             hypernetwork,
             target_network,
@@ -809,12 +827,9 @@ def main_running_experiments(path_to_datasets,
 
     load_path = (f'{parameters["saving_folder"]}/'
                  f'results.csv')
-    interval_plot_save_path = (f'{parameters["saving_folder"]}/'
-                 f'intervals_around_embeddings.png')
+
     plot_heatmap(load_path)
-    plot_intervals_around_embeddings(tasks_embeddings=hypernetwork.tasks_embeddings,
-                                     trained_radii=hypernetwork.trained_radii,
-                                     save_path=interval_plot_save_path)
+    
     return hypernetwork, target_network, dataframe
 
 
