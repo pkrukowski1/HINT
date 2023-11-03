@@ -484,7 +484,17 @@ def train_single_task(hypernetwork,
         target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                             return_extended_output=True,
                                                                             perturbated_eps=eps)
-        
+        # We need to check wheter the distance between the lower weights
+        # and the upper weights isn't collapsed into "one point" (short interval)
+        weights_size_ratio = [
+            torch.mean(torch.abs(target_weights[i])).item() for i in range(len(target_weights))
+        ]
+        weights_dist_within_layers_list = [
+            (upper_weights[i] - lower_weights[i]).pow(2).mean().item() / weights_size_ratio[i] \
+                                           for i in range(len(upper_weights))
+        ]
+        weights_distance = np.mean(weights_dist_within_layers_list)
+
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
             # Add another regularizer for weights, e.g. according
@@ -513,7 +523,6 @@ def train_single_task(hypernetwork,
                                                 weights=upper_weights)
         prediction_zl = target_network.forward(tensor_input,
                                                 weights=lower_weights)
-        
 
         loss_current_task = criterion(
             y_pred=prediction,
@@ -543,7 +552,7 @@ def train_single_task(hypernetwork,
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
             parameters['lambda'] * loss_norm_target_regularizer
-        #  print(f'loss: {loss}')
+        
         loss.backward()
         optimizer.step()
         if parameters['number_of_epochs'] is None:
@@ -575,7 +584,8 @@ def train_single_task(hypernetwork,
             print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
                   f' worst case error: {worst_case_error},'
-                  f' predicted radii mean: {radii.mean().item()}')
+                  f' predicted radii mean: {radii.mean().item()},'
+                  f' distance between lower and upper weights: {weights_distance}')
             # If the accuracy on the validation dataset is higher
             # than previously
             if parameters['best_model_selection_method'] == 'val_loss':
