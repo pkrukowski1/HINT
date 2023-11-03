@@ -28,7 +28,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     def __init__(self, 
                 target_shapes, 
                 cond_in_size, 
-                dim_hidden=100, 
                 num_cond_embs=1,  
                 *args, 
                 **kwargs): 
