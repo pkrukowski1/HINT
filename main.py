@@ -484,19 +484,6 @@ def train_single_task(hypernetwork,
         target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                             return_extended_output=True,
                                                                             perturbated_eps=eps)
-        # We need to check wheter the distance between the lower weights
-        # and the upper weights isn't collapsed into "one point" (short interval)
-        # weights_size_ratio = [
-        #     torch.mean(torch.abs(target_weights[i])).item() for i in range(len(target_weights))
-        # ]
-        weights_size_ratio = [
-            torch.std(target_weights[i]).pow(2).item() for i in range(len(target_weights))
-        ]
-        weights_dist_within_layers_list = [
-            ((upper_weights[i] - lower_weights[i]).pow(2).mean() / weights_size_ratio[i]).item() \
-                                           for i in range(len(target_weights))
-        ]
-        weights_distance = np.mean(weights_dist_within_layers_list)
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -570,6 +557,19 @@ def train_single_task(hypernetwork,
             if parameters['number_of_epochs'] is not None:
                 current_epoch = (iteration + 1) // no_of_iterations_per_epoch
                 print(f'Current epoch: {current_epoch}')
+
+
+            # We need to check wheter the distance between the lower weights
+            # and the upper weights isn't collapsed into "one point" (short interval)
+            weights_size_ratio = [
+                torch.std(target_weights[i]).pow(2).item() for i in range(len(target_weights))
+            ]
+            weights_dist_within_layers_list = [
+                ((upper_weights[i] - lower_weights[i]).pow(2).mean() / weights_size_ratio[i]).item() \
+                                            for i in range(len(target_weights))
+            ]
+            weights_distance = np.mean(weights_dist_within_layers_list)
+            
             accuracy = calculate_accuracy(
                 current_dataset_instance,
                 target_network,
