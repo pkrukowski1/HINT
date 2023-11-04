@@ -486,12 +486,15 @@ def train_single_task(hypernetwork,
                                                                             perturbated_eps=eps)
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
+        # weights_size_ratio = [
+        #     torch.mean(torch.abs(target_weights[i])).item() for i in range(len(target_weights))
+        # ]
         weights_size_ratio = [
-            torch.mean(torch.abs(target_weights[i])).item() for i in range(len(target_weights))
+            torch.std(target_weights[i]).pow(2).item() for i in range(len(target_weights))
         ]
         weights_dist_within_layers_list = [
-            (upper_weights[i] - lower_weights[i]).pow(2).mean().item() / weights_size_ratio[i] \
-                                           for i in range(len(upper_weights))
+            ((upper_weights[i] - lower_weights[i]).pow(2).mean() / weights_size_ratio[i]).item() \
+                                           for i in range(len(target_weights))
         ]
         weights_distance = np.mean(weights_dist_within_layers_list)
 
