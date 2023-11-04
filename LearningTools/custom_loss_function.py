@@ -51,7 +51,7 @@ class IBP_Loss(nn.Module):
         eps *= torch.ones_like(radii)
 
         # Calculate radii assocciated loss
-        loss_eps = (radii - eps).mean().pow(2)
+        loss_eps = (radii - eps).pow(2).mean()
         
         # Calculate total loss
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec + loss_eps
