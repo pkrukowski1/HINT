@@ -351,8 +351,8 @@ def plot_intervals_around_embeddings(tasks_embeddings,
 
     # Draw horizontal lines around the dots
     for i in range(len(x)):
-        plt.vlines(tasks_embeddings[i], ymin=x[i] - trained_radii[i],
-                    ymax=x[i] + trained_radii[i], colors='red', linewidth=2)
+        plt.vlines(tasks_embeddings[i], ymin=tasks_embeddings[i] - trained_radii[i],
+                    ymax=tasks_embeddings[i] + trained_radii[i], colors='red', linewidth=2)
 
     # Create a save path
     save_path = f'{save_folder}/intervals_around_tasks_embeddings_{no_of_task}.png'
