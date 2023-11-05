@@ -340,10 +340,10 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
 
     # Create a single plot and add multiple lines
     plt.figure(figsize=(10, 6))
-    print(len(tasks_embeddings_list))
+
     for task_id, (tasks_embeddings, trained_radii) in enumerate(zip(tasks_embeddings_list, trained_radii_list)):
         
-        # # Send tensors to the CPU device, convert into numpy objects and 
+        # Send tensors to the CPU device, convert into numpy objects and 
         # take first `n_embs_to_plot` embeddings' values
         tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
         trained_radii    = trained_radii.cpu().detach().numpy()[0][:n_embs_to_plot]
@@ -567,11 +567,11 @@ def train_single_task(hypernetwork,
 
             # We need to check wheter the distance between the lower weights
             # and the upper weights isn't collapsed into "one point" (short interval)
-            weights_size_ratio = [
-                torch.std(target_weights[i]).pow(2).item() for i in range(len(target_weights))
+            norm_factors = [
+                (target_weights[i]).pow(2).abs() for i in range(len(target_weights))
             ]
             weights_dist_within_layers_list = [
-                ((upper_weights[i] - lower_weights[i]).pow(2).mean() / weights_size_ratio[i]).item() \
+                ((upper_weights[i] - lower_weights[i]).pow(2).sum() / norm_factors[i]).item() \
                                             for i in range(len(target_weights))
             ]
             weights_distance = np.mean(weights_dist_within_layers_list)

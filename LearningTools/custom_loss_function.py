@@ -55,8 +55,5 @@ class IBP_Loss(nn.Module):
         
         # Calculate total loss
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec + loss_eps
-        
-        # worst_case_err = (z.argmax(dim=1) != y).float().sum()
-        # print(f"Worst case error: {worst_case_err:.10f}")
 
         return total_loss
