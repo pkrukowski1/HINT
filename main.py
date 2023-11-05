@@ -595,7 +595,8 @@ def train_single_task(hypernetwork,
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
                   f' worst case error: {worst_case_error},'
                   f' predicted radii mean: {radii.mean().item()},'
-                  f' distance between lower and upper weights: {weights_distance}')
+                  f' distance between lower and upper weights: {weights_distance},'
+                  f' perturbated_epsilon: {eps}')
             # If the accuracy on the validation dataset is higher
             # than previously
             if parameters['best_model_selection_method'] == 'val_loss':
