@@ -568,8 +568,9 @@ def train_single_task(hypernetwork,
             # We need to check wheter the distance between the lower weights
             # and the upper weights isn't collapsed into "one point" (short interval)
             norm_factors = [
-                (target_weights[i]).pow(2).abs() for i in range(len(target_weights))
+                (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
             ]
+
             weights_dist_within_layers_list = [
                 ((upper_weights[i] - lower_weights[i]).pow(2).sum() / norm_factors[i]).item() \
                                             for i in range(len(target_weights))
