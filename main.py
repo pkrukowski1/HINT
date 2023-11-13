@@ -371,6 +371,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     plt.grid()
     plt.tight_layout()
     plt.savefig(save_path, dpi=300)
+    plt.close()
 
 def train_single_task(hypernetwork,
                       target_network,
