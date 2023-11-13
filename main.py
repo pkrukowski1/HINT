@@ -862,6 +862,7 @@ if __name__ == "__main__":
     path_to_datasets = './Data'
     dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
+    TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
     if create_grid_search:
         summary_results_filename = 'grid_search_results'
@@ -933,15 +934,16 @@ if __name__ == "__main__":
             'use_bias': hyperparameters["use_bias"],
             'use_batch_norm': hyperparameters["use_batch_norm"],
             'device': hyperparameters["device"],
-            'saving_folder': f'{hyperparameters["saving_folder"]}{no}/',
+            'saving_folder': f'{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/',
             'grid_search_folder': hyperparameters["saving_folder"],
             'summary_results_filename': summary_results_filename,
             'calculation_area_mode': hyperparameters["calculation_area_mode"],
             'perturbated_epsilon': hyperparameters["perturbated_epsilon"],
-            'kappa': hyperparameters["kappa"]
+            'kappa': hyperparameters["kappa"],
+            'timestamp': str(TIMESTAMP)
         }
 
-        os.makedirs(parameters['saving_folder'], exist_ok=True)
+        os.makedirs(f"{parameters['saving_folder']}", exist_ok=True)
         # start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_parameters(parameters["saving_folder"],
                         parameters,

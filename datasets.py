@@ -148,6 +148,7 @@ def set_hyperparameters(dataset,
 
     Returns a dictionary with necessary hyperparameters.
     """
+
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
