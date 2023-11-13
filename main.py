@@ -939,8 +939,7 @@ if __name__ == "__main__":
             'summary_results_filename': summary_results_filename,
             'calculation_area_mode': hyperparameters["calculation_area_mode"],
             'perturbated_epsilon': hyperparameters["perturbated_epsilon"],
-            'kappa': hyperparameters["kappa"],
-            'timestamp': str(TIMESTAMP)
+            'kappa': hyperparameters["kappa"]
         }
 
         os.makedirs(f"{parameters['saving_folder']}", exist_ok=True)
