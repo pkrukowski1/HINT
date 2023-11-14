@@ -148,10 +148,11 @@ def set_hyperparameters(dataset,
 
     Returns a dictionary with necessary hyperparameters.
     """
+
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [128],
+                'embedding_sizes': [24],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001, 0.0005, 0.005],
@@ -189,9 +190,9 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 500
+        hyperparams['number_of_iterations'] = 10
         hyperparams['number_of_epochs'] = None
-        hyperparams['no_of_validation_samples'] = 5000
+        hyperparams['no_of_validation_samples'] = 1500
         hyperparams['target_hidden_layers'] = [1000, 1000]
         hyperparams['target_network'] = 'MLP'
         hyperparams['resnet_number_of_layer_groups'] = None
@@ -204,7 +205,7 @@ def set_hyperparameters(dataset,
         # Directly related to the MNIST dataset
         hyperparams['padding'] = 2
         hyperparams['shape'] = (28 + 2 * hyperparams['padding'])**2
-        hyperparams['number_of_tasks'] = 1
+        hyperparams['number_of_tasks'] = 2
         hyperparams['augmentation'] = False
 
     elif dataset == 'CIFAR100':
@@ -359,7 +360,7 @@ def set_hyperparameters(dataset,
         hyperparams['resnet_number_of_layer_groups'] = None
         hyperparams['resnet_widening_factor'] = None
         hyperparams['optimizer'] = 'adam'
-        hyperparams['number_of_iterations'] = 2000
+        hyperparams['number_of_iterations'] = 3000
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1000
         hyperparams['target_hidden_layers'] = [400, 400]
@@ -380,7 +381,7 @@ def set_hyperparameters(dataset,
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    hyperparams['perturbated_epsilon'] = 1.0
+    hyperparams['perturbated_epsilon'] = 0.3
     hyperparams['calculation_area_mode'] = True
     hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)

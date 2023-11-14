@@ -1,2 +1,0 @@
-dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;use_chunks;chunk_emb_size;target_network;target_hidden_layers;layer_groups;widening;final_model;optimizer;hypernet_activation_function;learning_rate;batch_size;beta;norm;lambda;mean_accuracy;std_accuracy
-PermutedMNIST;False;24;3;[100,100];False;8;MLP;[1000,1000];None;None;last_model;adam;ReLU();0.001;128;0.0005;1;0.001;96.62800064086915;0.2418596175235132

@@ -314,57 +314,64 @@ def plot_heatmap(load_path):
     plt.savefig(load_path.replace('.csv', '.pdf'), dpi=300)
     plt.close()
 
-def plot_intervals_around_embeddings(tasks_embeddings,
-                                     trained_radii,
+def plot_intervals_around_embeddings(tasks_embeddings_list,
+                                     trained_radii_list,
                                      save_folder,
-                                     no_of_task,
                                      n_embs_to_plot=20):
     """
-    Plot intervals with trained radii around tasks' embeddings
+    Plot intervals with trained radii around tasks' embeddings for
+    all tasks at once
 
     Argument:
     ---------
-        *task_embeddings*: (torch.Tensor) contains tasks' embeddings
-        *trained_radii*: (torch.Tensor) contains trained radii around
-                        tasks' embeddings
+        *task_embeddings_list*: (list) contains tasks' embeddings (tensors)
+        *trained_radii_list*: (list) contains trained radii (tensors) around
+                                tasks' embeddings
         *save_folder*: (string) contains folder where the plot will be saved,
-        *no_of taks*: (int) number of currently learned task
         *n_embs_to_plot*: (int) number of embeddings to be plotted
     """
-    
-    # Check if these two tensors have the same length
-    assert len(tasks_embeddings) == len(trained_radii)
+
+    # Check if every task's embedding has a corresponding radii tensor
+    assert len(tasks_embeddings_list) == len(trained_radii_list)
 
     # Check if folder exists, if it doesn't then create the folder
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
 
-    # Send tensors to the CPU device and convert into numpy objects
-    tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
-    trained_radii    = trained_radii.cpu().detach().numpy()[0][:n_embs_to_plot]
+    # Create a single plot and add multiple lines
+    plt.figure(figsize=(10, 6))
 
-    # Generate an x axis
-    x = [_ for _ in range(len(tasks_embeddings))]
+    for task_id, (tasks_embeddings, trained_radii) in enumerate(zip(tasks_embeddings_list, trained_radii_list)):
+        
+        # Send tensors to the CPU device, convert into numpy objects and 
+        # take first `n_embs_to_plot` embeddings' values
+        tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
+        trained_radii    = trained_radii.cpu().detach().numpy()[0][:n_embs_to_plot]
 
-    # Create a scatter plot
-    plt.scatter(x, tasks_embeddings, color='blue', marker='o')
+        # Generate an x axis
+        x = [_ for _ in range(len(tasks_embeddings))]
 
-    # Draw horizontal lines around the dots
-    for i in range(len(x)):
-        plt.vlines(x[i], ymin=tasks_embeddings[i] - trained_radii[i],
-                    ymax=tasks_embeddings[i] + trained_radii[i], colors='red', linewidth=2)
+        # Create a scatter plot
+        plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o')
+
+        # Draw horizontal lines around the dots
+        for i in range(len(x)):
+            plt.vlines(x[i], ymin=tasks_embeddings[i] - trained_radii[i],
+                        ymax=tasks_embeddings[i] + trained_radii[i], linewidth=2)
 
     # Create a save path
-    save_path = f'{save_folder}/intervals_around_tasks_embeddings_{no_of_task}.png'
+    save_path = f'{save_folder}/intervals_around_tasks_embeddings.png'
 
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
     plt.ylabel("Embedding's value")
     plt.title('Intervals around embeddings')
     plt.xticks(x)
+    plt.legend()
     plt.grid()
     plt.tight_layout()
     plt.savefig(save_path, dpi=300)
+    plt.close()
 
 def train_single_task(hypernetwork,
                       target_network,
@@ -561,11 +568,12 @@ def train_single_task(hypernetwork,
 
             # We need to check wheter the distance between the lower weights
             # and the upper weights isn't collapsed into "one point" (short interval)
-            weights_size_ratio = [
-                torch.std(target_weights[i]).pow(2).item() for i in range(len(target_weights))
+            norm_factors = [
+                (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
             ]
+
             weights_dist_within_layers_list = [
-                ((upper_weights[i] - lower_weights[i]).pow(2).mean() / weights_size_ratio[i]).item() \
+                ((upper_weights[i] - lower_weights[i]).pow(2).sum() / norm_factors[i]).item() \
                                             for i in range(len(target_weights))
             ]
             weights_distance = np.mean(weights_dist_within_layers_list)
@@ -588,7 +596,8 @@ def train_single_task(hypernetwork,
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
                   f' worst case error: {worst_case_error},'
                   f' predicted radii mean: {radii.mean().item()},'
-                  f' distance between lower and upper weights: {weights_distance}')
+                  f' distance between lower and upper weights: {weights_distance},'
+                  f' perturbated_epsilon: {eps}')
             # If the accuracy on the validation dataset is higher
             # than previously
             if parameters['best_model_selection_method'] == 'val_loss':
@@ -703,6 +712,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         use_batch_norm_memory = False
     hypernetwork.train()
     target_network.train()
+
+    # Declare empty lists for tasks' embeddings and trained radii
+    tasks_embeddings_list = []
+    trained_radii_list    = []
+
     for no_of_task in range(parameters['number_of_tasks']):
         hypernetwork, target_network = train_single_task(
             hypernetwork,
@@ -712,6 +726,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             dataset_list_of_tasks,
             no_of_task
         )
+
+        # Get already learned embedding's and trained radii for
+        # those embeddings
+        tasks_embeddings_list.append(hypernetwork.tasks_embeddings)
+        trained_radii_list.append(hypernetwork.trained_radii)
 
         if no_of_task == (parameters['number_of_tasks'] - 1):
         # Save current state of networks
@@ -726,13 +745,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 target_network.weights
             )
 
-        # Create intervals over tasks' embeddings plot
-        interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
-        
-        plot_intervals_around_embeddings(tasks_embeddings=hypernetwork.tasks_embeddings,
-                                     trained_radii=hypernetwork.trained_radii,
-                                     save_folder=interval_plot_save_path,
-                                     no_of_task=no_of_task)
         
         dataframe = evaluate_previous_tasks(
             hypernetwork,
@@ -752,6 +764,14 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         dataframe.to_csv(f'{parameters["saving_folder"]}/'
                          f'results.csv',
                          sep=';')
+        
+    # Plot intervals over tasks' embeddings plot
+    interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
+    
+    plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
+                                    trained_radii_list=trained_radii_list,
+                                    save_folder=interval_plot_save_path)
+
     return hypernetwork, target_network, dataframe
 
 
@@ -842,6 +862,7 @@ if __name__ == "__main__":
     path_to_datasets = './Data'
     dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
+    TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
     if create_grid_search:
         summary_results_filename = 'grid_search_results'
@@ -913,7 +934,7 @@ if __name__ == "__main__":
             'use_bias': hyperparameters["use_bias"],
             'use_batch_norm': hyperparameters["use_batch_norm"],
             'device': hyperparameters["device"],
-            'saving_folder': f'{hyperparameters["saving_folder"]}{no}/',
+            'saving_folder': f'{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/',
             'grid_search_folder': hyperparameters["saving_folder"],
             'summary_results_filename': summary_results_filename,
             'calculation_area_mode': hyperparameters["calculation_area_mode"],
@@ -921,7 +942,7 @@ if __name__ == "__main__":
             'kappa': hyperparameters["kappa"]
         }
 
-        os.makedirs(parameters['saving_folder'], exist_ok=True)
+        os.makedirs(f"{parameters['saving_folder']}", exist_ok=True)
         # start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_parameters(parameters["saving_folder"],
                         parameters,
