@@ -317,6 +317,7 @@ def plot_heatmap(load_path):
 def plot_intervals_around_embeddings(tasks_embeddings_list,
                                      trained_radii_list,
                                      save_folder,
+                                     perturbated_epsilon=0.05,
                                      n_embs_to_plot=20):
     """
     Plot intervals with trained radii around tasks' embeddings for
@@ -328,6 +329,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
         *trained_radii_list*: (list) contains trained radii (tensors) around
                                 tasks' embeddings
         *save_folder*: (string) contains folder where the plot will be saved,
+        *perturbated_epsilon*: (float) perturbated epsilon
         *n_embs_to_plot*: (int) number of embeddings to be plotted
     """
 
@@ -365,7 +367,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
     plt.ylabel("Embedding's value")
-    plt.title('Intervals around embeddings')
+    plt.title(f'Intervals around embeddings with radius = {perturbated_epsilon}')
     plt.xticks(x)
     plt.legend()
     plt.grid()
@@ -568,12 +570,12 @@ def train_single_task(hypernetwork,
 
             # We need to check wheter the distance between the lower weights
             # and the upper weights isn't collapsed into "one point" (short interval)
-            norm_factors = [
-                (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
-            ]
+            # norm_factors = [
+            #     (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
+            # ]
 
             weights_dist_within_layers_list = [
-                ((upper_weights[i] - lower_weights[i]).pow(2).sum() / norm_factors[i]).item() \
+                ((upper_weights[i] - lower_weights[i]).pow(2).mean()).item() \
                                             for i in range(len(target_weights))
             ]
             weights_distance = np.mean(weights_dist_within_layers_list)
@@ -595,7 +597,7 @@ def train_single_task(hypernetwork,
             print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
                   f' worst case error: {worst_case_error},'
-                  f' predicted radii mean: {radii.mean().item()},'
+                  f' predicted mean of radii: {radii.sum().item()},'
                   f' distance between lower and upper weights: {weights_distance},'
                   f' perturbated_epsilon: {eps}')
             # If the accuracy on the validation dataset is higher
@@ -770,7 +772,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     
     plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
                                     trained_radii_list=trained_radii_list,
-                                    save_folder=interval_plot_save_path)
+                                    save_folder=interval_plot_save_path,
+                                    perturbated_epsilon=hyperparameters['perturbated_epsilon'])
 
     return hypernetwork, target_network, dataframe
 
