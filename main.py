@@ -17,6 +17,7 @@ from datetime import datetime
 from itertools import product
 from copy import deepcopy
 from LearningTools.custom_loss_function import IBP_Loss
+from scipy.spatial import distance_matrix
 from Models.hmlp_ibp import HMLP_IBP
 
 from datasets import (
@@ -315,10 +316,9 @@ def plot_heatmap(load_path):
     plt.close()
 
 def plot_intervals_around_embeddings(tasks_embeddings_list,
-                                     trained_radii_list,
                                      save_folder,
                                      perturbated_epsilon=0.05,
-                                     n_embs_to_plot=20):
+                                     n_embs_to_plot=30):
     """
     Plot intervals with trained radii around tasks' embeddings for
     all tasks at once
@@ -326,40 +326,42 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     Argument:
     ---------
         *task_embeddings_list*: (list) contains tasks' embeddings (tensors)
-        *trained_radii_list*: (list) contains trained radii (tensors) around
-                                tasks' embeddings
         *save_folder*: (string) contains folder where the plot will be saved,
         *perturbated_epsilon*: (float) perturbated epsilon
         *n_embs_to_plot*: (int) number of embeddings to be plotted
     """
 
-    # Check if every task's embedding has a corresponding radii tensor
-    assert len(tasks_embeddings_list) == len(trained_radii_list)
-
     # Check if folder exists, if it doesn't then create the folder
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
 
+    # Get dimensionality of created embedding per task
+    n_embs  = len(tasks_embeddings_list[0])
+
+    # Get desired number of colors
+    colors = plt.cm.jet(np.linspace(0, 1, 10))
+
+    # Get the radii list
+    radii_scaled = perturbated_epsilon / n_embs
+
     # Create a single plot and add multiple lines
     plt.figure(figsize=(10, 6))
 
-    for task_id, (tasks_embeddings, trained_radii) in enumerate(zip(tasks_embeddings_list, trained_radii_list)):
+    for task_id, tasks_embeddings in enumerate(tasks_embeddings_list):
         
-        # Send tensors to the CPU device, convert into numpy objects and 
-        # take first `n_embs_to_plot` embeddings' values
-        tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[0][:n_embs_to_plot]
-        trained_radii    = trained_radii.cpu().detach().numpy()[0][:n_embs_to_plot]
+        # Take first `n_embs_to_plot` embeddings' values
+        tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[:n_embs_to_plot]
 
         # Generate an x axis
         x = [_ for _ in range(len(tasks_embeddings))]
 
         # Create a scatter plot
-        plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o')
+        plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o', c=colors[task_id])
 
         # Draw horizontal lines around the dots
         for i in range(len(x)):
-            plt.vlines(x[i], ymin=tasks_embeddings[i] - trained_radii[i],
-                        ymax=tasks_embeddings[i] + trained_radii[i], linewidth=2)
+            plt.vlines(x[i], ymin=tasks_embeddings[i] - radii_scaled,
+                        ymax=tasks_embeddings[i] + radii_scaled, linewidth=2, colors=colors[task_id])
 
     # Create a save path
     save_path = f'{save_folder}/intervals_around_tasks_embeddings.png'
@@ -367,7 +369,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
     plt.ylabel("Embedding's value")
-    plt.title(f'Intervals around embeddings with radius = {perturbated_epsilon}')
+    plt.title(f'Intervals around embeddings with radius = {perturbated_epsilon}, dim = {n_embs}')
     plt.xticks(x)
     plt.legend()
     plt.grid()
@@ -597,7 +599,7 @@ def train_single_task(hypernetwork,
             print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
                   f' loss: {loss.item()}, validation accuracy: {accuracy},'
                   f' worst case error: {worst_case_error},'
-                  f' predicted mean of radii: {radii.sum().item()},'
+                  f' predicted sum of radii: {radii.sum().item()},'
                   f' distance between lower and upper weights: {weights_distance},'
                   f' perturbated_epsilon: {eps}')
             # If the accuracy on the validation dataset is higher
@@ -719,7 +721,9 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     tasks_embeddings_list = []
     trained_radii_list    = []
 
-    for no_of_task in range(parameters['number_of_tasks']):
+    no_tasks = parameters['number_of_tasks']
+
+    for no_of_task in range(no_tasks):
         hypernetwork, target_network = train_single_task(
             hypernetwork,
             target_network,
@@ -731,7 +735,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
         # Get already learned embedding's and trained radii for
         # those embeddings
-        tasks_embeddings_list.append(hypernetwork.tasks_embeddings)
+        tasks_embeddings_list.append(hypernetwork.conditional_params) # Those embeddings are from the latent space!
         trained_radii_list.append(hypernetwork.trained_radii)
 
         if no_of_task == (parameters['number_of_tasks'] - 1):
@@ -766,12 +770,23 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         dataframe.to_csv(f'{parameters["saving_folder"]}/'
                          f'results.csv',
                          sep=';')
-        
-    # Plot intervals over tasks' embeddings plot
-    interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
     
+    # TODO: Calculate the L1 norm between middles of intervals around embeddings
+    # per dimension
+    # distances = dict()
+    # for idx in range(hyperparameters['embedding_sizes']):
+    #     distances[idx] = [item[idx] for item in tasks_embeddings_list]
+    #     for dist_per_dim in distances[idx]:
+    #         dist_per_dim   = dist_per_dim.detach().numpy()[:20]
+    #         print(dist_per_dim.shape)
+    #         distances[idx] = np.abs(dist_per_dim[:, np.newaxis] - dist_per_dim)
+    #         distances[idx] = np.triu(distances[idx], k=1).sum()
+    # print(distances)
+
+    # Plot intervals over tasks' embeddings plot
+    tasks_embeddings_list   = tasks_embeddings_list[-1]  # We get final embeddings
+    interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
     plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
-                                    trained_radii_list=trained_radii_list,
                                     save_folder=interval_plot_save_path,
                                     perturbated_epsilon=hyperparameters['perturbated_epsilon'])
 

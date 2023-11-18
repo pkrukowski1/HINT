@@ -48,7 +48,7 @@ class IBP_Loss(nn.Module):
         self.worst_case_error = (z.argmax(dim=1) != y).float().sum().item()
 
         # Calculate radii assocciated loss
-        # loss_eps = (radii.sum() - eps).pow(2)
+        # loss_eps = (radii.sum() - eps).pow(2) <- In latent space firstly
         
         # Calculate total loss
         total_loss = kappa * loss_fit + (1-kappa) * loss_spec #+ loss_eps
