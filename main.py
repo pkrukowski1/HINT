@@ -338,14 +338,15 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     # Get dimensionality of created embedding per task
     n_embs  = len(tasks_embeddings_list[0])
 
-    # Get desired number of colors
-    colors = plt.cm.jet(np.linspace(0, 1, 10))
-
     # Get the radii list
     radii_scaled = perturbated_epsilon / n_embs
 
-    # Create a single plot and add multiple lines
-    plt.figure(figsize=(10, 6))
+    # Create a plot
+    no_tasks = len(tasks_embeddings_list)
+    fig      = plt.figure(figsize=(10, 6))
+    cm       = plt.get_cmap('gist_rainbow')
+    ax       = fig.add_subplot(111)
+    ax.set_prop_cycle(color=[cm(1.*i/no_tasks) for i in range(no_tasks)])
 
     for task_id, tasks_embeddings in enumerate(tasks_embeddings_list):
         
@@ -356,12 +357,12 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
         x = [_ for _ in range(len(tasks_embeddings))]
 
         # Create a scatter plot
-        plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o', c=colors[task_id])
+        ax.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o')
 
         # Draw horizontal lines around the dots
         for i in range(len(x)):
-            plt.vlines(x[i], ymin=tasks_embeddings[i] - radii_scaled,
-                        ymax=tasks_embeddings[i] + radii_scaled, linewidth=2, colors=colors[task_id])
+            ax.vlines(x[i], ymin=tasks_embeddings[i] - radii_scaled,
+                        ymax=tasks_embeddings[i] + radii_scaled, linewidth=2)
 
     # Create a save path
     save_path = f'{save_folder}/intervals_around_tasks_embeddings.png'
