@@ -575,12 +575,18 @@ def train_single_task(hypernetwork,
             # norm_factors = [
             #     (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
             # ]
-
             weights_dist_within_layers_list = [
                 ((upper_weights[i] - lower_weights[i]).pow(2).mean()).item() \
                                             for i in range(len(target_weights))
             ]
             weights_distance = np.mean(weights_dist_within_layers_list)
+
+            # Save distance between the upper and lower weights to file
+            append_row_to_file(
+            filename=f'{parameters["saving_folder"]}upper_lower_weights_distance.txt',
+            elements=f'{current_no_of_task};{iteration};{weights_distance}'
+            )
+
             
             accuracy = calculate_accuracy(
                 current_dataset_instance,
@@ -771,7 +777,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                          f'results.csv',
                          sep=';')
     
-    # TODO: Calculate the L1 norm between middles of intervals around embeddings
+    # We collect final embeddings
+    tasks_embeddings_list   = tasks_embeddings_list[-1]  
+
+    # TODO Calculate the L1 norm between middles of intervals around embeddings
     # per dimension
     # distances = dict()
     # for idx in range(hyperparameters['embedding_sizes']):
@@ -784,7 +793,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     # print(distances)
 
     # Plot intervals over tasks' embeddings plot
-    tasks_embeddings_list   = tasks_embeddings_list[-1]  # We get final embeddings
     interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
     plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
                                     save_folder=interval_plot_save_path,
