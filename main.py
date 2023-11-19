@@ -27,6 +27,26 @@ from datasets import (
     prepare_split_mnist_tasks
 )
 
+def init_embeddings(cond_emb, cond_ind, cond_emb_prev=None):
+    """
+    Initialize tasks' embeddings in-place in that way that
+    n-th task is initialized by values taken from (n-1)-th task
+
+    Parameters:
+    -----------
+    *cond_emb*: (torch.Tensor) a task's embedding
+    *cond_id*: (int): an embedding ID
+    *cond_emb_prev* (torch.Tensor): an embedding of a task that has already
+                                    been learned in previous step.
+    """
+
+    if cond_emb_prev is not None:
+        cond_emb = cond_emb_prev * torch.ones_like(cond_emb_prev)
+    else:
+        cond_emb = torch.rand_like(cond_emb_prev)
+
+
+
 def set_seed(value):
     '''
     Set deterministic results according to the given value
@@ -345,8 +365,9 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     no_tasks = len(tasks_embeddings_list)
     fig      = plt.figure(figsize=(10, 6))
     cm       = plt.get_cmap('gist_rainbow')
-    ax       = fig.add_subplot(111)
-    ax.set_prop_cycle(color=[cm(1.*i/no_tasks) for i in range(no_tasks)])
+    # ax       = fig.add_subplot(111)
+    # ax.set_prop_cycle(color=[cm(1.*i/no_tasks) for i in range(no_tasks)])
+    colors   = [cm(1.*i/no_tasks) for i in range(no_tasks)]
 
     for task_id, tasks_embeddings in enumerate(tasks_embeddings_list):
         
@@ -357,12 +378,12 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
         x = [_ for _ in range(len(tasks_embeddings))]
 
         # Create a scatter plot
-        ax.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o')
+        plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o', c=[colors[task_id]])
 
         # Draw horizontal lines around the dots
         for i in range(len(x)):
-            ax.vlines(x[i], ymin=tasks_embeddings[i] - radii_scaled,
-                        ymax=tasks_embeddings[i] + radii_scaled, linewidth=2)
+            plt.vlines(x[i], ymin=tasks_embeddings[i] - radii_scaled,
+                        ymax=tasks_embeddings[i] + radii_scaled, linewidth=2, colors=[colors[task_id]])
 
     # Create a save path
     save_path = f'{save_folder}/intervals_around_tasks_embeddings.png'
@@ -742,7 +763,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
         # Get already learned embedding's and trained radii for
         # those embeddings
-        tasks_embeddings_list.append(hypernetwork.conditional_params) # Those embeddings are from the latent space!
+        tasks_embeddings_list.append(hypernetwork.get_cond_in_emb(no_of_task)) # Those embeddings are from the latent space!
         trained_radii_list.append(hypernetwork.trained_radii)
 
         if no_of_task == (parameters['number_of_tasks'] - 1):
@@ -778,8 +799,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                          f'results.csv',
                          sep=';')
     
-    # We collect final embeddings
-    tasks_embeddings_list   = tasks_embeddings_list[-1]  
 
     # TODO Calculate the L1 norm between middles of intervals around embeddings
     # per dimension
