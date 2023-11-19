@@ -10,8 +10,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from copy import deepcopy
-
 class HMLP_IBP(HMLP, HyperNetInterface):
 
     """
@@ -38,9 +36,16 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                         num_cond_embs=num_cond_embs) 
         
         self.trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
-                                                           # around embeddings
+                                                          # around embeddings in the weight space
         self.tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
 
+    @property
+    def internal_params(self):
+        return self._internal_params
+    
+    @internal_params.setter
+    def internal_params(self, cond_id, value):
+        self._internal_params[cond_id] = value
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,

@@ -19,6 +19,7 @@ from copy import deepcopy
 from LearningTools.custom_loss_function import IBP_Loss
 from scipy.spatial import distance_matrix
 from Models.hmlp_ibp import HMLP_IBP
+from hypnettorch.hnets.hnet_helpers import init_conditional_embeddings
 
 from datasets import (
     set_hyperparameters,
@@ -44,6 +45,8 @@ def init_embeddings(cond_emb, cond_ind, cond_emb_prev=None):
         cond_emb = cond_emb_prev * torch.ones_like(cond_emb_prev)
     else:
         cond_emb = torch.rand_like(cond_emb_prev)
+
+    return cond_emb
 
 
 
@@ -365,8 +368,6 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     no_tasks = len(tasks_embeddings_list)
     fig      = plt.figure(figsize=(10, 6))
     cm       = plt.get_cmap('gist_rainbow')
-    # ax       = fig.add_subplot(111)
-    # ax.set_prop_cycle(color=[cm(1.*i/no_tasks) for i in range(no_tasks)])
     colors   = [cm(1.*i/no_tasks) for i in range(no_tasks)]
 
     for task_id, tasks_embeddings in enumerate(tasks_embeddings_list):
@@ -752,6 +753,15 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     no_tasks = parameters['number_of_tasks']
 
     for no_of_task in range(no_tasks):
+
+        if no_of_task > 0:
+            # Get `(no_of_task-1)`-th task's embedding
+            previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
+
+            # Initialize `no_of_task-th` task's embedding as `(no_of_task-1)`-th
+            # task's embedding
+            hypernetwork.internal_params[no_of_task] = deepcopy(previous_embedding)
+           
         hypernetwork, target_network = train_single_task(
             hypernetwork,
             target_network,
