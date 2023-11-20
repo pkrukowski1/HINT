@@ -554,22 +554,22 @@ def train_single_task(hypernetwork,
         # TODO Add loss which forces middles of intervals to stay within
         # the same interval
 
-        if current_no_of_task > 0:
-            # Get middles of intervals around current embedding 
-            # and previous embeddings
-            current_embedding   = hypernetwork.get_cond_in_emb(current_no_of_task).view(1,1,-1)
-            previous_embeddings = torch.stack([hypernetwork.get_cond_in_emb(task_id) for task_id in range(current_no_of_task)])
-            previous_embeddings = previous_embeddings.view(1, current_no_of_task, -1)
+        # if current_no_of_task > 0:
+        #     # Get middles of intervals around current embedding 
+        #     # and previous embeddings
+        #     current_embedding   = hypernetwork.get_cond_in_emb(current_no_of_task).view(1,1,-1)
+        #     previous_embeddings = torch.stack([hypernetwork.get_cond_in_emb(task_id) for task_id in range(current_no_of_task)])
+        #     previous_embeddings = previous_embeddings.view(1, current_no_of_task, -1)
 
-            # Calculate loss between middles of intervals around tasks' embeddings
-            loss_middles_intervals = torch.cdist(current_embedding, previous_embeddings, p=2).sum()
-        else:
-            loss_middles_intervals = 0
+        #     # Calculate loss between middles of intervals around tasks' embeddings
+        #     loss_middles_intervals = torch.cdist(current_embedding, previous_embeddings, p=2).sum()
+        # else:
+        #     loss_middles_intervals = 0
 
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
-            parameters['lambda'] * loss_norm_target_regularizer + \
-            parameters['gamma'] * loss_middles_intervals / max(1, current_no_of_task)
+            parameters['lambda'] * loss_norm_target_regularizer #+ \
+            # parameters['gamma'] * loss_middles_intervals / max(1, current_no_of_task)
         
         loss.backward()
         optimizer.step()
@@ -752,8 +752,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             # Get `(no_of_task-1)`-th task's embedding
             previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
 
-            # Initialize `no_of_task-th` task's embedding as `(no_of_task-1)`-th
-            # task's embedding
+            # Initialize `no_of_task-th` task's embedding
             hypernetwork.internal_params[no_of_task] = deepcopy(previous_embedding)
            
         hypernetwork, target_network = train_single_task(
