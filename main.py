@@ -19,7 +19,6 @@ from copy import deepcopy
 from LearningTools.custom_loss_function import IBP_Loss
 from scipy.spatial import distance_matrix
 from Models.hmlp_ibp import HMLP_IBP
-from hypnettorch.hnets.hnet_helpers import init_conditional_embeddings
 
 from datasets import (
     set_hyperparameters,
@@ -27,28 +26,6 @@ from datasets import (
     prepare_permuted_mnist_tasks,
     prepare_split_mnist_tasks
 )
-
-def init_embeddings(cond_emb, cond_ind, cond_emb_prev=None):
-    """
-    Initialize tasks' embeddings in-place in that way that
-    n-th task is initialized by values taken from (n-1)-th task
-
-    Parameters:
-    -----------
-    *cond_emb*: (torch.Tensor) a task's embedding
-    *cond_id*: (int): an embedding ID
-    *cond_emb_prev* (torch.Tensor): an embedding of a task that has already
-                                    been learned in previous step.
-    """
-
-    if cond_emb_prev is not None:
-        cond_emb = cond_emb_prev * torch.ones_like(cond_emb_prev)
-    else:
-        cond_emb = torch.rand_like(cond_emb_prev)
-
-    return cond_emb
-
-
 
 def set_seed(value):
     '''
@@ -573,9 +550,26 @@ def train_single_task(hypernetwork,
             f'{current_no_of_task};{iteration};'
             f'{loss_regularization};{loss_norm_target_regularizer}'
         )
+
+        # TODO Add loss which forces middles of intervals to stay within
+        # the same interval
+
+        if current_no_of_task > 0:
+            # Get middles of intervals around current embedding 
+            # and previous embeddings
+            current_embedding   = hypernetwork.get_cond_in_emb(current_no_of_task).view(1,1,-1)
+            previous_embeddings = torch.stack([hypernetwork.get_cond_in_emb(task_id) for task_id in range(current_no_of_task)])
+            previous_embeddings = previous_embeddings.view(1, current_no_of_task, -1)
+
+            # Calculate loss between middles of intervals around tasks' embeddings
+            loss_middles_intervals = torch.cdist(current_embedding, previous_embeddings, p=2).sum()
+        else:
+            loss_middles_intervals = 0
+
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
-            parameters['lambda'] * loss_norm_target_regularizer
+            parameters['lambda'] * loss_norm_target_regularizer + \
+            parameters['gamma'] * loss_middles_intervals / max(1, current_no_of_task)
         
         loss.backward()
         optimizer.step()
@@ -810,18 +804,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                          sep=';')
     
 
-    # TODO Calculate the L1 norm between middles of intervals around embeddings
-    # per dimension
-    # distances = dict()
-    # for idx in range(hyperparameters['embedding_sizes']):
-    #     distances[idx] = [item[idx] for item in tasks_embeddings_list]
-    #     for dist_per_dim in distances[idx]:
-    #         dist_per_dim   = dist_per_dim.detach().numpy()[:20]
-    #         print(dist_per_dim.shape)
-    #         distances[idx] = np.abs(dist_per_dim[:, np.newaxis] - dist_per_dim)
-    #         distances[idx] = np.triu(distances[idx], k=1).sum()
-    # print(distances)
-
     # Plot intervals over tasks' embeddings plot
     interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
     plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
@@ -948,7 +930,8 @@ if __name__ == "__main__":
                 hyperparameters["hypernetworks_hidden_layers"],
                 hyperparameters["lambdas"],
                 hyperparameters["batch_sizes"],
-                hyperparameters["seed"])
+                hyperparameters["seed"],
+                hyperparameters["gammas"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
@@ -956,6 +939,7 @@ if __name__ == "__main__":
         hypernetwork_hidden_layers = elements[3]
         lambda_par = elements[4]
         batch_size = elements[5]
+        gamma_par = elements[6]
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
         seed = elements[6]
@@ -984,6 +968,7 @@ if __name__ == "__main__":
             'embedding_size': embedding_size,
             'norm': hyperparameters["norm"],
             'lambda': lambda_par,
+            'gamma': gamma_par,
             'optimizer': hyperparameters["optimizer"],
             'beta': beta,
             'padding': hyperparameters["padding"],

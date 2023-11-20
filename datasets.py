@@ -159,6 +159,7 @@ def set_hyperparameters(dataset,
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'sparsity_parameters': [0],
                 'lambdas': [0.001, 0.0005],
+                'gammas': [0.001, 0.0005],
                 'best_model_selection_method': 'val_loss',
                 # not for optimization
                 'seed': [1, 2, 3, 4, 5]
@@ -181,6 +182,7 @@ def set_hyperparameters(dataset,
                 'batch_sizes': [128],
                 'betas': [0.0005],
                 'lambdas': [0.001],
+                'gammas': [0.001],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'best_model_selection_method': 'last_model'
             }
@@ -190,7 +192,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 5
+        hyperparams['number_of_iterations'] = 10
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1500
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -205,7 +207,7 @@ def set_hyperparameters(dataset,
         # Directly related to the MNIST dataset
         hyperparams['padding'] = 2
         hyperparams['shape'] = (28 + 2 * hyperparams['padding'])**2
-        hyperparams['number_of_tasks'] = 3
+        hyperparams['number_of_tasks'] = 5
         hyperparams['augmentation'] = False
 
     elif dataset == 'CIFAR100':
@@ -215,6 +217,7 @@ def set_hyperparameters(dataset,
                 'embedding_sizes': [48],
                 'betas': [0.01],
                 'lambdas': [0.1],
+                'gammas': [0.1],
                 'learning_rates': [0.001],
                 'batch_sizes': [32],
                 'hypernetworks_hidden_layers': [[100]],
@@ -233,14 +236,17 @@ def set_hyperparameters(dataset,
             elif part == 1:
                 hyperparams['betas'] = [0.1]
                 hyperparams['lambdas'] = [1]
+                hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 2:
                 hyperparams['betas'] = [1]
                 hyperparams['lambdas'] = [1]
+                hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 6:
                 hyperparams['betas'] = [0.01, 0.1, 1, 0.05]
                 hyperparams['lambdas'] = [0.01]
+                hyperparams['gammas'] = [0.01]
             elif part == 7:
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
@@ -251,6 +257,7 @@ def set_hyperparameters(dataset,
                 hyperparams['seed'] = [4, 5]
                 hyperparams['betas'] = [0.01]
                 hyperparams['lambdas'] = [0.01]
+                hyperparams['gammas'] = [0.01]
             else:
                 raise ValueError(f'Wrong argument: {part}!')
             hyperparams['saving_folder'] = (
@@ -266,6 +273,7 @@ def set_hyperparameters(dataset,
                 'embedding_sizes': [48],
                 'betas': [0.01],
                 'lambdas': [1],
+                'gammas': [1],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
                 'hypernetworks_hidden_layers': [[100]],
@@ -285,6 +293,7 @@ def set_hyperparameters(dataset,
                 hyperparams['hypernetworks_hidden_layers'] = [[100]]
                 hyperparams['betas'] = [0.01]
                 hyperparams['lambdas'] = [0.01]
+                hyperparams['gammas'] = [0.01]
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
                 hyperparams['resnet_widening_factor'] = None
@@ -320,6 +329,7 @@ def set_hyperparameters(dataset,
                 'betas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'lambdas': [0.001],
+                'gammas': [0.001],
                 # seed is not for optimization but for ensuring multiple results
                 'seed': [1, 2, 3, 4, 5],
                 'best_model_selection_method': 'last_model',
@@ -333,6 +343,7 @@ def set_hyperparameters(dataset,
                 hyperparams['hypernetworks_hidden_layers'] = [[50, 50]]
                 hyperparams['betas'] = [0.01]
                 hyperparams['lambdas'] = [0.0001]
+                hyperparams['gammas'] = [0.0001]
             else:
                 raise ValueError('Not implemented subset of hyperparameters!')
 
@@ -350,6 +361,7 @@ def set_hyperparameters(dataset,
                 'batch_sizes': [128],
                 'betas': [0.001],
                 'lambdas': [0.001],
+                'gammas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'augmentation': True,
                 'best_model_selection_method': 'last_model',
