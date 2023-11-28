@@ -343,6 +343,79 @@ def evaluate_previous_tasks(hypernetwork,
             result, ignore_index=True)
     return dataframe_results
 
+def evaluate_previous_tasks_for_intersection(hypernetwork,
+                            target_network,
+                            input_to_target_network,
+                            dataframe_results,
+                            list_of_permutations,
+                            parameters):
+    """
+    Evaluate the target network according to the weights generated
+    by the hypernetwork for all previously trained tasks for intersection
+    of tasks' embeddings.
+    
+    Arguments:
+    ----------
+      *hypernetwork* (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
+                     a hypernetwork that generates weights for the target
+                     network
+      *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
+                       a target network that finally will perform
+                       classification
+      *input_to_target_network* (torch.Tensor): an input to the hypernetwork
+      *dataframe_results* (Pandas Dataframe) stores results; contains
+                          following columns: 'after_learning_of_task',
+                          'tested_task' and 'accuracy'
+      *list_of_permutations*: (hypnettorch.data module), e.g. in the case
+                              of PermutedMNIST it will be
+                              special.permuted_mnist.PermutedMNISTList
+      *parameters* a dictionary containing the following keys:
+        -device- string: 'cuda' or 'cpu', defines in which device calculations
+                 will be performed
+        -use_batch_norm_memory- Boolean: defines whether stored weights
+                                of the batch normalization layer should be used
+                                If True then *number_of_task* has to be given
+        -number_of_task- int/None: gives an information which task is currently
+                         solved
+
+    Returns:
+    --------
+      *dataframe_results* (Pandas Dataframe) a dataframe updated with
+                          the calculated results
+    """
+    # Calculate accuracy for each previously trained task
+    # as well as for the last trained task
+    hypernetwork.eval()
+    target_network.eval()
+
+    inter_target_weights = hypernetwork.forward(cond_input=input_to_target_network.view(1,-1), 
+                                                perturbated_eps=0.0)    # We only want weights without intervals
+
+    for task in range(parameters['number_of_task'] + 1):
+        # Target entropy calculation should be included here: hypernetwork has to be inferred
+        # for each task (together with the target network) and the task_id with the lowest entropy
+        # has to be chosen
+        # Arguments of the function: list of permutations, hypernetwork, sparsity, target network
+        # output: task id
+        currently_tested_task = list_of_permutations[task]
+        
+        accuracy = calculate_accuracy(
+            currently_tested_task,
+            target_network,
+            inter_target_weights,
+            parameters=parameters,
+            evaluation_dataset='test'
+        )
+        result = {
+            'after_learning_of_task': parameters['number_of_task'],
+            'tested_task': task,
+            'accuracy': accuracy.cpu().item()
+        }
+        print(f'Accuracy for task {task}: {accuracy}%.')
+        dataframe_results = dataframe_results.append(
+            result, ignore_index=True)
+    return dataframe_results
+
 
 def save_parameters(saving_folder,
                     parameters,
@@ -825,6 +898,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     # (embedding, task)
     results_extended = defaultdict(lambda: pd.DataFrame(columns=[
                     'after_learning_of_task', 'tested_task', 'accuracy']))
+    
+    # Declare an empty dataframe for accuraccies obtained for target weights
+    # generated from the hypernetwork whose input is drawn from the intersection
+    # of tasks embeddings
+    results_from_interval_intersection = pd.DataFrame(columns=[
+                    'after_learning_of_task', 'tested_task', 'accuracy'])
 
     # Create a folder for extended results
     if not os.path.exists(f'{parameters["saving_folder"]}/results_extended/'):
@@ -839,12 +918,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         #     # Initialize `no_of_task-th` task's embedding
         #     hypernetwork.internal_params[no_of_task] = deepcopy(previous_embedding)
         
-        if no_of_task > 0:
-            # Get `(no_of_task-1)`-th task's embedding
-            previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
+        # if no_of_task > 0:
+        #     # Get `(no_of_task-1)`-th task's embedding
+        #     previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
 
-            # Initialize `no_of_task-th` task's embedding
-            hypernetwork.internal_params[no_of_task] = 0.01*torch.randn_like(previous_embedding) + previous_embedding
+        #     # Initialize `no_of_task-th` task's embedding
+        #     hypernetwork.internal_params[no_of_task] = 0.1*torch.randn_like(previous_embedding) + previous_embedding
            
         hypernetwork, target_network = train_single_task(
             hypernetwork,
@@ -916,6 +995,82 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             results_extended[task_id].to_csv(f'{parameters["saving_folder"]}/results_extended/'
                                                 f'results_task_{task_id}.csv',
                                                 sep=';')
+            
+        # Evaluate tasks using weights generated from the intersection of
+        # tasks' embeddings
+        # FIXME: It works only for 2 tasks right now!
+        if no_of_task > 0:
+
+            # Get previous and current task's embedding
+            previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
+            current_embedding  = hypernetwork.get_cond_in_emb(no_of_task)
+
+            # Chech if the intersection is not empty
+            assert torch.all((current_embedding-previous_embedding).abs() < 2*hyperparameters['perturbated_epsilon'])
+
+            # Logits for the previous embedding
+            z_u_prev_emb = previous_embedding + hyperparameters['perturbated_epsilon']
+            z_l_prev_emb = previous_embedding - hyperparameters['perturbated_epsilon']
+
+            # Logits for the current embedding
+            z_u_curr_emb = current_embedding + hyperparameters['perturbated_epsilon']
+            z_l_curr_emb = current_embedding - hyperparameters['perturbated_epsilon']
+
+            # Get the intersection of the intervals
+            z_u_inter_emb = torch.minimum(z_u_curr_emb, z_u_prev_emb)
+            z_l_inter_emb = torch.maximum(z_l_curr_emb, z_l_prev_emb)
+
+            # Check
+            assert torch.all(z_l_inter_emb <= z_u_inter_emb)
+
+            # TODO: For now we don't draw weights from intervals, but we take middles
+            # of intervals!!!
+            # Get middles of intervals
+            z_inter_emb = (z_u_inter_emb - z_l_inter_emb)/2
+
+            # Process through the hypernetwork
+
+            # Evaluate previous tasks
+            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
+                                                    hypernetwork,
+                                                    target_network,
+                                                    z_inter_emb,
+                                                    results_from_interval_intersection,
+                                                    dataset_list_of_tasks,
+                                                    parameters={
+                                                        'device': parameters['device'],
+                                                        'use_batch_norm_memory': use_batch_norm_memory,
+                                                        'number_of_task': no_of_task
+                                                    }
+                                                )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                    'after_learning_of_task': 'int',
+                                                    'tested_task': 'int'
+                                                })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                f'results_intersection.csv',
+                                                sep=';')
+        else:
+            results_from_interval_intersection = evaluate_previous_tasks(
+                hypernetwork,
+                target_network,
+                results_from_interval_intersection,
+                dataset_list_of_tasks,
+                parameters={
+                            'device': parameters['device'],
+                            'use_batch_norm_memory': use_batch_norm_memory,
+                            'number_of_task': no_of_task
+                        }
+                    )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                                                        'after_learning_of_task': 'int',
+                                                                                        'tested_task': 'int'
+                                                                                    })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                        f'results_intersection.csv',
+                                                        sep=';')
+                        
+                
 
     # Plot intervals over tasks' embeddings plot
     interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
@@ -1001,13 +1156,20 @@ def main_running_experiments(path_to_datasets,
         row_with_results
     )
 
+    # Plot heatmap for results
     load_path = (f'{parameters["saving_folder"]}/'
                  f'results.csv')
     plot_heatmap(load_path)
 
+    # Plot heatmap for extended results (every embedding is used to evaluate every task)
     for idx in range(parameters["number_of_tasks"]):
         load_path = (f'{parameters["saving_folder"]}/results_extended/results_task_{idx}.csv')
         plot_heatmap(load_path)
+    
+    # Plot heatmap for weights taken from the intersection of tasks' embeddings
+    load_path = (f'{parameters["saving_folder"]}/'
+                 f'results_intersection.csv')
+    plot_heatmap(load_path)
     
     return hypernetwork, target_network, dataframe
 
