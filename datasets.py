@@ -152,7 +152,7 @@ def set_hyperparameters(dataset,
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [24],
+                'embedding_sizes': [8],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001, 0.0005, 0.005],
@@ -192,7 +192,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 500
+        hyperparams['number_of_iterations'] = 600
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1500
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -393,7 +393,7 @@ def set_hyperparameters(dataset,
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    hyperparams['perturbated_epsilon'] = 200.0
+    hyperparams['perturbated_epsilon'] = 1.0
     hyperparams['calculation_area_mode'] = True
     hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)

@@ -14,7 +14,9 @@ class IBP_Loss(nn.Module):
         self.worst_case_error      = 0.0
     
 
-    def forward(self, y_pred, y, z_l, z_u, radii, eps, kappa=0.5):
+    # def forward(self, y_pred, y, z_l, z_u, radii, eps, kappa=0.5):
+    def forward(self, y_pred, y, z_l, z_u, eps, kappa=0.5):
+
         """
         Arguments:
         ----------
@@ -49,8 +51,9 @@ class IBP_Loss(nn.Module):
 
         # Calculate radii assocciated loss
         # loss_eps = (radii.sum() - eps).pow(2)
+        # loss_eps = -radii.mean()
         
         # Calculate total loss
-        total_loss = kappa * loss_fit + (1-kappa) * loss_spec #+ loss_eps
+        total_loss = kappa * loss_fit + (1-kappa) * loss_spec# + loss_eps
 
         return total_loss
