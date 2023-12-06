@@ -118,13 +118,19 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         ### Process inputs through network ###
         eps = perturbated_eps * torch.ones_like(h)
 
-        for i in range((len(fc_weights))):
+        
+        
+        for i in range(len(fc_weights)):            
             
-            h        = F.linear(h, fc_weights[i], bias=fc_biases[i])
-            eps      = F.linear(eps, torch.abs(fc_weights[i]), bias=torch.zeros_like(fc_biases[i]))
+            h = F.linear(h, fc_weights[i], bias=fc_biases[i])
+            eps = F.linear(eps, torch.abs(fc_weights[i]), 
+                           bias=torch.zeros_like(fc_biases[i]))
             z_l, z_u = h - eps, h + eps
             z_l, z_u = F.relu(z_l), F.relu(z_u)
-            h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
+            h, eps = (z_u + z_l)/2, (z_u - z_l)/2
+        
+        self.trained_radii    = eps # Store the trained radii
+        self.tasks_embeddings = h   # Store the embedding
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)

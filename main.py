@@ -484,9 +484,6 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     # Get dimensionality of created embedding per task
     n_embs  = len(tasks_embeddings_list[0])
 
-    # # Get the radii list
-    # radii_scaled = perturbated_epsilon / n_embs
-
     # Create a plot
     no_tasks = len(tasks_embeddings_list)
     fig      = plt.figure(figsize=(10, 6))
@@ -613,7 +610,9 @@ def train_single_task(hypernetwork,
                 min_lr=0.5e-6, cooldown=0, verbose=True
             )
     # The kappa and epsilon hyperparameters scheduling
-    iterations_to_adjust = int(3 * hyperparameters["number_of_iterations"] // 4)
+    iterations_to_adjust = int(hyperparameters["number_of_iterations"] // 2)
+
+    # Calculate size of embedding
 
     for iteration in range(parameters['number_of_iterations']):
         current_batch = current_dataset_instance.next_train_batch(
@@ -639,21 +638,11 @@ def train_single_task(hypernetwork,
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
         emb = hypernetwork.conditional_params[current_no_of_task]
-        upper_emb = (hypernetwork.conditional_params[current_no_of_task] + eps)
-        lower_emb = (hypernetwork.conditional_params[current_no_of_task] - eps)
 
-        target_weights = hypernetwork.forward(cond_input=emb.view(1,-1), 
-                                            return_extended_output=False,
-                                            perturbated_eps=eps)
-        
-        upper_weights, _, _, _ = hypernetwork.forward(cond_input=upper_emb.view(1,-1), 
-                                            return_extended_output=True,
-                                            perturbated_eps=eps)
-        
-        lower_weights, _, _, _ = hypernetwork.forward(cond_input=lower_emb.view(1,-1), 
-                                            return_extended_output=True,
-                                            perturbated_eps=eps)
-        
+        target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_input=emb.view(1,-1), 
+                                                                                return_extended_output=True,
+                                                                                perturbated_eps=eps)
+    
 
         loss_norm_target_regularizer = 0.
         if current_no_of_task > 0:
@@ -683,30 +672,37 @@ def train_single_task(hypernetwork,
                                                 weights=upper_weights)
         prediction_zl = target_network.forward(tensor_input,
                                                 weights=lower_weights)
+        
+
+        # We need to check wheter the distance between the lower weights
+        # and the upper weights isn't collapsed into "one point" (short interval)
+        loss_weigths = 0.0
+        for W_u, W_l in zip(upper_weights, lower_weights):
+            loss_weigths += (W_u - W_l).pow(2).mean()
+        
 
         loss_current_task = criterion(
             y_pred=prediction,
             y=gt_output,
             z_l=prediction_zl,
             z_u=prediction_zu,
-            #radii=radii,
+            radii=radii,
             eps=eps,
             kappa=kappa
         )
 
         # Calculate loss which comes from the forcing embedding to stay at some distance
         # each by each
-        # if current_no_of_task > 0:
-        #     prev_hnet_emb = hypernetwork.get_cond_in_emb(current_no_of_task-1)
-        #     curr_hnet_emb = hypernetwork.get_cond_in_emb(current_no_of_task)
+        if current_no_of_task > 0:
+            lower_logit_task_emb  = hypernetwork.get_cond_in_emb(0).detach() - eps
+            prev_middle_task_emb  = hypernetwork.get_cond_in_emb(current_no_of_task-1)
+            exp_middle_task_emb   = (prev_middle_task_emb + lower_logit_task_emb)/2.0
+            curr_middle_task_emb  = hypernetwork.get_cond_in_emb(current_no_of_task)
 
-        #     # Calculate the middle of the upper part of interval of previous embedding
-        #     upper_middle = prev_hnet_emb + eps/2
-
-        #     # Force current embedding to stay within the region of the previous embedding
-        #     loss_embeddings = (upper_middle - curr_hnet_emb).pow(2).mean()
-        # else:
-        #     loss_embeddings = 0.0
+            # Force current embedding to stay within the region of the first embedding
+            loss_embeddings = (exp_middle_task_emb - curr_middle_task_emb).pow(2).mean()
+        else:
+            loss_embeddings = 0.0
 
         loss_regularization = 0.
         if current_no_of_task > 0:
@@ -726,9 +722,9 @@ def train_single_task(hypernetwork,
 
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
-            parameters['lambda'] * loss_norm_target_regularizer #+ \
-            # parameters['gamma'] * loss_embeddings / max(1, current_no_of_task)
-        
+            parameters['lambda'] * loss_norm_target_regularizer + \
+            parameters['gamma'] * loss_embeddings 
+
         loss.backward()
         optimizer.step()
         if parameters['number_of_epochs'] is None:
@@ -745,22 +741,11 @@ def train_single_task(hypernetwork,
                 print(f'Current epoch: {current_epoch}')
 
 
-            # We need to check wheter the distance between the lower weights
-            # and the upper weights isn't collapsed into "one point" (short interval)
-            # norm_factors = [
-            #     (target_weights[i]).pow(2).sum() for i in range(len(target_weights))
-            # ]
-            # weights_dist_within_layers_list = [
-            #     ((upper_upper_weights[i] - lower_lower_weights[i]).pow(2).mean()).item() \
-            #                                 for i in range(len(target_weights))
-            # ]
-            # weights_distance = np.mean(weights_dist_within_layers_list)
-
-            # # Save distance between the upper and lower weights to file
-            # append_row_to_file(
-            # filename=f'{parameters["saving_folder"]}upper_lower_weights_distance.txt',
-            # elements=f'{current_no_of_task};{iteration};{weights_distance}'
-            # )
+            # Save distance between the upper and lower weights to file
+            append_row_to_file(
+            filename=f'{parameters["saving_folder"]}upper_lower_weights_distance.txt',
+            elements=f'{current_no_of_task};{iteration};{loss_weigths}'
+            )
 
             
             accuracy = calculate_accuracy(
@@ -936,8 +921,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         #     previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
 
             # Initialize `no_of_task-th` task's embedding
-            hypernetwork.internal_params[no_of_task] = 0.1*torch.randn_like(previous_embedding) + previous_embedding
-           
+
         hypernetwork, target_network = train_single_task(
             hypernetwork,
             target_network,
@@ -985,41 +969,40 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                          f'results.csv',
                          sep=';')
 
-        # # Evaluate previous tasks per one embedding
-        # for task_id in range(no_tasks):
-        #     results_extended[task_id] = evaluate_previous_tasks_per_embedding(
-        #                     hypernetwork,
-        #                     target_network,
-        #                     task_id,
-        #                     results_extended[task_id],
-        #                     dataset_list_of_tasks,
-        #                     parameters={
-        #                         'device': parameters['device'],
-        #                         'use_batch_norm_memory': use_batch_norm_memory,
-        #                         'number_of_task': no_of_task
-        #                     }
-        #                 )
+        # Evaluate previous tasks per one embedding
+        for task_id in range(no_of_task+1):
+            results_extended[task_id] = evaluate_previous_tasks_per_embedding(
+                            hypernetwork,
+                            target_network,
+                            no_of_task,
+                            results_extended[task_id],
+                            dataset_list_of_tasks,
+                            parameters={
+                                'device': parameters['device'],
+                                'use_batch_norm_memory': use_batch_norm_memory,
+                                'number_of_task': no_of_task
+                            }
+                        )
             
-        #     results_extended[task_id] = results_extended[task_id].astype({
-        #                                             'after_learning_of_task': 'int',
-        #                                             'tested_task': 'int'
-        #                                             })
+            results_extended[task_id] = results_extended[task_id].astype({
+                                                    'after_learning_of_task': 'int',
+                                                    'tested_task': 'int'
+                                                    })
             
-        #     results_extended[task_id].to_csv(f'{parameters["saving_folder"]}/results_extended/'
-        #                                         f'results_task_{task_id}.csv',
-        #                                         sep=';')
+            results_extended[task_id].to_csv(f'{parameters["saving_folder"]}/results_extended/'
+                                                f'results_task_{task_id}.csv',
+                                                sep=';')
             
         # Evaluate tasks using weights generated from the intersection of
         # tasks' embeddings
-        # FIXME: It works only for 2 tasks right now!
+        emb_size = hyperparameters['embedding_sizes'][0]
+        
         if no_of_task > 0:
 
             # Get previous and current task's embedding
             previous_embedding = deepcopy(hypernetwork.get_cond_in_emb(no_of_task-1))
             current_embedding  = deepcopy(hypernetwork.get_cond_in_emb(no_of_task))            
 
-            # Chech if the intersection is not empty
-            assert torch.all((current_embedding-previous_embedding).abs() < 2*hyperparameters['perturbated_epsilon'])
 
             # Logits for the previous embedding
             z_u_prev_emb = previous_embedding + hyperparameters['perturbated_epsilon']*torch.ones_like(previous_embedding)
@@ -1033,7 +1016,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             z_u_inter_emb = torch.minimum(z_u_curr_emb, z_u_prev_emb)
             z_l_inter_emb = torch.maximum(z_l_curr_emb, z_l_prev_emb)
 
-            # Check
+            # Chech if the intersection is not empty
             assert torch.all(z_l_inter_emb <= z_u_inter_emb)
 
             # TODO: For now we don't draw weights from intervals, but we take middles
@@ -1064,8 +1047,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                                 f'results_intersection.csv',
                                                 sep=';')
         else:
-            emb_size    = hyperparameters['embedding_sizes'][0]
-            z_inter_emb = deepcopy(hypernetwork.internal_params[no_of_task]) + hyperparameters['perturbated_epsilon']/(emb_size*2.0)
+            z_inter_emb = deepcopy(hypernetwork.get_cond_in_emb(0)) + hyperparameters['perturbated_epsilon']/(2.0*emb_size)
 
             # Evaluate previous tasks
             results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
@@ -1179,10 +1161,10 @@ def main_running_experiments(path_to_datasets,
                  f'results.csv')
     plot_heatmap(load_path)
 
-    # # Plot heatmap for extended results (every embedding is used to evaluate every task)
-    # for idx in range(parameters["number_of_tasks"]):
-    #     load_path = (f'{parameters["saving_folder"]}/results_extended/results_task_{idx}.csv')
-    #     plot_heatmap(load_path)
+    # Plot heatmap for extended results (every embedding is used to evaluate every task)
+    for idx in range(parameters["number_of_tasks"]):
+        load_path = (f'{parameters["saving_folder"]}/results_extended/results_task_{idx}.csv')
+        plot_heatmap(load_path)
     
     # Plot heatmap for weights taken from the intersection of tasks' embeddings
     load_path = (f'{parameters["saving_folder"]}/'
