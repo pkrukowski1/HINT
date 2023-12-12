@@ -414,7 +414,6 @@ def get_network_logits_for_all_inputs_all_tasks(path_to_stored_networks,
             logits_masked = evaluate_target_network(
                 target_network,
                 test_input,
-                target_masked_weights,
                 target_network_type,
                 condition=task)
             logits_pure_target = evaluate_target_network(
