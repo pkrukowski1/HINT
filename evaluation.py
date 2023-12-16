@@ -391,10 +391,6 @@ def get_network_logits_for_all_inputs_all_tasks(path_to_stored_networks,
         f'{path_to_model}target_network_after_{hyperparameters["number_of_tasks"] - 1}_task.pt')
     for task in range(hyperparameters["number_of_tasks"]):
         target_loaded_weights = deepcopy(target_weights_without_masking)
-        hypernetwork_output = hypernetwork.forward(
-            cond_id=task,
-            weights=hnet_weights
-        )
         
         currently_tested_task = dataset_tasks_list[task]
         target_network.eval()
@@ -411,11 +407,7 @@ def get_network_logits_for_all_inputs_all_tasks(path_to_stored_networks,
             if dataset == 'SplitMNIST':
                 gt_classes = [x + 2 * task for x in gt_classes]
             target_network_type = hyperparameters['target_network']
-            logits_masked = evaluate_target_network(
-                target_network,
-                test_input,
-                target_network_type,
-                condition=task)
+            
             logits_pure_target = evaluate_target_network(
                 target_network,
                 test_input,

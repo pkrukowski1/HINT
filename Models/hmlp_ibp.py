@@ -116,10 +116,18 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through network ###
+            
+        
+        # Normalization step - we give to the neural net a chance to
+        # decide about length of interval around each dimension of
+        # embedding
         eps = perturbated_eps * torch.ones_like(h)
+        eps = F.softmax(eps)
+        eps = perturbated_eps*eps
 
-        
-        
+        # Store the trained radii
+        self.trained_radii = eps 
+
         for i in range(len(fc_weights)):            
             
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
@@ -128,8 +136,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             z_l, z_u = h - eps, h + eps
             z_l, z_u = F.relu(z_l), F.relu(z_u)
             h, eps = (z_u + z_l)/2, (z_u - z_l)/2
-        
-        self.trained_radii    = eps # Store the trained radii
+
         self.tasks_embeddings = h   # Store the embedding
 
         ### Split output into target shapes ###

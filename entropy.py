@@ -11,11 +11,10 @@ from datasets import (
     set_hyperparameters
 )
 from main import (
-    apply_mask_to_weights_of_network,
     get_number_of_batch_normalization_layer,
-    prepare_network_sparsity,
     set_seed
 )
+
 from evaluation import (
     evaluate_target_network,
     load_dataset,
@@ -175,7 +174,7 @@ def calculate_entropy_and_predict_classes_automatically(experiment_models):
 
     results = []
     for task in range(hyperparameters['number_of_tasks']):
-        target_loaded_weights = deepcopy(target_weights)
+
         gt_tasks = []
         # Iteration over real (GT) tasks
         currently_tested_task = dataset_CL_tasks[task]
@@ -197,24 +196,18 @@ def calculate_entropy_and_predict_classes_automatically(experiment_models):
             logits_outputs = []
             for inferenced_task in range(hyperparameters['number_of_tasks']):
                 # Try to predict task for all samples from "task"
-                hypernetwork_output = hypernetwork.forward(
+                target_weights = hypernetwork.forward(
                     cond_id=inferenced_task,
                     weights=hypernetwork_weights)
-                masks = prepare_network_sparsity(
-                    hypernetwork_output,
-                    hyperparameters['sparsity_parameters']
-                )
-                target_masked_weights = apply_mask_to_weights_of_network(
-                    target_loaded_weights,
-                    masks)
-                logits_masked = evaluate_target_network(
+               
+                logits = evaluate_target_network(
                     target_network,
                     test_input,
-                    target_masked_weights,
+                    target_weights,
                     target_network_type,
                     condition=inferenced_task
                 )
-                logits_outputs.append(logits_masked)
+                logits_outputs.append(logits)
             all_inferenced_tasks = torch.stack(logits_outputs)
             # Sizes of consecutive dimensions represent:
             # number of tasks x number of samples x number of output heads
@@ -240,13 +233,12 @@ def calculate_entropy_and_predict_classes_automatically(experiment_models):
 
 
 if __name__ == "__main__":
-    dataset = 'CIFAR100'
+    dataset = 'PermutedMNIST'
     # Options for *dataset*:
     # 'PermutedMNIST', 'SplitMNIST'. 'CIFAR100'
     if dataset == 'PermutedMNIST':
         path_to_stored_networks = (
-            './Results/PermutedMNIST/'
-            '10_tasks_final_models/ICLR_models/'
+            f'./Results/permuted_mnist_single_run/2023-12-06_00-22-38/'
         )
         part = 0
     elif dataset == 'SplitMNIST':
@@ -267,27 +259,27 @@ if __name__ == "__main__":
         # )
         # part = 1
     path_to_datasets = './Data/'
-    number_of_models = 5
+    number_of_model = 0
     summary_of_results = []
-    for number_of_model in range(number_of_models):
-        experiment_models = prepare_and_load_weights_for_models(
-            path_to_stored_networks,
-            path_to_datasets,
-            number_of_model,
-            dataset,
-            part=part
-        )
-        results = calculate_entropy_and_predict_classes_automatically(
-            experiment_models)
-        summary_of_results.append(
-            [number_of_model,
-             results['task_prediction_acc'].mean(),
-             results['class_prediction_acc'].mean()])
+
+    experiment_models = prepare_and_load_weights_for_models(
+        path_to_stored_networks,
+        path_to_datasets,
+        number_of_model,
+        dataset,
+        part=part
+    )
+    results = calculate_entropy_and_predict_classes_automatically(
+        experiment_models)
+    summary_of_results.append(
+        [number_of_model,
+            results['task_prediction_acc'].mean(),
+            results['class_prediction_acc'].mean()])
     summary_of_results = pd.DataFrame(
         summary_of_results,
         columns=['no_of_model',
-                 'mean_model_task_prediction_accuracy',
-                 'mean_model_class_prediction_accuracy']
+                'mean_model_task_prediction_accuracy',
+                'mean_model_class_prediction_accuracy']
     )
     summary_of_results.to_csv(f'{path_to_stored_networks}entropy_mean_results.csv',
-                              sep=';')
+                        sep=';')

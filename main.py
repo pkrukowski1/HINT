@@ -1,6 +1,7 @@
 import os
 import random
 import torch
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -273,7 +274,7 @@ def evaluate_previous_tasks_per_embedding(hypernetwork,
     return dataframe_results
 
 
-def infer_task_id(list_of_permutations, hypernetwork, target_network):
+def infer_task_id(list_of_permutations, hypernetwork, target_network, current_task):
     """
     Predict task id based on the lowest entropy value
 
@@ -288,32 +289,42 @@ def infer_task_id(list_of_permutations, hypernetwork, target_network):
         *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
                         a target network that finally will perform
                         classification
+        *current_task* (int): a number of current task
 
     """
 
     # Initiate list for entropies
     entropies = []
 
-    # List of entropies to test
-    entropies_to_test = range(len(list_of_permutations))
+    # Get task data to be tested
+    data = list_of_permutations[current_task]
 
-    for ent_id in entropies_to_test:
+    for ent_id in range(current_task+1):
+
+        with torch.no_grad():
         
-        # Get task to be tested
-        current_task = list_of_permutations[ent_id]
+            # Currently results will be calculated on the test set
+            input_data = data.get_test_inputs()
+            test_input = data.input_to_torch_tensor(
+                input_data, parameters['device'], mode='inference'
+            )
 
-        # Get weights from hnet and make predictions
-        target_weights = hypernetwork.forward(ent_id, perturbated_eps=hyperparameters['perturbated_epsilon'])
-        Y_hat_logits = target_network.forward(current_task, target_weights)
-        print(Y_hat_logits.shape)
-        task_out = [e*od, e*od+od]
-        Y_hat = F.softmax(Y_hat_logits[:, 
-            task_out[0]:task_out[1]]/config.soft_temp, -1)
-        entropy = -1*torch.sum(Y_hat * torch.log(Y_hat))
-        entropies.append(entropy)
-    inf_task_id = torch.argmin(torch.stack(entropies))
-    task_infer_accuracy += (inf_task_id == t).float()
+            # Get weights from hnet and make predictions
+            target_weights = hypernetwork.forward(cond_id=ent_id, perturbated_eps=hyperparameters['perturbated_epsilon'])
 
+            Y_hat_logits = target_network.forward(
+                test_input,
+                weights=target_weights
+            )
+
+            Y_hat = F.softmax(Y_hat_logits, dim=1)
+            entropy = -torch.sum(Y_hat * torch.log(Y_hat))
+            entropies.append(entropy)
+
+    inf_task_id = torch.argmin(torch.Tensor([entropies]))
+    inf_task_id = int(inf_task_id)
+
+    return inf_task_id
 
 
 
@@ -362,66 +373,54 @@ def evaluate_previous_tasks(hypernetwork,
     target_network.eval()
 
     # The case when we know task id during interference
-    if not hyperparameters["infer_task_id"]:
-        for task in range(parameters['number_of_task'] + 1):
-            # Target entropy calculation should be included here: hypernetwork has to be inferred
-            # for each task (together with the target network) and the task_id with the lowest entropy
-            # has to be chosen
-            # Arguments of the function: list of permutations, hypernetwork, target network
-            # output: task id
+    for task in range(parameters['number_of_task'] + 1):
+        # Target entropy calculation should be included here: hypernetwork has to be inferred
+        # for each task (together with the target network) and the task_id with the lowest entropy
+        # has to be chosen
+        # Arguments of the function: list of permutations, hypernetwork, target network
+        # output: task id
 
+        currently_tested_task = list_of_permutations[task]
 
-            currently_tested_task = list_of_permutations[task]
-
-            # Generate weights of the target network
-            target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=hyperparameters['perturbated_epsilon'])
-
-            accuracy = calculate_accuracy(
-                currently_tested_task,
-                target_network,
-                target_weights,
-                parameters=parameters,
-                evaluation_dataset='test'
-            )
-
-            result = {
-                'after_learning_of_task': parameters['number_of_task'],
-                'tested_task': task,
-                'accuracy': accuracy.cpu().item()
-            }
-            print(f'Accuracy for task {task}: {accuracy}%.')
-            dataframe_results = dataframe_results.append(
-                result, ignore_index=True)
-    else:            
-        for _ in range(parameters['number_of_task'] + 1):
-
-            task = infer_task_id(
-                list_of_permutations,
-                hypernetwork,
-                target_network
-            )
-
-            currently_tested_task = list_of_permutations[task]
+        if not hyperparameters["infer_task_id"]:
 
             # Generate weights of the target network
             target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=hyperparameters['perturbated_epsilon'])
+
+        else:
+
+            # Infer task id
+            inferred_task = infer_task_id(
+                            list_of_permutations,
+                            hypernetwork,
+                            target_network,
+                            task
+                        )
+            
+            if inferred_task != task:
+                print(f"Attention! The {inferred_task}-th task was inferred instead of the {task}-th task")
+
+            # Generate weights of the target network
+            target_weights = hypernetwork.forward(cond_id=inferred_task, perturbated_eps=hyperparameters['perturbated_epsilon'])
         
-            accuracy = calculate_accuracy(
-                currently_tested_task,
-                target_network,
-                target_weights,
-                parameters=parameters,
-                evaluation_dataset='test'
-            )
+        accuracy = calculate_accuracy(
+            currently_tested_task,
+            target_network,
+            target_weights,
+            parameters=parameters,
+            evaluation_dataset='test'
+        )
+           
 
-            result = {
-                'after_learning_of_task': parameters['number_of_task'],
-                'tested_task': task,
-                'accuracy': accuracy.cpu().item()
-            }
-            print(f'Accuracy for task {task}: {accuracy}%.')
-            dataframe_results = dataframe_results.append(
-                result, ignore_index=True)
+        result = {
+            'after_learning_of_task': parameters['number_of_task'],
+            'tested_task': task,
+            'accuracy': accuracy.cpu().item()
+        }
+        print(f'Accuracy for task {task}: {accuracy}%.')
+        dataframe_results = dataframe_results.append(
+            result, ignore_index=True)
+        
     return dataframe_results
 
 def evaluate_previous_tasks_for_intersection(hypernetwork,
