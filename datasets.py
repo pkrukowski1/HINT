@@ -152,8 +152,8 @@ def set_hyperparameters(dataset,
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [8],
-                'learning_rates': [0.001],
+                'embedding_sizes': [8, 16, 24, 96, 129],
+                'learning_rates': [0.001, 0.01],
                 'batch_sizes': [128],
                 'betas': [0.001, 0.0005, 0.005],
                 'hypernetworks_hidden_layers': [[100, 100]],
@@ -192,7 +192,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 500
+        hyperparams['number_of_iterations'] = 10
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1500
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -207,7 +207,7 @@ def set_hyperparameters(dataset,
         # Directly related to the MNIST dataset
         hyperparams['padding'] = 2
         hyperparams['shape'] = (28 + 2 * hyperparams['padding'])**2
-        hyperparams['number_of_tasks'] = 5
+        hyperparams['number_of_tasks'] = 2
         hyperparams['augmentation'] = False
 
     elif dataset == 'CIFAR100':
@@ -393,7 +393,7 @@ def set_hyperparameters(dataset,
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    hyperparams['perturbated_epsilon'] = 0.5
+    hyperparams['perturbated_epsilon'] = 5.0
     hyperparams['calculation_area_mode'] = True
     hyperparams['kappa'] = 0.5
     hyperparams["infer_task_id"] = True
