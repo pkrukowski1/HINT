@@ -254,7 +254,7 @@ def evaluate_previous_tasks_per_embedding(hypernetwork,
         # output: task id
         currently_tested_task = list_of_permutations[task]
         # Generate weights of the target network
-        target_weights = hypernetwork.forward(cond_id=cond_id_to_use, perturbated_eps=hyperparameters['perturbated_epsilon'])
+        target_weights = hypernetwork.forward(cond_id=cond_id_to_use, perturbated_eps=parameters['perturbated_epsilon'])
         
         accuracy = calculate_accuracy(
             currently_tested_task,
@@ -310,7 +310,7 @@ def infer_task_id(list_of_permutations, hypernetwork, target_network, current_ta
             )
 
             # Get weights from hnet and make predictions
-            target_weights = hypernetwork.forward(cond_id=ent_id, perturbated_eps=hyperparameters['perturbated_epsilon'])
+            target_weights = hypernetwork.forward(cond_id=ent_id, perturbated_eps=parameters['perturbated_epsilon'])
 
             Y_hat_logits = target_network.forward(
                 test_input,
@@ -383,7 +383,7 @@ def evaluate_previous_tasks(hypernetwork,
         currently_tested_task = list_of_permutations[task]
 
         # Generate weights of the target network
-        target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=hyperparameters['perturbated_epsilon'])
+        target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=parameters['perturbated_epsilon'])
 
         
         accuracy = calculate_accuracy(
@@ -452,7 +452,7 @@ def evaluate_previous_tasks_for_intersection(hypernetwork,
     target_network.eval()
 
     inter_target_weights = hypernetwork.forward(cond_input=input_to_target_network.view(1,-1),
-                                                perturbated_eps=hyperparameters['perturbated_epsilon'])
+                                                perturbated_eps=parameters['perturbated_epsilon'])
 
     for task in range(parameters['number_of_task'] + 1):
         # Target entropy calculation should be included here: hypernetwork has to be inferred
@@ -575,7 +575,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
     # Add labels and a legend
     plt.xlabel("Embedding's coordinate")
     plt.ylabel("Embedding's value")
-    plt.title(f"Intervals around embeddings with sum of radius = {hyperparameters['perturbated_epsilon']}, dim = {n_embs}")
+    plt.title(f"Intervals around embeddings with sum of radius = {parameters['perturbated_epsilon']}, dim = {n_embs}")
     plt.xticks(x)
     plt.legend()
     plt.grid()
@@ -634,6 +634,7 @@ def train_single_task(hypernetwork,
         best_hypernetwork = deepcopy(hypernetwork)
         best_target_network = deepcopy(target_network)
         best_val_accuracy = 0.
+        
     elif parameters['best_model_selection_method'] != 'last_model':
         raise ValueError('Wrong value of best_model_selection_method parameter!')
     # Compute targets for the regularization part of loss before starting
@@ -693,10 +694,10 @@ def train_single_task(hypernetwork,
         # Adjust kappa and epsilon
         if iteration < iterations_to_adjust:
             kappa = max(1 - 0.00005*iteration, hyperparameters["kappa"])
-            eps   = iteration / (iterations_to_adjust-1) * hyperparameters["perturbated_epsilon"]
+            eps   = iteration / (iterations_to_adjust-1) * parameters["perturbated_epsilon"]
         else:
-            kappa = hyperparameters["kappa"]
-            eps   = hyperparameters["perturbated_epsilon"]
+            kappa = parameters["kappa"]
+            eps   = parameters["perturbated_epsilon"]
 
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
@@ -969,12 +970,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
     for no_of_task in range(no_tasks):
 
-        # if no_of_task > 0:
-        #     # Get `(no_of_task-1)`-th task's embedding
-        #     previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
+        if no_of_task > 0:
+            # Get `(no_of_task-1)`-th task's embedding
+            previous_embedding = hypernetwork.get_cond_in_emb(no_of_task-1)
 
-        #     # Initialize `no_of_task-th` task's embedding
-        #     hypernetwork.internal_params[no_of_task] = deepcopy(previous_embedding)
+            # Initialize `no_of_task-th` task's embedding
+            hypernetwork.internal_params[no_of_task] = deepcopy(previous_embedding)
         
 
         hypernetwork, target_network = train_single_task(
@@ -1013,7 +1014,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             parameters={
                 'device': parameters['device'],
                 'use_batch_norm_memory': use_batch_norm_memory,
-                'number_of_task': no_of_task
+                'number_of_task': no_of_task,
+                'perturbated_epsilon': parameters['perturbated_epsilon']
             }
         )
         dataframe = dataframe.astype({
@@ -1203,6 +1205,8 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["beta"]};'
         f'{parameters["norm"]};{parameters["lambda"]};'
+        f'{parameters["perturbated_epsilon"]};'
+        f'{parameters["kappa"]};'
         f'{np.mean(accuracies)};{np.std(accuracies)}'
     )
     append_row_to_file(
@@ -1234,7 +1238,8 @@ if __name__ == "__main__":
     dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 2
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = False
+    create_grid_search = True
+
     if create_grid_search:
         summary_results_filename = 'grid_search_results'
     else:
@@ -1264,7 +1269,8 @@ if __name__ == "__main__":
                 hyperparameters["lambdas"],
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
-                hyperparameters["gammas"])
+                hyperparameters["gammas"],
+                hyperparameters["perturbated_epsilon"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
@@ -1272,7 +1278,9 @@ if __name__ == "__main__":
         hypernetwork_hidden_layers = elements[3]
         lambda_par = elements[4]
         batch_size = elements[5]
-        gamma_par = elements[6]
+        gamma_par = elements[7]
+        perturbated_eps = elements[8]
+
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
         seed = elements[6]
@@ -1312,7 +1320,7 @@ if __name__ == "__main__":
             'grid_search_folder': hyperparameters["saving_folder"],
             'summary_results_filename': summary_results_filename,
             'calculation_area_mode': hyperparameters["calculation_area_mode"],
-            'perturbated_epsilon': hyperparameters["perturbated_epsilon"],
+            'perturbated_epsilon': perturbated_eps,
             'kappa': hyperparameters["kappa"],
         }
 

@@ -30,7 +30,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 *args, 
                 **kwargs): 
         
-        super().__init__(target_shapes=target_shapes,
+        super(HMLP_IBP, self).__init__(target_shapes=target_shapes,
                         cond_in_size=cond_in_size,
                         activation_fn=nn.ReLU(),       # For now only ReLU is supported
                         num_cond_embs=num_cond_embs) 
@@ -121,7 +121,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         # Normalization step - we give to the neural net a chance to
         # decide about length of interval around each dimension of
         # embedding
-        eps = perturbated_eps*torch.ones_like(h) / (torch.ones_like(h)).sum()
+        eps = perturbated_eps*F.softmax(h, dim=1)
 
         # Store the trained radii
         self.trained_radii = eps 
