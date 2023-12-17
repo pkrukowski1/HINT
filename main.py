@@ -631,8 +631,8 @@ def train_single_task(hypernetwork,
     if parameters['best_model_selection_method'] == 'val_loss':
         # Store temporary best models to keep those with the highest
         # validation accuracy.
-        best_hypernetwork = deepcopy(hypernetwork)
-        best_target_network = deepcopy(target_network)
+        best_hypernetwork = hypernetwork
+        best_target_network = target_network
         best_val_accuracy = 0.
         
     elif parameters['best_model_selection_method'] != 'last_model':
@@ -834,8 +834,8 @@ def train_single_task(hypernetwork,
             if parameters['best_model_selection_method'] == 'val_loss':
                 if accuracy > best_val_accuracy:
                     best_val_accuracy = accuracy
-                    best_hypernetwork = deepcopy(hypernetwork)
-                    best_target_network = deepcopy(target_network)
+                    best_hypernetwork = hypernetwork
+                    best_target_network = target_network
             
             if parameters['number_of_epochs'] is not None and \
                parameters['lr_scheduler'] and \
