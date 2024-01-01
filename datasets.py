@@ -215,18 +215,19 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 'seed': [5],
-                'embedding_sizes': [48],
-                'betas': [0.01],
-                'lambdas': [0.1],
-                'gammas': [0.1],
+                'embedding_sizes': [8, 16, 64, 126],
+                'betas': [0.01, 0.1, 0.1],
+                'lambdas': [0.01, 0.1, 0.1],
+                'gammas': [0.01, 0.001, 0.0005],
                 'learning_rates': [0.001],
                 'batch_sizes': [32],
                 'hypernetworks_hidden_layers': [[100]],
+                'perturbated_epsilon': [100, 50, 10, 5],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
                 'use_batch_norm': False,
-                'target_network': 'ResNet',
+                # 'target_network': 'ResNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
                 'augmentation': True
@@ -308,6 +309,8 @@ def set_hyperparameters(dataset,
         hyperparams['lr_scheduler'] = True
         hyperparams['number_of_iterations'] = None
         hyperparams['no_of_validation_samples'] = 500
+        hyperparams['target_hidden_layers'] = [1000, 1000]
+        hyperparams['target_network'] = 'MLP'
 
         if hyperparams['target_network'] in ['ResNet', 'ZenkeNet']:
             hyperparams['shape'] = 32

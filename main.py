@@ -674,7 +674,7 @@ def train_single_task(hypernetwork,
                 min_lr=0.5e-6, cooldown=0, verbose=True
             )
     # The kappa and epsilon hyperparameters scheduling
-    iterations_to_adjust = int(hyperparameters["number_of_iterations"] // 2)
+    iterations_to_adjust = int(no_of_iterations_per_epoch // 2)
 
     # Calculate size of embedding
 
@@ -784,7 +784,7 @@ def train_single_task(hypernetwork,
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
             parameters['lambda'] * loss_norm_target_regularizer - \
-            loss_weigths
+            parameters['gamma'] * loss_weigths
 
         loss.backward()
         optimizer.step()
@@ -1235,8 +1235,8 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
-    part = 2
+    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = True
 
