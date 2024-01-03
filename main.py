@@ -673,10 +673,8 @@ def train_single_task(hypernetwork,
                 optimizer, 'max', factor=np.sqrt(0.1), patience=5,
                 min_lr=0.5e-6, cooldown=0, verbose=True
             )
-    # The kappa and epsilon hyperparameters scheduling
-    iterations_to_adjust = int(no_of_iterations_per_epoch // 2)
 
-    # Calculate size of embedding
+    iterations_to_adjust = int(parameters["number_of_iterations"] // 2)
 
     for iteration in range(parameters['number_of_iterations']):
         current_batch = current_dataset_instance.next_train_batch(
@@ -702,7 +700,7 @@ def train_single_task(hypernetwork,
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
         emb = hypernetwork.conditional_params[current_no_of_task]
-        target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_input=emb.view(1,-1), 
+        target_weights, lower_weights, upper_weights, _ = hypernetwork.forward(cond_input=emb.view(1,-1), 
                                                                                 return_extended_output=True,
                                                                                 perturbated_eps=eps)
     
@@ -729,13 +727,13 @@ def train_single_task(hypernetwork,
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-        prediction = target_network.forward(tensor_input,
-                                            weights=target_weights)
         prediction_zu = target_network.forward(tensor_input,
                                                 weights=upper_weights)
         prediction_zl = target_network.forward(tensor_input,
                                                 weights=lower_weights)
         
+        # We can calculate middle predictions as follows
+        prediction = (prediction_zl + prediction_zu)/2.0
 
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
@@ -752,18 +750,27 @@ def train_single_task(hypernetwork,
             kappa=kappa
         )
 
+        # Get a middle of the first task
+        middle_first_task_emb = hypernetwork.get_cond_in_emb(0)
+
         # Calculate loss which comes from the forcing embedding to stay at some distance
         # each by each
-        # if current_no_of_task > 0:
-        #     lower_logit_task_emb  = hypernetwork.get_cond_in_emb(0).detach() - eps
-        #     prev_middle_task_emb  = hypernetwork.get_cond_in_emb(current_no_of_task-1)
-        #     exp_middle_task_emb   = (prev_middle_task_emb + lower_logit_task_emb)/2.0
-        #     curr_middle_task_emb  = hypernetwork.get_cond_in_emb(current_no_of_task)
+        if current_no_of_task == 1:
+            lower_logit_first_task_emb = hypernetwork.get_cond_in_emb(0) - eps/embedding_size
+            exp_middle_task_emb        = (middle_first_task_emb + lower_logit_first_task_emb)/2.0
+            curr_middle_task_emb       = hypernetwork.get_cond_in_emb(current_no_of_task)
 
-        #     # Force current embedding to stay within the region of the first embedding
-        #     loss_embeddings = (exp_middle_task_emb - curr_middle_task_emb).pow(2).mean()
-        # else:
-        #     loss_embeddings = 0.0
+            # Force current embedding to stay within the region of the first embedding
+            loss_embeddings = (exp_middle_task_emb - curr_middle_task_emb).pow(2).mean()
+        elif current_no_of_task > 1:
+            middle_prev_task_emb = hypernetwork.get_cond_in_emb(current_no_of_task-1)
+            exp_middle_task_emb  = (middle_first_task_emb + middle_prev_task_emb)/2.0
+            curr_middle_task_emb = hypernetwork.get_cond_in_emb(current_no_of_task)
+
+            # Force current embedding to stay within the region of the first embedding
+            loss_embeddings = (exp_middle_task_emb - curr_middle_task_emb).pow(2).mean()
+        else:
+            loss_embeddings = 0.0
 
         loss_regularization = 0.
         if current_no_of_task > 0:
@@ -784,7 +791,8 @@ def train_single_task(hypernetwork,
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
             parameters['lambda'] * loss_norm_target_regularizer - \
-            parameters['gamma'] * loss_weigths
+            parameters['gamma'] * loss_weigths + \
+            parameters['rho'] * loss_embeddings
 
         loss.backward()
         optimizer.step()
@@ -1026,106 +1034,82 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                          f'results.csv',
                          sep=';')
 
-        # # Evaluate previous tasks per one embedding
-        # for task_id in range(no_of_task+1):
-        #     results_extended[task_id] = evaluate_previous_tasks_per_embedding(
-        #                     hypernetwork,
-        #                     target_network,
-        #                     no_of_task,
-        #                     results_extended[task_id],
-        #                     dataset_list_of_tasks,
-        #                     parameters={
-        #                         'device': parameters['device'],
-        #                         'use_batch_norm_memory': use_batch_norm_memory,
-        #                         'number_of_task': no_of_task
-        #                     }
-        #                 )
-            
-        #     results_extended[task_id] = results_extended[task_id].astype({
-        #                                             'after_learning_of_task': 'int',
-        #                                             'tested_task': 'int'
-        #                                             })
-            
-        #     results_extended[task_id].to_csv(f'{parameters["saving_folder"]}/results_extended/'
-        #                                         f'results_task_{task_id}.csv',
-        #                                         sep=';')
-            
+        # Get the embedding size
+        embedding_size = parameters["embedding_size"]
+
         # Evaluate tasks using weights generated from the intersection of
         # tasks' embeddings
-        # emb_size = hyperparameters['embedding_sizes'][0]
-        
-        # if no_of_task > 0:
+        if no_of_task > 0:
 
-        #     # Get previous and current task's embedding
-        #     previous_embedding = deepcopy(hypernetwork.get_cond_in_emb(no_of_task-1))
-        #     current_embedding  = deepcopy(hypernetwork.get_cond_in_emb(no_of_task))            
+            # Get previous and current task's embedding
+            previous_embedding = deepcopy(hypernetwork.get_cond_in_emb(no_of_task-1))
+            current_embedding  = deepcopy(hypernetwork.get_cond_in_emb(no_of_task))            
 
+            # Logits for the previous embedding
+            z_u_prev_emb = previous_embedding + parameters['perturbated_epsilon']*torch.ones_like(previous_embedding)/embedding_size
+            z_l_prev_emb = previous_embedding - parameters['perturbated_epsilon']*torch.ones_like(previous_embedding)/embedding_size
 
-        #     # Logits for the previous embedding
-        #     z_u_prev_emb = previous_embedding + hyperparameters['perturbated_epsilon']*torch.ones_like(previous_embedding)
-        #     z_l_prev_emb = previous_embedding - hyperparameters['perturbated_epsilon']*torch.ones_like(previous_embedding)
+            # Logits for the current embedding
+            z_u_curr_emb = current_embedding + parameters['perturbated_epsilon']*torch.ones_like(current_embedding)/embedding_size
+            z_l_curr_emb = current_embedding - parameters['perturbated_epsilon']*torch.ones_like(current_embedding)/embedding_size
 
-        #     # Logits for the current embedding
-        #     z_u_curr_emb = current_embedding + hyperparameters['perturbated_epsilon']*torch.ones_like(current_embedding)
-        #     z_l_curr_emb = current_embedding - hyperparameters['perturbated_epsilon']*torch.ones_like(current_embedding)
+            # Get the intersection of the intervals
+            z_u_inter_emb = torch.minimum(z_u_curr_emb, z_u_prev_emb)
+            z_l_inter_emb = torch.maximum(z_l_curr_emb, z_l_prev_emb)
 
-        #     # Get the intersection of the intervals
-        #     z_u_inter_emb = torch.minimum(z_u_curr_emb, z_u_prev_emb)
-        #     z_l_inter_emb = torch.maximum(z_l_curr_emb, z_l_prev_emb)
+            # Chech if the intersection is not empty
+            if torch.any(z_l_inter_emb > z_u_inter_emb):
+                print("An intersection is empty and we propagate arithmetic mean between middles of two consecutive tasks")
+                z_inter_emb = (previous_embedding + current_embedding)/2.0
+            else:
+                z_inter_emb = (z_u_inter_emb + z_l_inter_emb)/2
 
-        #     # Chech if the intersection is not empty
-        #     assert torch.all(z_l_inter_emb <= z_u_inter_emb)
+            # Evaluate previous tasks for intersection
+            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
+                                                    hypernetwork,
+                                                    target_network,
+                                                    z_inter_emb,
+                                                    results_from_interval_intersection,
+                                                    dataset_list_of_tasks,
+                                                    parameters={
+                                                        'device': parameters['device'],
+                                                        'use_batch_norm_memory': use_batch_norm_memory,
+                                                        'number_of_task': no_of_task,
+                                                        'perturbated_epsilon': parameters['perturbated_epsilon']
+                                                    }
+                                                )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                    'after_learning_of_task': 'int',
+                                                    'tested_task': 'int'
+                                                })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                f'results_intersection.csv',
+                                                sep=';')
+        else:
+            current_embedding  = deepcopy(hypernetwork.get_cond_in_emb(0))
+            z_inter_emb = current_embedding + parameters['perturbated_epsilon']*torch.ones_like(current_embedding)/embedding_size
 
-        #     # TODO: For now we don't draw weights from intervals, but we take middles
-        #     # of intervals!!!
-        #     # Get middles of intervals
-        #     z_inter_emb = (z_u_inter_emb + z_l_inter_emb)/2
-
-        #     # Process through the hypernetwork
-
-        #     # Evaluate previous tasks
-        #     results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
-        #                                             hypernetwork,
-        #                                             target_network,
-        #                                             z_inter_emb,
-        #                                             results_from_interval_intersection,
-        #                                             dataset_list_of_tasks,
-        #                                             parameters={
-        #                                                 'device': parameters['device'],
-        #                                                 'use_batch_norm_memory': use_batch_norm_memory,
-        #                                                 'number_of_task': no_of_task
-        #                                             }
-        #                                         )
-        #     results_from_interval_intersection = results_from_interval_intersection.astype({
-        #                                             'after_learning_of_task': 'int',
-        #                                             'tested_task': 'int'
-        #                                         })
-        #     results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
-        #                                         f'results_intersection.csv',
-        #                                         sep=';')
-        # else:
-        #     z_inter_emb = deepcopy(hypernetwork.get_cond_in_emb(0)) + hyperparameters['perturbated_epsilon']/(2.0*emb_size)
-
-        #     # Evaluate previous tasks
-        #     results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
-        #                                             hypernetwork,
-        #                                             target_network,
-        #                                             z_inter_emb,
-        #                                             results_from_interval_intersection,
-        #                                             dataset_list_of_tasks,
-        #                                             parameters={
-        #                                                 'device': parameters['device'],
-        #                                                 'use_batch_norm_memory': use_batch_norm_memory,
-        #                                                 'number_of_task': 0
-        #                                             }
-        #                                         )
-        #     results_from_interval_intersection = results_from_interval_intersection.astype({
-        #                                             'after_learning_of_task': 'int',
-        #                                             'tested_task': 'int'
-        #                                         })
-        #     results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
-        #                                         f'results_intersection.csv',
-        #                                         sep=';')
+            # Evaluate previous tasks
+            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
+                                                    hypernetwork,
+                                                    target_network,
+                                                    z_inter_emb,
+                                                    results_from_interval_intersection,
+                                                    dataset_list_of_tasks,
+                                                    parameters={
+                                                        'device': parameters['device'],
+                                                        'use_batch_norm_memory': use_batch_norm_memory,
+                                                        'number_of_task': 0,
+                                                        'perturbated_epsilon': parameters['perturbated_epsilon']
+                                                    }
+                                                )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                    'after_learning_of_task': 'int',
+                                                    'tested_task': 'int'
+                                                })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                f'results_intersection.csv',
+                                                sep=';')
                         
                 
 
@@ -1225,17 +1209,18 @@ def main_running_experiments(path_to_datasets,
     #     load_path = (f'{parameters["saving_folder"]}/results_extended/results_task_{idx}.csv')
     #     plot_heatmap(load_path)
     
-    # # Plot heatmap for weights taken from the intersection of tasks' embeddings
-    # load_path = (f'{parameters["saving_folder"]}/'
-    #              f'results_intersection.csv')
-    # plot_heatmap(load_path)
+    # Plot heatmap for weights taken from the intersection of tasks' embeddings
+    load_path = (f'{parameters["saving_folder"]}/'
+                 f'results_intersection.csv')
+    plot_heatmap(load_path)
     
     return hypernetwork, target_network, dataframe
 
 
 if __name__ == "__main__":
-    path_to_datasets = './Data'
-    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    path_to_datasets = '/shared/sets/datasets'
+    # path_to_datasets = './Data'
+    dataset = 'SplitMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = True
@@ -1270,6 +1255,7 @@ if __name__ == "__main__":
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
                 hyperparameters["gammas"],
+                hyperparameters["rhos"],
                 hyperparameters["perturbated_epsilon"])
     ):
         embedding_size = elements[0]
@@ -1279,7 +1265,8 @@ if __name__ == "__main__":
         lambda_par = elements[4]
         batch_size = elements[5]
         gamma_par = elements[7]
-        perturbated_eps = elements[8]
+        rho = elements[8]
+        perturbated_eps = elements[9]
 
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
@@ -1312,6 +1299,7 @@ if __name__ == "__main__":
             'gamma': gamma_par,
             'optimizer': hyperparameters["optimizer"],
             'beta': beta,
+            'rho': rho,
             'padding': hyperparameters["padding"],
             'use_bias': hyperparameters["use_bias"],
             'use_batch_norm': hyperparameters["use_batch_norm"],
