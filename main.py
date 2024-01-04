@@ -647,9 +647,6 @@ def train_single_task(hypernetwork,
             current_no_of_task, hypernetwork)
         previous_hnet_theta = None
         previous_hnet_embeddings = None
-        previous_target_weights = deepcopy(target_network.weights)
-    else:
-        previous_target_weights = None
 
     if (parameters['target_network'] == 'ResNet') and \
        parameters['use_batch_norm']:
@@ -703,26 +700,6 @@ def train_single_task(hypernetwork,
         target_weights, lower_weights, upper_weights, _ = hypernetwork.forward(cond_input=emb.view(1,-1), 
                                                                                 return_extended_output=True,
                                                                                 perturbated_eps=eps)
-    
-
-        loss_norm_target_regularizer = 0.
-        if current_no_of_task > 0:
-            # Add another regularizer for weights, e.g. according
-            # to L1 or L2 norm. The goal is to prevent significant
-            # changes in weights between consecutive tasks.
-            # ATTENTION! This norm is not calculated for batch
-            # normalization layers
-            no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-                target_network)
-            for no_of_layer in range(len(list(target_network.children()))):
-                loss_norm_target_regularizer += torch.norm(
-                    target_network.weights[
-                        no_of_layer + no_of_batch_norm_layers] -
-                    previous_target_weights[
-                        no_of_layer + no_of_batch_norm_layers],
-                    p=parameters['norm']
-                )
-    
 
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
@@ -782,15 +759,10 @@ def train_single_task(hypernetwork,
                 inds_of_out_heads=None,
                 batch_size=-1
             )
-        append_row_to_file(
-            f'{parameters["saving_folder"]}regularization_loss.csv',
-            f'{current_no_of_task};{iteration};'
-            f'{loss_regularization};{loss_norm_target_regularizer}'
-        )
-
+        
+        # Calculate total loss
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) + \
-            parameters['lambda'] * loss_norm_target_regularizer - \
             parameters['gamma'] * loss_weigths + \
             parameters['rho'] * loss_embeddings
 
@@ -831,11 +803,9 @@ def train_single_task(hypernetwork,
             # Get the worst case error
             worst_case_error = criterion.worst_case_error
 
-            print(f'Task {current_no_of_task}, iteration: {iteration + 1},'
-                  f' loss: {loss.item()}, validation accuracy: {accuracy},'
-                  f' worst case error: {worst_case_error},'
-                #   f' predicted sum of radii: {radii.sum().item()},'
-                  #f' distance between lower and upper weights: {weights_distance},'
+            print(f'Task {current_no_of_task}, iteration: {iteration + 1}, '
+                  f' loss: {loss.item()}, validation accuracy: {accuracy}, '
+                  f' worst case error: {worst_case_error}, '
                   f' perturbated_epsilon: {eps}')
             # If the accuracy on the validation dataset is higher
             # than previously
@@ -1188,7 +1158,7 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["beta"]};'
-        f'{parameters["norm"]};{parameters["lambda"]};'
+        f'{parameters["norm"]};'
         f'{parameters["perturbated_epsilon"]};'
         f'{parameters["kappa"]};'
         f'{np.mean(accuracies)};{np.std(accuracies)}'
@@ -1220,7 +1190,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     path_to_datasets = '/shared/sets/datasets'
     # path_to_datasets = './Data'
-    dataset = 'SplitMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = True
@@ -1238,7 +1208,7 @@ if __name__ == "__main__":
         'dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;'
         'use_chunks;chunk_emb_size;target_network;target_hidden_layers;'
         'layer_groups;widening;final_model;optimizer;'
-        'hypernet_activation_function;learning_rate;batch_size;beta;norm;lambda;mean_accuracy;std_accuracy'
+        'hypernet_activation_function;learning_rate;batch_size;beta;rho;mean_accuracy;std_accuracy'
     )
 
     append_row_to_file(
@@ -1251,7 +1221,6 @@ if __name__ == "__main__":
                 hyperparameters["learning_rates"],
                 hyperparameters["betas"],
                 hyperparameters["hypernetworks_hidden_layers"],
-                hyperparameters["lambdas"],
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
                 hyperparameters["gammas"],
@@ -1262,15 +1231,14 @@ if __name__ == "__main__":
         learning_rate = elements[1]
         beta = elements[2]
         hypernetwork_hidden_layers = elements[3]
-        lambda_par = elements[4]
-        batch_size = elements[5]
-        gamma_par = elements[7]
-        rho = elements[8]
-        perturbated_eps = elements[9]
+        batch_size = elements[4]
+        gamma_par = elements[6]
+        rho = elements[7]
+        perturbated_eps = elements[8]
 
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
-        seed = elements[6]
+        seed = elements[5]
 
         parameters = {
             'input_shape': hyperparameters["shape"],
@@ -1295,7 +1263,6 @@ if __name__ == "__main__":
             'no_of_validation_samples': hyperparameters["no_of_validation_samples"],
             'embedding_size': embedding_size,
             'norm': hyperparameters["norm"],
-            'lambda': lambda_par,
             'gamma': gamma_par,
             'optimizer': hyperparameters["optimizer"],
             'beta': beta,

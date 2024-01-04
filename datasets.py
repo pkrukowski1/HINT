@@ -152,14 +152,13 @@ def set_hyperparameters(dataset,
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [8, 16, 64, 126],
+                'embedding_sizes': [8, 16, 24],
                 'learning_rates': [0.001, 0.01],
                 'batch_sizes': [128],
                 'betas': [0.001, 0.0005, 0.005],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'sparsity_parameters': [0],
-                'lambdas': [0.01, 0.001, 0.0001],
-                'perturbated_epsilon': [100, 50, 10, 5],
+                'perturbated_epsilon': [50, 10, 5, 0.5],
                 'rhos': [0.01, 0.001, 0.0001],
                 'gammas': [0.01, 0.001, 0.0005],
                 'best_model_selection_method': 'val_loss',
@@ -183,10 +182,9 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.0005],
-                'lambdas': [0.001],
                 'gammas': [0.001],
                 'rhos': [0.1],
-                'perturbated_epsilon': [0.5],
+                'perturbated_epsilon': [5.0],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'best_model_selection_method': 'last_model'
             }
@@ -220,7 +218,6 @@ def set_hyperparameters(dataset,
                 'seed': [5],
                 'embedding_sizes': [8, 16, 64, 126],
                 'betas': [0.01, 0.1, 0.1],
-                'lambdas': [0.01, 0.1, 0.1],
                 'gammas': [0.01, 0.001, 0.0005],
                 'rhos': [0.01, 0.001, 0.0001],
                 'learning_rates': [0.001],
@@ -231,7 +228,7 @@ def set_hyperparameters(dataset,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
                 'use_batch_norm': False,
-                # 'target_network': 'ResNet',
+                'target_network': 'ResNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
                 'augmentation': True
@@ -241,17 +238,14 @@ def set_hyperparameters(dataset,
                 pass
             elif part == 1:
                 hyperparams['betas'] = [0.1]
-                hyperparams['lambdas'] = [1]
                 hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 2:
                 hyperparams['betas'] = [1]
-                hyperparams['lambdas'] = [1]
                 hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 6:
                 hyperparams['betas'] = [0.01, 0.1, 1, 0.05]
-                hyperparams['lambdas'] = [0.01]
                 hyperparams['gammas'] = [0.01]
             elif part == 7:
                 hyperparams['target_network'] = 'ZenkeNet'
@@ -262,7 +256,6 @@ def set_hyperparameters(dataset,
                 hyperparams['use_batch_norm'] = False
                 hyperparams['seed'] = [4, 5]
                 hyperparams['betas'] = [0.01]
-                hyperparams['lambdas'] = [0.01]
                 hyperparams['gammas'] = [0.01]
             else:
                 raise ValueError(f'Wrong argument: {part}!')
@@ -278,7 +271,6 @@ def set_hyperparameters(dataset,
                 'seed': [3],
                 'embedding_sizes': [48],
                 'betas': [0.01],
-                'lambdas': [1],
                 'gammas': [1],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
@@ -298,7 +290,6 @@ def set_hyperparameters(dataset,
                 hyperparams['embedding_sizes'] = [48]
                 hyperparams['hypernetworks_hidden_layers'] = [[100]]
                 hyperparams['betas'] = [0.01]
-                hyperparams['lambdas'] = [0.01]
                 hyperparams['gammas'] = [0.01]
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
@@ -313,8 +304,6 @@ def set_hyperparameters(dataset,
         hyperparams['lr_scheduler'] = True
         hyperparams['number_of_iterations'] = None
         hyperparams['no_of_validation_samples'] = 500
-        hyperparams['target_hidden_layers'] = [1000, 1000]
-        hyperparams['target_network'] = 'MLP'
 
         if hyperparams['target_network'] in ['ResNet', 'ZenkeNet']:
             hyperparams['shape'] = 32
@@ -337,7 +326,6 @@ def set_hyperparameters(dataset,
                 'betas': [0.001],
                 'rhos': [0.1],
                 'hypernetworks_hidden_layers': [[25, 25]],
-                'lambdas': [0.001],
                 'gammas': [0.001],
                 # seed is not for optimization but for ensuring multiple results
                 'seed': [1, 2, 3, 4, 5],
@@ -351,7 +339,6 @@ def set_hyperparameters(dataset,
                 hyperparams['embedding_sizes'] = [96]
                 hyperparams['hypernetworks_hidden_layers'] = [[50, 50]]
                 hyperparams['betas'] = [0.01]
-                hyperparams['lambdas'] = [0.0001]
                 hyperparams['gammas'] = [0.0001]
             else:
                 raise ValueError('Not implemented subset of hyperparameters!')
@@ -369,7 +356,6 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001],
-                'lambdas': [0.001],
                 'gammas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'augmentation': True,
