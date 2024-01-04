@@ -154,12 +154,10 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'embedding_sizes': [8, 16, 24],
                 'learning_rates': [0.001, 0.01],
-                'batch_sizes': [128],
+                'batch_sizes': [64],
                 'betas': [0.001, 0.0005, 0.005],
                 'hypernetworks_hidden_layers': [[100, 100]],
-                'sparsity_parameters': [0],
-                'perturbated_epsilon': [50, 10, 5, 0.5],
-                'rhos': [0.01, 0.001, 0.0001],
+                'perturbated_epsilon': [10.0, 5.0, 1.0],
                 'gammas': [0.01, 0.001, 0.0005],
                 'best_model_selection_method': 'val_loss',
                 # not for optimization
@@ -170,7 +168,7 @@ def set_hyperparameters(dataset,
             elif part == 1:
                 hyperparams['best_model_selection_method'] = 'last_model'
             hyperparams['saving_folder'] = (
-                './Results/grid_search_relu/'
+                '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
                 f'permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/'
             )
 
@@ -183,14 +181,12 @@ def set_hyperparameters(dataset,
                 'batch_sizes': [128],
                 'betas': [0.0005],
                 'gammas': [0.001],
-                'rhos': [0.1],
                 'perturbated_epsilon': [5.0],
                 'hypernetworks_hidden_layers': [[100, 100]],
-                'best_model_selection_method': 'last_model'
+                'best_model_selection_method': 'last_model',
+                'saving_folder': './Results/grid_search_relu/'
+                f'permuted_mnist_final_grid_experiments/last_model/'
             }
-            hyperparams['saving_folder'] = (
-                './Results/permuted_mnist_single_run/'
-            )
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
@@ -212,18 +208,18 @@ def set_hyperparameters(dataset,
         hyperparams['number_of_tasks'] = 10
         hyperparams['augmentation'] = False
 
+
     elif dataset == 'CIFAR100':
         if grid_search:
             hyperparams = {
-                'seed': [5],
-                'embedding_sizes': [8, 16, 64, 126],
-                'betas': [0.01, 0.1, 0.1],
+                'seed': [1,2,3,4,5],
+                'embedding_sizes': [8, 16, 64],
+                'betas': [0.01, 0.1, 1.0],
                 'gammas': [0.01, 0.001, 0.0005],
-                'rhos': [0.01, 0.001, 0.0001],
                 'learning_rates': [0.001],
                 'batch_sizes': [32],
                 'hypernetworks_hidden_layers': [[100]],
-                'perturbated_epsilon': [100, 50, 10, 5],
+                'perturbated_epsilon': [10, 5, 1],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
@@ -260,7 +256,7 @@ def set_hyperparameters(dataset,
             else:
                 raise ValueError(f'Wrong argument: {part}!')
             hyperparams['saving_folder'] = (
-                './Results/grid_search_relu/'
+                '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
                 f'CIFAR-100_single_seed/'
                 f'part_{part}_ResNet_stronger_reg/'
             )
@@ -324,7 +320,6 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.001],
-                'rhos': [0.1],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'gammas': [0.001],
                 # seed is not for optimization but for ensuring multiple results
