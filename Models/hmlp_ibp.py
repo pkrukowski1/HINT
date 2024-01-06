@@ -26,7 +26,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     def __init__(self, 
                 target_shapes, 
                 cond_in_size, 
-                num_cond_embs=1,  
+                num_cond_embs=1,
                 *args, 
                 **kwargs): 
         
@@ -115,9 +115,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         if self._use_batch_norm:
             assert len(bn_scales) == len(fc_weights) - 1
 
-        ### Process inputs through network ###
+        ### Process inputs through the network ###
             
-        
         # Normalization step - we give to the neural net a chance to
         # decide about length of interval around each dimension of
         # embedding
@@ -126,15 +125,34 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         # Store the trained radii
         self.trained_radii = eps 
 
-        for i in range(len(fc_weights)):            
-            
-            h   = F.linear(h, fc_weights[i], bias=fc_biases[i])
-            eps = F.linear(eps, torch.abs(fc_weights[i]), 
-                           bias=torch.zeros_like(fc_biases[i]))
-            z_l, z_u = h - eps, h + eps
-            z_l, z_u = F.relu(z_l), F.relu(z_u)
-            h, eps = (z_u + z_l)/2, (z_u - z_l)/2
+        for i in range(len(fc_weights)):
+            last_layer = i == (len(fc_weights) - 1)
 
+            h = F.linear(h, fc_weights[i], bias=fc_biases[i])
+
+            # Calculate adaptive weights
+            W   = torch.abs(fc_weights[i])
+            eps = F.linear(eps, W, bias=torch.zeros_like(fc_biases[i]))
+
+            if not last_layer:
+                # Batch-norm
+                if self._use_batch_norm:
+                    h = self.batchnorm_layers[i].forward(h, running_mean=None,
+                        running_var=None, weight=bn_scales[i],
+                        bias=bn_shifts[i], stats_id=condition)
+                
+                # Dropout
+                if self._dropout_rate != -1:
+                    h = self._dropout(h)
+
+                # Non-linearity
+                if self._act_fn is not None:
+                    z_l, z_u = h - eps, h + eps
+                    z_l, z_u = self._act_fn(z_l), self._act_fn(z_u)
+                    h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
+
+        z_l, z_u = h-eps, h+eps
+        
         self.tasks_embeddings = h   # Store the embedding
 
         ### Split output into target shapes ###
