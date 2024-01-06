@@ -339,7 +339,7 @@ def set_hyperparameters(dataset,
                 raise ValueError('Not implemented subset of hyperparameters!')
 
             hyperparams['saving_folder'] = (
-                '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals//grid_search_relu/'
+                '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
                 f'split_mnist/augmented/ICLR_models/part_{part}/'
             )
 
