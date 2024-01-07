@@ -179,18 +179,18 @@ def set_hyperparameters(dataset,
                 'embedding_sizes': [24],
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
-                'betas': [0.0005],
-                'gammas': [0.001],
-                'perturbated_epsilon': [1.0],
+                'betas': [0.005],
+                'gammas': [0.0005],
+                'perturbated_epsilon': [10.0],
                 'hypernetworks_hidden_layers': [[100, 100]],
-                'best_model_selection_method': 'last_model',
+                'best_model_selection_method': 'val_loss',
                 'saving_folder': './Results/'
                 f'permuted_mnist_final_grid_experiments/last_model/'
             }
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 5000
+        hyperparams['number_of_iterations'] = 300
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -223,7 +223,7 @@ def set_hyperparameters(dataset,
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
-                'use_batch_norm': False,
+                'use_batch_norm': True,
                 'target_network': 'ResNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
@@ -267,9 +267,10 @@ def set_hyperparameters(dataset,
                 'seed': [3],
                 'embedding_sizes': [48],
                 'betas': [0.01],
-                'gammas': [1],
+                'gammas': [0.0001],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
+                'perturbated_epsilon': [10.0],
                 'hypernetworks_hidden_layers': [[100]],
                 'use_batch_norm': False,
                 'use_chunks': False,
@@ -383,8 +384,6 @@ def set_hyperparameters(dataset,
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    # hyperparams['perturbated_epsilon'] = 5.0
-    hyperparams['calculation_area_mode'] = False
     hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)
     return hyperparams
