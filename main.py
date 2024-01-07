@@ -251,6 +251,7 @@ def evaluate_previous_tasks_per_embedding(hypernetwork,
         # Arguments of the function: list of permutations, hypernetwork, target network
         # output: task id
         currently_tested_task = list_of_permutations[task]
+
         # Generate weights of the target network
         target_weights = hypernetwork.forward(cond_id=cond_id_to_use, perturbated_eps=parameters['perturbated_epsilon'])
         
@@ -448,7 +449,6 @@ def evaluate_previous_tasks_for_intersection(hypernetwork,
     # as well as for the last trained task
     hypernetwork.eval()
     target_network.eval()
-
     inter_target_weights = hypernetwork.forward(cond_input=input_to_target_network.view(1,-1),
                                                 perturbated_eps=parameters['perturbated_epsilon'])
 
@@ -555,7 +555,7 @@ def plot_intervals_around_embeddings(tasks_embeddings_list,
         # Take first `n_embs_to_plot` embeddings' values
         tasks_embeddings = tasks_embeddings.cpu().detach().numpy()[:n_embs_to_plot]
         tasks_intervals  = tasks_intervals.cpu().detach().numpy()
-
+        print(f"Tasks intervals: {len(tasks_intervals[0])}")
         # Generate an x axis
         x = [_ for _ in range(len(tasks_embeddings))]
 
@@ -712,10 +712,10 @@ def train_single_task(hypernetwork,
 
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
-        loss_weigths = 0.0
+        loss_weights = 0.0
         for W_u, W_l in zip(upper_weights, lower_weights):
-            loss_weigths += (W_u - W_l).pow(2).mean()
-        
+            loss_weights += (W_u - W_l).pow(2).mean()
+                
 
         loss_current_task = criterion(
             y_pred=prediction,
@@ -739,10 +739,9 @@ def train_single_task(hypernetwork,
         # Calculate total loss
         loss = loss_current_task + \
             parameters['beta'] * loss_regularization / max(1, current_no_of_task) - \
-            parameters['gamma'] * loss_weigths
+            parameters['gamma'] * loss_weights
         
         # Save total loss to file
-
         append_row_to_file(
         filename=f'{parameters["saving_folder"]}total_loss.txt',
         elements=f'{current_no_of_task};{iteration};{loss}'
@@ -767,7 +766,7 @@ def train_single_task(hypernetwork,
             # Save distance between the upper and lower weights to file
             append_row_to_file(
             filename=f'{parameters["saving_folder"]}upper_lower_weights_distance.txt',
-            elements=f'{current_no_of_task};{iteration};{loss_weigths}'
+            elements=f'{current_no_of_task};{iteration};{loss_weights}'
             )
 
             
@@ -892,7 +891,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         #         parameters['device']
         # )
 
-    criterion = IBP_Loss(calculation_area_mode=parameters['calculation_area_mode'])
+    criterion = IBP_Loss()
     dataframe = pd.DataFrame(columns=[
         'after_learning_of_task', 'tested_task', 'accuracy'])
 
@@ -1061,10 +1060,10 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = 'grid_search_results'
@@ -1142,7 +1141,6 @@ if __name__ == "__main__":
             'saving_folder': f'{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/',
             'grid_search_folder': hyperparameters["saving_folder"],
             'summary_results_filename': summary_results_filename,
-            'calculation_area_mode': hyperparameters["calculation_area_mode"],
             'perturbated_epsilon': perturbated_eps,
             'kappa': hyperparameters["kappa"],
         }

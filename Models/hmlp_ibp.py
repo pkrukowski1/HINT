@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from copy import deepcopy
+
 class HMLP_IBP(HMLP, HyperNetInterface):
 
     """
@@ -38,19 +40,12 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         self.trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
                                                           # around embeddings in the weight space
         self.tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
-
-    @property
-    def internal_params(self):
-        return self._internal_params
-    
-    @internal_params.setter
-    def internal_params(self, cond_id, value):
-        self._internal_params[cond_id] = value
+        self.perturbated_eps = kwargs["perturbated_eps"]
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
                 ret_format='squeezed', return_extended_output = False,
-                perturbated_eps = 0.5):
+                perturbated_eps = None):
         """Compute the weights of a target network.
 
         Args:
@@ -73,6 +68,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 cond_input=cond_input, cond_id=cond_id, weights=weights,
                 distilled_params=distilled_params, condition=condition,
                 ret_format=ret_format)
+        
+        perturbated_eps = self.perturbated_eps if perturbated_eps is None else perturbated_eps
 
         ### Prepare hypernet input ###
         assert self._uncond_in_size == 0 or uncond_input is not None
@@ -120,10 +117,10 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         # Normalization step - we give to the neural net a chance to
         # decide about length of interval around each dimension of
         # embedding
-        eps = perturbated_eps*F.softmax(torch.ones_like(h), dim=1)
+        eps = perturbated_eps*F.softmax(h, dim=1)
 
         # Store the trained radii
-        self.trained_radii = eps 
+        self.trained_radii = deepcopy(eps.detach())
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)
@@ -153,7 +150,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         z_l, z_u = h-eps, h+eps
         
-        self.tasks_embeddings = h   # Store the embedding
+        # Store the embedding
+        self.tasks_embeddings = deepcopy(h.detach())
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
