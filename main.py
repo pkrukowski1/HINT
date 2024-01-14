@@ -10,9 +10,7 @@ import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
 from hypnettorch.mnets.zenkenet import ZenkeNet
-from hypnettorch.hnets import HMLP
 import hypnettorch.utils.hnet_regularizer as hreg
-from torch import nn
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
@@ -22,7 +20,8 @@ from datasets import (
     set_hyperparameters,
     prepare_split_cifar100_tasks,
     prepare_permuted_mnist_tasks,
-    prepare_split_mnist_tasks
+    prepare_split_mnist_tasks,
+    prepare_tinyimagenet_tasks,
 )
 
 def set_seed(value):
@@ -1009,6 +1008,13 @@ def main_running_experiments(path_to_datasets,
             use_augmentation=parameters['augmentation'],
             number_of_tasks=parameters['number_of_tasks'],
         )
+    elif dataset == 'TinyImageNet':
+        dataset_tasks_list = prepare_tinyimagenet_tasks(
+            path_to_datasets,
+            seed=parameters["seed"],
+            validation_size=parameters["no_of_validation_samples"],
+            number_of_tasks=parameters["number_of_tasks"]
+        )
     else:
         raise ValueError('Wrong name of the dataset!')
 
@@ -1060,7 +1066,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST'
+    dataset = 'TinyImageNet'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
