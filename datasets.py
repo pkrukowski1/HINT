@@ -421,7 +421,7 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 "seed": [1,2,3,4,5],
-                "perturbated_epsilon": [1.0, 0.5],
+                "perturbated_epsilon": [1.0],
                 "embedding_sizes": [48],
                 "learning_rates": [0.001],
                 "batch_sizes": [32],
@@ -432,13 +432,17 @@ def set_hyperparameters(dataset,
                 'resnet_widening_factor': 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
-                "target_network": "ZenkeNet",
+                "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
-                "augmentation": True,
-                "saving_folder": f'/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/'
-                f'grid_search_relu/TinyImageNet_grid_search_part_0/'
+                "augmentation": True
             }
+
+            hyperparams['saving_folder'] = (
+                '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
+                f'TinyImageNet/'
+                f'part_0_ZenkeNet/'
+            )
         else:
             hyperparams = {
                "seed": [1],
