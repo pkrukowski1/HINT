@@ -475,7 +475,6 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_tasks"] = 40
         hyperparams["chunk_size"] = 100
         hyperparams["chunk_emb_size"] = 32
-        hyperparams["adaptive_sparsity"] = True
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
