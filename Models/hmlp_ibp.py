@@ -117,7 +117,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         # Normalization step - we give to the neural net a chance to
         # decide about length of interval around each dimension of
         # embedding
-        eps = perturbated_eps*F.softmax(h, dim=1)
+        eps = perturbated_eps*F.softmax(torch.abs(h), dim=1)
 
         # Store the trained radii
         self.trained_radii = deepcopy(eps.detach())
