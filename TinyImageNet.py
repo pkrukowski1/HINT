@@ -121,6 +121,7 @@ class TinyImageNet(Dataset):
         test_transform = transforms.Compose(
             [
                 transforms.ToPILImage("RGB"),
+                transforms.Resize((32, 32)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
@@ -131,7 +132,7 @@ class TinyImageNet(Dataset):
                 transforms.ToPILImage("RGB"),
                 transforms.RandomCrop(64, padding=4),
                 transforms.RandomHorizontalFlip(),
-                transforms.Resize((64, 64)),
+                transforms.Resize((32, 32)),
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
@@ -209,7 +210,7 @@ class TinyImageNet(Dataset):
         x = x.reshape(-1, *img_shape)
         x = torch.stack([transform(x[i, ...]) for i in range(x.shape[0])]).to(device)
         x = x.permute(0, 2, 3, 1)
-        x = x.contiguous().view(-1, np.prod(img_shape))
+        x = x.contiguous().view(-1, np.prod((32,32,3)))
         return x
 
     # TODO: Add license information

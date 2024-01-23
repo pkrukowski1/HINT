@@ -431,8 +431,8 @@ def set_hyperparameters(dataset,
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 "optimizer": "adam",
-                "use_batch_norm": True,
-                "target_network": "ResNet",
+                "use_batch_norm": False,
+                "target_network": "ZenkeNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
                 "augmentation": True
@@ -467,12 +467,12 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 250
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet"]:
-            hyperparams["shape"] = 64
+            hyperparams["shape"] = 32
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 40
+        hyperparams["number_of_tasks"] = 1
         hyperparams["chunk_size"] = 100
         hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None

@@ -9,8 +9,8 @@ class IBP_Loss(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.bce_loss_func         = nn.CrossEntropyLoss()
-        self.worst_case_error      = 0.0
+        self.bce_loss_func    = nn.CrossEntropyLoss()
+        self.worst_case_error = 0.0
     
 
     def forward(self, y_pred, y, z_l, z_u, kappa=0.5):
@@ -29,6 +29,9 @@ class IBP_Loss(nn.Module):
 
         total_loss (torch.Tensor): total calculated loss
         """
+
+        print(f"y shape: {y.shape}")
+        print(f"y_pred shape: {y_pred.shape}")
 
         # Standard cross-entropy loss component
         loss_fit = self.bce_loss_func(y_pred, y)
