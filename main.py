@@ -14,7 +14,7 @@ import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
-from LearningTools.custom_loss_function import IBP_Loss
+from LearningTools.loss_functions import IBP_Loss
 from Models.hmlp_ibp import HMLP_IBP
 from datasets import (
     set_hyperparameters,
@@ -198,133 +198,6 @@ def calculate_accuracy(data,
                     gt_classes.numel()) * 100.
     return accuracy
 
-def evaluate_previous_tasks_per_embedding(hypernetwork,
-                            target_network,
-                            cond_id_to_use,
-                            dataframe_results,
-                            list_of_permutations,
-                            parameters):
-    """
-    Evaluate the target network according to the weights generated
-    by the hypernetwork for all previously trained tasks. For instance,
-    if current_task_no is equal to 5, then tasks 0, 1, 2, 3, 4 and 5
-    will be evaluated.
-    
-    Arguments:
-    ----------
-      *hypernetwork* (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
-                     a hypernetwork that generates weights for the target
-                     network
-      *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
-                       a target network that finally will perform
-                       classification
-      *cond_id_to_use* (int) an embedding's id to solve every task
-      *dataframe_results* (Pandas Dataframe) stores results; contains
-                          following columns: 'after_learning_of_task',
-                          'tested_task' and 'accuracy'
-      *list_of_permutations*: (hypnettorch.data module), e.g. in the case
-                              of PermutedMNIST it will be
-                              special.permuted_mnist.PermutedMNISTList
-      *parameters* a dictionary containing the following keys:
-        -device- string: 'cuda' or 'cpu', defines in which device calculations
-                 will be performed
-        -use_batch_norm_memory- Boolean: defines whether stored weights
-                                of the batch normalization layer should be used
-                                If True then *number_of_task* has to be given
-        -number_of_task- int/None: gives an information which task is currently
-                         solved
-
-    Returns:
-    --------
-      *dataframe_results* (Pandas Dataframe) a dataframe updated with
-                          the calculated results
-    """
-    # Calculate accuracy for each previously trained task
-    # as well as for the last trained task
-    hypernetwork.eval()
-    target_network.eval()
-    for task in range(parameters['number_of_task']+1):
-        # Target entropy calculation should be included here: hypernetwork has to be inferred
-        # for each task (together with the target network) and the task_id with the lowest entropy
-        # has to be chosen
-        # Arguments of the function: list of permutations, hypernetwork, target network
-        # output: task id
-        currently_tested_task = list_of_permutations[task]
-
-        # Generate weights of the target network
-        target_weights = hypernetwork.forward(cond_id=cond_id_to_use, perturbated_eps=parameters['perturbated_epsilon'])
-        
-        accuracy = calculate_accuracy(
-            currently_tested_task,
-            target_network,
-            target_weights,
-            parameters=parameters,
-            evaluation_dataset='test'
-        )
-        result = {
-            'after_learning_of_task': parameters['number_of_task'],
-            'tested_task': task,
-            'accuracy': accuracy.cpu().item()
-        }
-        print(f'Accuracy for task {task}: {accuracy}%.')
-        dataframe_results = dataframe_results.append(
-            result, ignore_index=True)
-    return dataframe_results
-
-
-def infer_task_id(list_of_permutations, hypernetwork, target_network, current_task):
-    """
-    Predict task id based on the lowest entropy value
-
-    Arguments:
-    ----------
-        *list_of_permutations*: (hypnettorch.data module), e.g. in the case
-                              of PermutedMNIST it will be
-                              special.permuted_mnist.PermutedMNISTList
-        *hypernetwork* (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
-                     a hypernetwork that generates weights for the target
-                     network
-        *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
-                        a target network that finally will perform
-                        classification
-        *current_task* (int): a number of current task
-
-    """
-
-    # Initiate list for entropies
-    entropies = []
-
-    # Get task data to be tested
-    data = list_of_permutations[current_task]
-
-    for ent_id in range(current_task+1):
-
-        with torch.no_grad():
-        
-            # Currently results will be calculated on the test set
-            input_data = data.get_test_inputs()
-            test_input = data.input_to_torch_tensor(
-                input_data, parameters['device'], mode='inference'
-            )
-
-            # Get weights from hnet and make predictions
-            target_weights = hypernetwork.forward(cond_id=ent_id, perturbated_eps=parameters['perturbated_epsilon'])
-
-            Y_hat_logits = target_network.forward(
-                test_input,
-                weights=target_weights
-            )
-
-            Y_hat = F.softmax(Y_hat_logits, dim=1)
-            entropy = -torch.sum(Y_hat * torch.log(Y_hat))
-            entropies.append(entropy)
-
-    inf_task_id = torch.argmin(torch.Tensor([entropies]))
-    inf_task_id = int(inf_task_id)
-
-    return inf_task_id
-
-
 
 def evaluate_previous_tasks(hypernetwork,
                             target_network,
@@ -383,7 +256,6 @@ def evaluate_previous_tasks(hypernetwork,
         # Generate weights of the target network
         target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=parameters['perturbated_epsilon'])
 
-        
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
@@ -392,7 +264,6 @@ def evaluate_previous_tasks(hypernetwork,
             evaluation_dataset='test'
         )
            
-
         result = {
             'after_learning_of_task': parameters['number_of_task'],
             'tested_task': task,
@@ -520,50 +391,53 @@ def plot_heatmap(load_path):
     plt.savefig(load_path.replace('.csv', '.pdf'), dpi=300)
     plt.close()
 
-def plot_intervals_around_embeddings(tasks_embeddings_list,
-                                     save_folder,
-                                     perturbated_epsilon_list):
+def plot_intervals_around_embeddings(hypernetwork,
+                                     parameters,
+                                     save_folder):
     """
     Plot intervals with trained radii around tasks' embeddings for
     all tasks at once
 
     Argument:
     ---------
-        *task_embeddings_list*: (list) contains tasks' embeddings (tensors)
+        *hypernetwork*: (nn.Module) a trained hypernetwork
+        *parameters*: (dictionary) contains necessary hyperparameters
+                    describing an experiment
         *save_folder*: (string) contains folder where the plot will be saved,
-        *perturbated_epsilon_list*: (list) list of intervals around embedding
-        *n_embs_to_plot*: (int) number of embeddings to be plotted
     """
 
     # Check if folder exists, if it doesn't then create the folder
     if not os.path.exists(save_folder):
         os.mkdir(save_folder)
 
-    # Get dimensionality of created embedding per task
-    n_embs  = len(tasks_embeddings_list[0])
+    no_tasks = parameters["number_of_tasks"]
+    n_embs   = len(hypernetwork.get_cond_in_emb(0))
 
+    embds = [
+        hypernetwork.get_cond_in_emb(i) for i in range(no_tasks)
+    ]
+    radii = hypernetwork.perturbated_eps_T
+    
     # Create a plot
-    no_tasks = len(tasks_embeddings_list)
-    fig      = plt.figure(figsize=(10, 6))
-    cm       = plt.get_cmap('gist_rainbow')
-    colors   = [cm(1.*i/no_tasks) for i in range(no_tasks)]
+    fig    = plt.figure(figsize=(10, 6))
+    cm     = plt.get_cmap('gist_rainbow')
+    colors = [cm(1.*i/no_tasks) for i in range(no_tasks)]
 
-    for task_id, (tasks_embeddings, tasks_intervals) in enumerate(zip(tasks_embeddings_list, perturbated_epsilon_list)):
+    for task_id, (tasks_embeddings, tasks_intervals) in enumerate(zip(embds, radii)):
         
-        # Take first `n_embs_to_plot` embeddings' values
         tasks_embeddings = tasks_embeddings.cpu().detach().numpy()
         tasks_intervals  = tasks_intervals.cpu().detach().numpy()
-        print(f"Tasks intervals: {len(tasks_intervals[0])}")
+
         # Generate an x axis
-        x = [_ for _ in range(len(tasks_embeddings))]
+        x = [_ for _ in range(parameters["embedding_size"])]
 
         # Create a scatter plot
         plt.scatter(x, tasks_embeddings, label=f'Task_{task_id}', marker='o', c=[colors[task_id]])
 
         # Draw horizontal lines around the dots
         for i in range(len(x)):
-            plt.vlines(x[i], ymin=tasks_embeddings[i] - tasks_intervals[0][i],
-                        ymax=tasks_embeddings[i] + tasks_intervals[0][i], linewidth=2, colors=[colors[task_id]])
+            plt.vlines(x[i], ymin=tasks_embeddings[i] - tasks_intervals[i],
+                        ymax=tasks_embeddings[i] + tasks_intervals[i], linewidth=2, colors=[colors[task_id]])
 
     # Create a save path
     save_path = f'{save_folder}/intervals_around_tasks_embeddings.png'
@@ -680,6 +554,7 @@ def train_single_task(hypernetwork,
         tensor_output = current_dataset_instance.output_to_torch_tensor(
             current_batch[1], parameters['device'], mode='train'
         )
+
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
@@ -693,27 +568,28 @@ def train_single_task(hypernetwork,
 
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
-        emb = hypernetwork.conditional_params[current_no_of_task]
-        target_weights, lower_weights, upper_weights, _ = hypernetwork.forward(cond_input=emb.view(1,-1), 
+        target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                                 return_extended_output=True,
                                                                                 perturbated_eps=eps)
-
+    
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-        prediction_zu = target_network.forward(tensor_input,
-                                                weights=upper_weights)
-        prediction_zl = target_network.forward(tensor_input,
-                                                weights=lower_weights)
         prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
+        
+        assert torch.all(radii[-1] >= 0)
+
+        prediction_zu = prediction + radii[-1]
+        prediction_zl = prediction - radii[-1]
+
+        assert torch.all(prediction_zl <= prediction_zu)
 
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
         loss_weights = 0.0
         for W_u, W_l in zip(upper_weights, lower_weights):
             loss_weights += (W_u - W_l).pow(2).mean()
-                
 
         loss_current_task = criterion(
             y_pred=prediction,
@@ -901,16 +777,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     hypernetwork.train()
     target_network.train()
 
-    # Declare empty lists for tasks' embeddings and trained radii
-    tasks_embeddings_list = []
-    trained_radii_list    = []
-
     # Declare total number of tasks
     no_tasks = parameters['number_of_tasks']
 
-
     for no_of_task in range(no_tasks):
-        
 
         hypernetwork, target_network = train_single_task(
             hypernetwork,
@@ -920,11 +790,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             dataset_list_of_tasks,
             no_of_task
         )
-
-        # Get already learned embedding's and trained radii for
-        # those embeddings
-        tasks_embeddings_list.append(hypernetwork.get_cond_in_emb(no_of_task)) # Those embeddings are from the latent space!
-        trained_radii_list.append(hypernetwork.trained_radii)
 
         if no_of_task == (parameters['number_of_tasks'] - 1):
         # Save current state of networks
@@ -963,9 +828,9 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
     # Plot intervals over tasks' embeddings plot
     interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
-    plot_intervals_around_embeddings(tasks_embeddings_list=tasks_embeddings_list,
-                                    save_folder=interval_plot_save_path,
-                                    perturbated_epsilon_list=trained_radii_list)
+    plot_intervals_around_embeddings(hypernetwork=hypernetwork,
+                                     parameters=parameters,
+                                     save_folder=interval_plot_save_path)
 
     return hypernetwork, target_network, dataframe
 
@@ -1065,10 +930,10 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'TinyImageNet'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = 'grid_search_results'

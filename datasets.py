@@ -222,7 +222,7 @@ def set_hyperparameters(dataset,
                 'batch_sizes': [128],
                 'betas': [0.005],
                 'gammas': [0.0005],
-                'perturbated_epsilon': [10.0],
+                'perturbated_epsilon': [0.5],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'best_model_selection_method': 'val_loss',
                 'saving_folder': './Results/'
@@ -363,6 +363,7 @@ def set_hyperparameters(dataset,
                 'batch_sizes': [64, 128],
                 'betas': [0.01, 0.001],
                 'hypernetworks_hidden_layers': [[10, 10], [25, 25], [50, 50]],
+                'perturbated_epsilon': [0.5],
                 'gammas': [0.01, 0.001],
                 # seed is not for optimization but for ensuring multiple results
                 'seed': [1, 2, 3, 4, 5],
@@ -391,8 +392,9 @@ def set_hyperparameters(dataset,
                 'seed': [3],
                 'embedding_sizes': [128],
                 'learning_rates': [0.001],
-                'batch_sizes': [128],
+                'batch_sizes': [1],
                 'betas': [0.001],
+                'perturbated_epsilon': [0.5],
                 'gammas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'augmentation': True,
@@ -407,7 +409,7 @@ def set_hyperparameters(dataset,
         hyperparams['number_of_iterations'] = 2000
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1000
-        hyperparams['target_hidden_layers'] = [400, 400]
+        hyperparams['target_hidden_layers'] = [2, 3]
         hyperparams['shape'] = 28**2
         hyperparams['number_of_tasks'] = 5
         hyperparams['chunk_size'] = 100

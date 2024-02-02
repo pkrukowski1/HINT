@@ -10,8 +10,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from copy import deepcopy
-
 class HMLP_IBP(HMLP, HyperNetInterface):
 
     """
@@ -33,14 +31,34 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 **kwargs): 
         
         super(HMLP_IBP, self).__init__(target_shapes=target_shapes,
-                        cond_in_size=cond_in_size,
-                        activation_fn=nn.ReLU(),       # For now only ReLU is supported
-                        num_cond_embs=num_cond_embs) 
+                                        cond_in_size=cond_in_size,
+                                        activation_fn=nn.ReLU(),     # Any increasing function can be applied
+                                        num_cond_embs=num_cond_embs) 
         
-        self.trained_radii = torch.zeros(cond_in_size)    # Initialize an empty tensor for intervals
-                                                          # around embeddings in the weight space
-        self.tasks_embeddings = torch.zeros(cond_in_size) # This variable stores the learned embedding
-        self.perturbated_eps = kwargs["perturbated_eps"]
+        self._perturbated_eps   = kwargs["perturbated_eps"]
+        self._perturbated_eps_T = []
+
+        for _ in range(num_cond_embs):
+            self._perturbated_eps_T.append(
+                    F.softmax(torch.randn(cond_in_size), dim=-1)
+                )
+            
+    @property
+    def perturbated_eps(self):
+        return self._perturbated_eps
+    
+    @property
+    def perturbated_eps_T(self):
+        return self._perturbated_eps_T
+    
+    @perturbated_eps_T.setter
+    def perturbated_eps_T(self, task_id, value):
+
+        assert isinstance(task_id, int), "Task id should be an integer!"
+        assert isinstance(value, torch.Tensor), "Assigned value should be a PyTorch tensor!"
+
+        self._perturbated_eps_T[task_id] = value
+
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
@@ -63,14 +81,15 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             (list or torch.Tensor): See docstring of method
             :meth:`hnets.hnet_interface.HyperNetInterface.forward`.
         """
+
+        assert cond_id is not None, "Cond id should be not none because of trainable radii parameters"
+
         uncond_input, cond_input, uncond_weights, _ = \
             self._preprocess_forward_args(uncond_input=uncond_input,
                 cond_input=cond_input, cond_id=cond_id, weights=weights,
                 distilled_params=distilled_params, condition=condition,
                 ret_format=ret_format)
-        
-        perturbated_eps = self.perturbated_eps if perturbated_eps is None else perturbated_eps
-
+       
         ### Prepare hypernet input ###
         assert self._uncond_in_size == 0 or uncond_input is not None
         assert self._cond_in_size == 0 or cond_input is not None
@@ -85,11 +104,24 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         if uncond_input is not None and cond_input is not None:
             h = torch.cat([uncond_input, cond_input], dim=1)
 
+        if isinstance(cond_id, list):
+            cond_id = cond_id[0]
+
+        if perturbated_eps is None:
+            eps = self._perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
+        else:
+            eps = perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
+        
+        self._perturbated_eps_T[cond_id] = eps
+
+        if perturbated_eps is not None:
+            assert torch.round(eps.sum(), decimals=3) == round(perturbated_eps, ndigits=3)
+
         ### Extract layer weights ###
-        bn_scales = []
-        bn_shifts = []
+        bn_scales  = []
+        bn_shifts  = []
         fc_weights = []
-        fc_biases = []
+        fc_biases  = []
 
         assert len(uncond_weights) == len(self.unconditional_param_shapes_ref)
         for i, idx in enumerate(self.unconditional_param_shapes_ref):
@@ -113,21 +145,12 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             assert len(bn_scales) == len(fc_weights) - 1
 
         ### Process inputs through the network ###
-            
-        # Normalization step - we give to the neural net a chance to
-        # decide about length of interval around each dimension of
-        # embedding
-        eps = perturbated_eps*F.softmax(torch.abs(h), dim=1)
-
-        # Store the trained radii
-        self.trained_radii = deepcopy(eps.detach())
-
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)
 
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
 
-            # Calculate adaptive weights
+            # Calculate weights
             W   = torch.abs(fc_weights[i])
             eps = F.linear(eps, W, bias=torch.zeros_like(fc_biases[i]))
 
@@ -149,9 +172,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     h, eps   = (z_u + z_l) / 2, (z_u - z_l) / 2
 
         z_l, z_u = h-eps, h+eps
-        
-        # Store the embedding
-        self.tasks_embeddings = deepcopy(h.detach())
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
@@ -159,7 +179,11 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             ret_zl = self._flat_to_ret_format(z_l, ret_format)
             ret_zu = self._flat_to_ret_format(z_u, ret_format)
 
-            return ret, ret_zl, ret_zu, eps
+            # Make a copy of the radii and freeze
+            radii = eps.clone().detach()
+            radii = self._flat_to_ret_format(radii, ret_format)  # Calculate epsilon for each weight of a target network
+
+            return ret, ret_zl, ret_zu, radii
         else:
             return ret
         
