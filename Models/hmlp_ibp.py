@@ -38,6 +38,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         self._perturbated_eps   = kwargs["perturbated_eps"]
         self._device            = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._perturbated_eps_T = []
+        self.scale = 1. / (1 - self._dropout_rate)
 
         for _ in range(num_cond_embs):
             self._perturbated_eps_T.append(
@@ -160,13 +161,34 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             if not last_layer:
                 # Batch-norm
                 if self._use_batch_norm:
-                    h = self.batchnorm_layers[i].forward(h, running_mean=None,
+                    raise Exception("BatchNorm not implemented yet!")
+                    z_l, z_u = h - eps, h + eps
+                    z_l = self.batchnorm_layers[i].forward(z_l, running_mean=None,
                         running_var=None, weight=bn_scales[i],
                         bias=bn_shifts[i], stats_id=condition)
+                    
+                    z_u = self.batchnorm_layers[i].forward(z_u, running_mean=None,
+                        running_var=None, weight=bn_scales[i],
+                        bias=bn_shifts[i], stats_id=condition)
+                    
+                    # Revert the order if needed
+                    z_l = torch.minimum(z_l, z_u)
+                    z_u = torch.maximum(z_l, z_u)
+
+                    h, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
                 
                 # Dropout
                 if self._dropout_rate != -1:
-                    h = self._dropout(h)
+                    if self.training:
+                        z_l, z_u = h - eps, h + eps
+
+                        mask = torch.bernoulli(self._dropout_rate * torch.ones_like(h)).long()
+                        z_l = z_l.where(mask != 1, torch.zeros_like(z_l)) * self.scale
+                        z_u = z_u.where(mask != 1, torch.zeros_like(z_u)) * self.scale
+
+                        assert torch.all(z_l <= z_u)
+
+                        h, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
 
                 # Non-linearity
                 if self._act_fn is not None:
