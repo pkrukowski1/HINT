@@ -14,7 +14,7 @@ import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
-from LearningTools.loss_functions import IBP_Loss
+from loss_functions import IBP_Loss
 from Models.hmlp_ibp import HMLP_IBP
 from datasets import (
     set_hyperparameters,
@@ -577,12 +577,17 @@ def train_single_task(hypernetwork,
         # give 'current_no_of_task' as a value for the 'condition' argument.
         prediction = target_network.forward(tensor_input,
                                             weights=target_weights)
+        prediction_zl = target_network.forward(tensor_input,
+                                               weights=lower_weights)
+        prediction_zu = target_network.forward(tensor_input,
+                                               weights=upper_weights)
         
-        assert torch.all(radii[-1] >= 0)
-
-        prediction_zu = prediction + radii[-1]
-        prediction_zl = prediction - radii[-1]
-
+        # Please note that some of the interval elements may switch order of
+        # components due to the lack of ReLU which map negative values onto zeros,
+        # so we need to revert the order
+        prediction_zl = torch.minimum(prediction_zl, prediction_zu)
+        prediction_zu = torch.maximum(prediction_zl, prediction_zu)
+        
         assert torch.all(prediction_zl <= prediction_zu)
 
         # We need to check wheter the distance between the lower weights
@@ -930,7 +935,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'SplitMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

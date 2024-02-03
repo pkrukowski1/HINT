@@ -54,11 +54,11 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     @perturbated_eps_T.setter
     def perturbated_eps_T(self, task_id, value):
 
-        assert isinstance(task_id, int), "Task id should be an integer!"
+        assert isinstance(task_id, int), "Task's id should be an integer!"
         assert isinstance(value, torch.Tensor), "Assigned value should be a PyTorch tensor!"
 
         self._perturbated_eps_T[task_id] = value
-
+    
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
