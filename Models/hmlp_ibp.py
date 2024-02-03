@@ -36,6 +36,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                                         num_cond_embs=num_cond_embs) 
         
         self._perturbated_eps   = kwargs["perturbated_eps"]
+        self._device            = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._perturbated_eps_T = []
 
         for _ in range(num_cond_embs):
@@ -111,6 +112,8 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             eps = self._perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
         else:
             eps = perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
+        
+        eps = eps.to(self._device)
         
         self._perturbated_eps_T[cond_id] = eps
 
