@@ -161,7 +161,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             if not last_layer:
                 # Batch-norm
                 if self._use_batch_norm:
-                    raise Exception("BatchNorm not implemented yet!")
+                    raise Exception("Not implemented yet!")
                     z_l, z_u = h - eps, h + eps
                     z_l = self.batchnorm_layers[i].forward(z_l, running_mean=None,
                         running_var=None, weight=bn_scales[i],
@@ -180,15 +180,10 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 # Dropout
                 if self._dropout_rate != -1:
                     if self.training:
-                        z_l, z_u = h - eps, h + eps
 
                         mask = torch.bernoulli(self._dropout_rate * torch.ones_like(h)).long()
-                        z_l = z_l.where(mask != 1, torch.zeros_like(z_l)) * self.scale
-                        z_u = z_u.where(mask != 1, torch.zeros_like(z_u)) * self.scale
-
-                        assert torch.all(z_l <= z_u)
-
-                        h, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
+                        h = h.where(mask != 1, torch.zeros_like(h)) * self.scale
+                        eps = eps.where(mask != 1, torch.zeros_like(eps)) * self.scale
 
                 # Non-linearity
                 if self._act_fn is not None:

@@ -265,7 +265,7 @@ def set_hyperparameters(dataset,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
                 'use_batch_norm': False,
-                'target_network': 'ResNet',
+                'target_network': 'ZenkeNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
                 'augmentation': True
@@ -311,7 +311,7 @@ def set_hyperparameters(dataset,
                 'gammas': [0.0001],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
-                'perturbated_epsilon': [10.0],
+                'perturbated_epsilon': [0.5],
                 'hypernetworks_hidden_layers': [[100]],
                 'use_batch_norm': False,
                 'use_chunks': False,
@@ -487,6 +487,7 @@ def set_hyperparameters(dataset,
     hyperparams['activation_function'] = torch.nn.ReLU()
     hyperparams['norm'] = 1  # L1 norm
     hyperparams['use_bias'] = True
+    hyperparams["dataset"] = dataset
     hyperparams['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
     hyperparams['kappa'] = 0.5
     os.makedirs(hyperparams['saving_folder'], exist_ok=True)
@@ -495,7 +496,7 @@ def set_hyperparameters(dataset,
 
 if __name__ == "__main__":
     datasets_folder = './Data'
-    # datasets_folder = '/shared/sets/datasets/'
+    #datasets_folder = '/shared/sets/datasets/'
     os.makedirs(datasets_folder, exist_ok=True)
     validation_size = 500
     use_data_augmentation = False

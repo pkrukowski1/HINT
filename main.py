@@ -9,7 +9,7 @@ import seaborn as sns
 import torch.optim as optim
 from hypnettorch.mnets import MLP
 from hypnettorch.mnets.resnet import ResNet
-from hypnettorch.mnets.zenkenet import ZenkeNet
+from ZenkeNet64 import ZenkeNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
@@ -737,11 +737,17 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                 use_batch_norm=parameters['use_batch_norm'],
                                 bn_track_stats=False).to(parameters['device'])
     elif parameters['target_network'] == 'ZenkeNet':
+        if parameters["dataset"] in ["CIFAR100", "CIFAR100_FeCAM_setup"]:
+            architecture = "cifar"
+        elif parameters["dataset"] == "TinyImageNet":
+            architecture = "tiny"
+        else:
+            raise ValueError("This dataset is currently not implemented!")
         target_network = ZenkeNet(in_shape=(parameters['input_shape'],
                                             parameters['input_shape'],
                                             3),  
                                   num_classes=output_shape,
-                                  arch='cifar',
+                                  arch=architecture,
                                   no_weights=False).to(parameters['device'])
     # Create a hypernetwork based on the shape of the target network
     no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
@@ -933,7 +939,7 @@ def main_running_experiments(path_to_datasets,
 
 
 if __name__ == "__main__":
-    # path_to_datasets = '/shared/sets/datasets/'
+    #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
     dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
@@ -988,6 +994,7 @@ if __name__ == "__main__":
             'augmentation': hyperparameters["augmentation"],
             'number_of_tasks': hyperparameters["number_of_tasks"],
             'seed': seed,
+            'dataset': dataset,
             'hypernetwork_hidden_layers': hypernetwork_hidden_layers,
             'activation_function': hyperparameters["activation_function"],
             'use_chunks': hyperparameters["use_chunks"],
