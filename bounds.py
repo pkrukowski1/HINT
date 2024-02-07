@@ -58,7 +58,7 @@ class IntervalBounds():
         return bounds
 
     def apply_linear(self, wrapper, w, b):
-        return self._affine(w, b, torch.matmul)
+        return self._affine(w, b, F.linear)
 
     def apply_conv1d(self, wrapper, w, b, padding, stride):
         return self._affine(w, b, F.conv1d, padding=padding, stride=stride)
