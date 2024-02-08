@@ -131,7 +131,6 @@ class IntervalAvgPool2d(nn.AvgPool2d):
         return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
                                                                              "W")  # type: ignore
 
-# TODO
 class IntervalBatchNorm2d(IntervalModuleWithWeights):
     def __init__(self, num_features,
                  upper_gamma: Tensor,
