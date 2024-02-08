@@ -1,13 +1,15 @@
 import os
 import random
 import torch
+from typing import cast
+from torch import Tensor
 import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.optim as optim
-from hypnettorch.mnets import MLP
+from interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
 from ZenkeNet64 import ZenkeNet
 import hypnettorch.utils.hnet_regularizer as hreg
@@ -15,7 +17,7 @@ from datetime import datetime
 from itertools import product
 from copy import deepcopy
 from loss_functions import IBP_Loss
-from Models.hmlp_ibp import HMLP_IBP
+from hmlp_ibp import HMLP_IBP
 from datasets import (
     set_hyperparameters,
     prepare_split_cifar100_tasks,
@@ -124,6 +126,7 @@ def get_number_of_batch_normalization_layer(target_network):
             num_of_batch_norm_layers = 2 * len(target_network.batchnorm_layers)
     else:
         num_of_batch_norm_layers = 0
+        print(num_of_batch_norm_layers)
     return num_of_batch_norm_layers
 
 
@@ -182,16 +185,25 @@ def calculate_accuracy(data,
         gt_classes = test_output.max(dim=1)[1]
 
         if parameters['use_batch_norm_memory']:
+            # FIXME: It would be better to use vanilla MLP
             logits = target_network.forward(
                 test_input,
-                weights=weights,
+                upper_weights=weights,
+                middle_weights=weights,
+                lower_weights=weights,
                 condition=parameters['number_of_task']
             )
         else:
+            # FIXME: It would be better to use vanilla MLP
             logits = target_network.forward(
                 test_input,
-                weights=weights
+                upper_weights=weights,
+                middle_weights=weights,
+                lower_weights=weights
             )
+
+        # FIXME: Return predicitions without `map`
+        _, logits, _ = map(lambda x_: cast(Tensor, x_.rename(None)), logits.unbind("bounds"))  # type: ignore
         predictions = logits.max(dim=1)[1]
 
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
@@ -568,27 +580,29 @@ def train_single_task(hypernetwork,
 
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
-        target_weights, lower_weights, upper_weights, radii = hypernetwork.forward(cond_id=current_no_of_task, 
+        target_weights, lower_weights, upper_weights, _ = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                                 return_extended_output=True,
                                                                                 perturbated_eps=eps)
     
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
+       
         prediction = target_network.forward(tensor_input,
-                                            weights=target_weights)
-        prediction_zl = target_network.forward(tensor_input,
-                                               weights=lower_weights)
-        prediction_zu = target_network.forward(tensor_input,
-                                               weights=upper_weights)
+                                            upper_weights=upper_weights,
+                                            middle_weights=target_weights,
+                                            lower_weights=lower_weights)
+        
+        # FIXME: Return predicitions without `map`
+        lower_pred, middle_pred, upper_pred = map(lambda x_: cast(Tensor, x_.rename(None)), prediction.unbind("bounds"))  # type: ignore
         
         # Please note that some of the interval elements may switch order of
         # components due to the lack of ReLU which map negative values onto zeros,
         # so we need to revert the order
-        prediction_zl = torch.minimum(prediction_zl, prediction_zu)
-        prediction_zu = torch.maximum(prediction_zl, prediction_zu)
+
         
-        assert torch.all(prediction_zl <= prediction_zu)
+        assert (lower_pred <= middle_pred).all(), "Lower bound must be less than or equal to middle bound."
+        assert (middle_pred <= upper_pred).all(), "Middle bound must be greater than or equal to upper bound."
 
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
@@ -597,10 +611,10 @@ def train_single_task(hypernetwork,
             loss_weights += (W_u - W_l).pow(2).mean()
 
         loss_current_task = criterion(
-            y_pred=prediction,
+            y_pred=middle_pred,
             y=gt_output,
-            z_l=prediction_zl,
-            z_u=prediction_zu,
+            z_l=lower_pred,
+            z_u=upper_pred,
             kappa=kappa
         )
 
@@ -720,7 +734,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     # Create a target network which will be multilayer perceptron
     # or ResNet/ZenkeNet with internal weights
     if parameters['target_network'] == 'MLP':
-        target_network = MLP(n_in=parameters['input_shape'],
+        target_network = IntervalMLP(n_in=parameters['input_shape'],
                              n_out=output_shape,
                              hidden_layers=parameters['target_hidden_layers'],
                              use_bias=parameters['use_bias'],
@@ -941,7 +955,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

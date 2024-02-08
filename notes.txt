@@ -1,0 +1,22 @@
+Results/permuted_mnist_single_run/2023-11-18_14-46-25 - interwały wokół embeddingów bez narzucania przecięcia
+Results/permuted_mnist_single_run/2023-11-18_17-47-00 - interwały wokół embeddingów bez narzucania przecięcia
+Results/permuted_mnist_single_run/2023-11-18_19-18-45 - interwały wokół embeddingów bez narzucania przecięcia
+Results/permuted_mnist_single_run/2023-11-18_21-01-57 - interwały wokół embeddingów bez narzucania przecięcia
+Results/permuted_mnist_single_run/2023-11-20_11-59-26/0 - środki wszystkich interwałów pokrywają się ze sobą
+Results/permuted_mnist_single_run/2023-11-20_15-25-28/0 - n-ty embedding tasku inicjalizujemy wyuczonym embeddingiem z (n-1) tasku
+Results/permuted_mnist_single_run/2023-11-20_17-34-42 - n-ty embedding tasku inicjalizujemy realizacjami procesu Gaussowskiego
+                                                        o środku w embedddingu (n-1) tasku i wariancji 0.0001
+Results/permuted_mnist_single_run/2023-11-27_18-33-51/0 - interwały wokół embeddingów bez narzucania przecięcia, ale z plantowaniem
+                                                          embeddingów
+Results/permuted_mnist_single_run/2023-11-27_20-22-36/0 - ten sam eksperyment, co wyżej, ale embedding n-tego tasku jest inicjalizowany
+                                                        jako realizacja procesu Gaussowskiego o środku w embeddingu poprzedniego tasku
+                                                        i wariancji równej 0.1
+Results/permuted_mnist_single_run/2023-11-28_11-32-36 - bierzemy środek przecięcia embeddingów dwóch tasków i patrzymy na accuracy dla eps = 200.0,
+                                                        n-ty embedding tasku inicjalizujemy realizacjami procesu Gaussowskiego
+                                                        o środku w embedddingu (n-1) tasku i wariancji 0.1
+
+Results/permuted_mnist_single_run/2023-11-28_12-01-09 - bierzemy środek przecięcia embeddingów dwóch tasków i patrzymy na accuracy dla eps = 5.0,
+                                                        n-ty embedding tasku inicjalizujemy realizacjami procesu Gaussowskiego
+                                                        o środku w embedddingu (n-1) tasku i wariancji 0.1
+Results/permuted_mnist_single_run/2023-11-28_12-33-51 - bierzemy środek przecięcia embeddingów dwóch tasków i patrzymy na accuracy dla eps = 200.0, bez
+                                                        wymuszania przecięć

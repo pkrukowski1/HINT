@@ -6,6 +6,8 @@ over tasks' embeddings being inputs to an MLP hypernetwork
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.hnet_interface import HyperNetInterface
 
+from warnings import warn
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,27 +25,32 @@ class HMLP_IBP(HMLP, HyperNetInterface):
     used as conditional input.
     """
 
-    def __init__(self, 
-                target_shapes, 
-                cond_in_size, 
-                num_cond_embs=1,
-                *args, 
-                **kwargs): 
-        
-        super(HMLP_IBP, self).__init__(target_shapes=target_shapes,
-                                        cond_in_size=cond_in_size,
-                                        activation_fn=nn.ReLU(),     # Any increasing function can be applied
-                                        num_cond_embs=num_cond_embs) 
+    def __init__(self, target_shapes, uncond_in_size=0, cond_in_size=8,
+                 layers=(100, 100), verbose=True, activation_fn=torch.nn.ReLU(),
+                 use_bias=True, no_uncond_weights=False, no_cond_weights=False,
+                 num_cond_embs=1, dropout_rate=-1, use_spectral_norm=False,
+                 use_batch_norm=False, *args, **kwargs):
+
+        HMLP.__init__(self, target_shapes, uncond_in_size=uncond_in_size, cond_in_size=cond_in_size,
+                 layers=layers, verbose=verbose, activation_fn=activation_fn,
+                 use_bias=use_bias, no_uncond_weights=no_uncond_weights, no_cond_weights=no_cond_weights,
+                 num_cond_embs=num_cond_embs, dropout_rate=dropout_rate, use_spectral_norm=use_spectral_norm,
+                 use_batch_norm=use_batch_norm)
+
         
         self._perturbated_eps   = kwargs["perturbated_eps"]
         self._device            = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._perturbated_eps_T = []
+        self._perturbated_eps_T = nn.ParameterList()
         self.scale = 1. / (1 - self._dropout_rate)
 
+        ## Create learnable radii ###
         for _ in range(num_cond_embs):
             self._perturbated_eps_T.append(
                     F.softmax(torch.randn(cond_in_size), dim=-1)
                 )
+
+        self._is_properly_setup()
+
             
     @property
     def perturbated_eps(self):
@@ -116,10 +123,10 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         eps = eps.to(self._device)
         
-        self._perturbated_eps_T[cond_id] = eps
+        self.perturbated_eps_T[cond_id] = eps
 
-        if perturbated_eps is not None:
-            assert torch.round(eps.sum(), decimals=3) == round(perturbated_eps, ndigits=3)
+        #if perturbated_eps is not None:
+            #assert torch.round(eps.sum(), decimals=3) == round(perturbated_eps, ndigits=3)
 
         ### Extract layer weights ###
         bn_scales  = []
@@ -159,9 +166,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             eps = F.linear(eps, W, bias=torch.zeros_like(fc_biases[i]))
 
             if not last_layer:
+
                 # Batch-norm
                 if self._use_batch_norm:
-                    raise Exception("Not implemented yet!")
                     z_l, z_u = h - eps, h + eps
                     z_l = self.batchnorm_layers[i].forward(z_l, running_mean=None,
                         running_var=None, weight=bn_scales[i],
@@ -178,12 +185,19 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                     h, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
                 
                 # Dropout
+                # TODO: Apply dropout to embeddings
+                # TODO Fix dropout
                 if self._dropout_rate != -1:
                     if self.training:
+                        z_l, z_u = h - eps, h + eps
 
                         mask = torch.bernoulli(self._dropout_rate * torch.ones_like(h)).long()
-                        h = h.where(mask != 1, torch.zeros_like(h)) * self.scale
-                        eps = eps.where(mask != 1, torch.zeros_like(eps)) * self.scale
+                        z_l = z_l.where(mask != 1, torch.ones_like(z_l)) * self.scale
+                        z_u = z_u.where(mask != 1, torch.ones_like(z_u)) * self.scale
+
+                        assert torch.all(z_u >= z_l)
+
+                        h, eps = (z_u + z_l)/2, (z_u - z_l)/2
 
                 # Non-linearity
                 if self._act_fn is not None:
