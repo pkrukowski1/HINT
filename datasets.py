@@ -221,8 +221,8 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.005],
-                'gammas': [0.0005],
-                'perturbated_epsilon': [0.5],
+                'gammas': [0.0],
+                'perturbated_epsilon': [0.05],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'best_model_selection_method': 'val_loss',
                 'saving_folder': './Results/'
@@ -231,7 +231,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 5000
+        hyperparams['number_of_iterations'] = 100
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -264,7 +264,7 @@ def set_hyperparameters(dataset,
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
-                'use_batch_norm': False,
+                'use_batch_norm': True,
                 'target_network': 'ZenkeNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
@@ -313,7 +313,7 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'perturbated_epsilon': [0.5],
                 'hypernetworks_hidden_layers': [[100]],
-                'use_batch_norm': False,
+                'use_batch_norm': True,
                 'use_chunks': False,
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,

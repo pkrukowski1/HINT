@@ -34,8 +34,8 @@ auxilliary network, a so called hypernetwork, see
 """
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
+from warnings import warn
 
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 from hypnettorch.utils.torch_utils import init_params
@@ -198,9 +198,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         assert use_spectral_norm is False, "`use_spectral_norm` is deprecated"
 
         # Tuple are not mutable.
-        lower_hidden_layers  = list(hidden_layers)
-        middle_hidden_layers = list(hidden_layers)
-        upper_hidden_layers  = list(hidden_layers)
+        hidden_layers = list(hidden_layers)
 
         self._a_fun = activation_fn
         assert(init_weights is None or \
@@ -209,14 +207,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         self._dropout_rate = dropout_rate
         self._use_batch_norm = use_batch_norm
         self._bn_track_stats = bn_track_stats
-        self._distill_bn_stats = distill_bn_stats and use_batch_norm
-        self._use_context_mod = use_context_mod
-        self._context_mod_inputs = context_mod_inputs
-        self._no_last_layer_context_mod = no_last_layer_context_mod
-        self._context_mod_no_weights = context_mod_no_weights
-        self._context_mod_post_activation = context_mod_post_activation
-        self._context_mod_gain_offset = context_mod_gain_offset
-        self._context_mod_gain_softplus = context_mod_gain_softplus
         self._out_fn = out_fn
 
         self._has_bias = use_bias
@@ -253,48 +243,30 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         self._batchnorm_layers = nn.ModuleList() if use_batch_norm else None
 
         if use_batch_norm:
-            raise Exception("Not implemented error!")
-            if distill_bn_stats:
-                self._hyper_shapes_distilled = []
 
             bn_ind = 0
-            for (i_lower, n_lower), (i_middle, n_middle), (i_upper, n_upper) in enumerate(zip(lower_hidden_layers, middle_hidden_layers, upper_hidden_layers)):
-                bn_layer = IntervalBatchNorm2d(n_middle, affine=not no_weights,
-                    track_running_stats=bn_track_stats)
+            for i, n in enumerate(hidden_layers):
+                bn_layer = IntervalBatchNorm2d(n, affine=not no_weights,
+                    interval_statistics=bn_track_stats)
                 self._batchnorm_layers.append(bn_layer)
 
                 self._param_shapes.extend(bn_layer.param_shapes)
                 assert len(bn_layer.param_shapes) == 2
                 self._param_shapes_meta.extend([
                     {'name': 'bn_scale',
-                     'index': -1 if no_weights else len(self._weights),
+                     'index': -1 if no_weights else len(self._middle_weights),
                      'layer': -1}, # 'layer' is set later.
                     {'name': 'bn_shift',
-                     'index': -1 if no_weights else len(self._weights)+1,
+                     'index': -1 if no_weights else len(self._middle_weights)+1,
                      'layer': -1}, # 'layer' is set later.
                 ])
 
                 if no_weights:
                     self._hyper_shapes_learned.extend(bn_layer.param_shapes)
                 else:
-                    self._weights.extend(bn_layer.weights)
-
-                if distill_bn_stats:
-                    self._hyper_shapes_distilled.extend( \
-                        [list(p.shape) for p in bn_layer.get_stats(0)])
-
-                # FIXME ugly code. Move initialization somewhere else.
-                if not no_weights and init_weights is not None:
-                    assert(len(bn_layer.weights) == 2)
-                    for ii in range(2):
-                        assert(np.all(np.equal( \
-                                list(init_weights[bn_ind].shape),
-                                list(bn_layer.weights[ii].shape))))
-                        bn_layer.weights[ii].data = init_weights[bn_ind]
-                        bn_ind += 1
-
-            if init_weights is not None:
-                init_weights = init_weights[bn_ind:]
+                    self._upper_weights.extend([bn_layer.upper_gamma, bn_layer.upper_beta])
+                    self._middle_weights.extend([bn_layer.middle_gamma, bn_layer.middle_beta])
+                    self._lower_weights.extend([bn_layer.lower_gamma, bn_layer.lower_beta])
 
         ### Compute shapes of linear layers.
         linear_shapes = MLP.weight_shapes(n_in=n_in, n_out=n_out,
@@ -353,15 +325,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
 
         ### Uer information
         if verbose:
-            if use_context_mod:
-                cm_num_weights = 0
-                for cm_layer in self._context_mod_layers:
-                    cm_num_weights += MainNetInterface.shapes_to_num_weights( \
-                        cm_layer.param_shapes)
-
             print('Creating an MLP with %d weights' % num_weights
-                  + (' (including %d weights associated with-' % cm_num_weights
-                     + 'context modulation)' if use_context_mod else '')
                   + '.'
                   + (' The network uses dropout.' if dropout_rate != -1 else '')
                   + (' The network uses batchnorm.' if use_batch_norm  else ''))
@@ -377,14 +341,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         if no_weights:
             self._hyper_shapes_learned.extend(linear_shapes)
 
-            if use_context_mod:
-                if context_mod_no_weights:
-                    self._hyper_shapes_learned_ref = \
-                        list(range(len(self._param_shapes)))
-                else:
-                    ncm = len(self._context_mod_shapes)
-                    self._hyper_shapes_learned_ref = \
-                        list(range(ncm, len(self._param_shapes)))
             
             self._is_properly_setup()
             return
@@ -423,14 +379,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 init_params(self._layer_middle_weight_tensors[i])
                 init_params(self._layer_lower_weight_tensors[i])
 
-        if self._num_context_mod_shapes() == 0:
-            # Note, that might be the case if no hidden layers exist and no
-            # input or output modulation is used.
-            self._use_context_mod = False
+        self._is_properly_setup()
 
-        # self._is_properly_setup()
-
-    def forward(self, x, upper_weights, middle_weights, lower_weights, distilled_params=None, condition=None):
+    def forward(self, x, upper_weights, middle_weights, lower_weights):
         """Compute the output :math:`y` of this network given the input
         :math:`x`.
 
@@ -454,23 +405,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 The keyword ``mod_weights``, on the other hand, refers
                 specifically to the weights of the context-modulation layers.
                 It is not necessary to specify both keywords.
-            distilled_params: Will be passed as ``running_mean`` and
-                ``running_var`` arguments of method
-                :meth:`utils.batchnorm_layer.BatchNormLayer.forward` if
-                batch normalization is used.
-            condition (int or dict, optional): If ``int`` is provided, then this
-                argument will be passed as argument ``stats_id`` to the method
-                :meth:`utils.batchnorm_layer.BatchNormLayer.forward` if
-                batch normalization is used.
-
-                If a ``dict`` is provided instead, the following keywords are
-                allowed:
-
-                    - ``bn_stats_id``: Will be handled as ``stats_id`` of the
-                      batchnorm layers as described above.
-                    - ``cmod_ckpt_id``: Will be passed as argument ``ckpt_id``
-                      to the method
-                      :meth:`utils.context_mod_layer.ContextModLayer.forward`.
 
         Returns:
             (tuple): Tuple containing:
@@ -494,13 +428,8 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         n_cm = self._num_context_mod_shapes()
 
         int_upper_weights = None
-        cm_upper_weights = None
-
         int_middle_weights = None
-        cm_middle_weights = None
-
         int_lower_weights = None
-        cm_lower_weights = None
 
         if isinstance(upper_weights, dict) and isinstance(middle_weights, dict) and isinstance(lower_weights, dict):
             assert('internal_weights' in upper_weights.keys() or \
@@ -524,10 +453,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 'mod_weights' in middle_weights.keys() and \
                 'mod_weights' in lower_weights.keys():
 
-                cm_upper_weights = upper_weights['mod_weights']
-                cm_middle_weights = middle_weights['mod_weights']
-                cm_lower_weights = lower_weights['mod_weights']
+                raise Exception("Deprecated!")
         else:
+           
             assert(len(upper_weights) == len(self.param_shapes))
             assert(len(middle_weights) == len(self.param_shapes))
             assert(len(lower_weights) == len(self.param_shapes))
@@ -568,14 +496,18 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             assert(np.all(np.equal(s, list(int_middle_weights[i].shape))))
             assert(np.all(np.equal(s, list(int_lower_weights[i].shape))))
 
-        cm_ind = 0
         bn_ind = 0
 
         if self._use_batch_norm:
-            raise Exception("Not implemented yet!")
             n_bn = 2 * len(self.batchnorm_layers)
-            bn_weights = int_weights[:n_bn]
-            layer_weights = int_weights[n_bn:]
+
+            bn_upper_weights = int_upper_weights[:n_bn]
+            bn_middle_weights = int_middle_weights[:n_bn]
+            bn_lower_weights = int_lower_weights[:n_bn]
+            
+            layer_upper_weights = int_upper_weights[n_bn:]
+            layer_middle_weights = int_middle_weights[n_bn:]
+            layer_lower_weights = int_lower_weights[n_bn:]
         else:
             layer_upper_weights = int_upper_weights
             layer_middle_weights = int_middle_weights
@@ -603,64 +535,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 w_middle_weights.append(p_middle)
                 w_lower_weights.append(p_lower)
 
-        ########################
-        ### Parse condition ###
-        #######################
-
-        bn_cond = None
-        cmod_cond = None
-
-        if condition is not None:
-            if isinstance(condition, dict):
-                assert('bn_stats_id' in condition.keys() or \
-                       'cmod_ckpt_id' in condition.keys())
-                if 'bn_stats_id' in condition.keys():
-                    bn_cond = condition['bn_stats_id']
-                if 'cmod_ckpt_id' in condition.keys():
-                    cmod_cond = condition['cmod_ckpt_id']
-
-                    # FIXME We always require context-mod weight above, but
-                    # we can't pass both (a condition and weights) to the
-                    # context-mod layers.
-                    # An unelegant solution would be, to just set all
-                    # context-mod weights to None.
-                    raise NotImplementedError('CM-conditions not implemented!')
-            else:
-                bn_cond = condition
-
-        ######################################
-        ### Select batchnorm running stats ###
-        ######################################
-        if self._use_batch_norm:
-            raise Exception("Not implemented yet!")
-        
-            nn = len(self._batchnorm_layers)
-            running_means = [None] * nn
-            running_vars = [None] * nn
-
-        if distilled_params is not None:
-            if not self._distill_bn_stats:
-                raise ValueError('Argument "distilled_params" can only be ' +
-                                 'provided if the return value of ' +
-                                 'method "distillation_targets()" is not None.')
-            shapes = self.hyper_shapes_distilled
-            assert(len(distilled_params) == len(shapes))
-            for i, s in enumerate(shapes):
-                assert(np.all(np.equal(s, list(distilled_params[i].shape))))
-
-            # Extract batchnorm stats from distilled_params
-            for i in range(0, len(distilled_params), 2):
-                raise Exception("Not implemented yet!")
-            
-                running_means[i//2] = distilled_params[i]
-                running_vars[i//2] = distilled_params[i+1]
-
-        elif self._use_batch_norm and self._bn_track_stats and \
-                bn_cond is None:
-            for i, bn_layer in enumerate(self._batchnorm_layers):
-                raise Exception("Not implemented yet!")
-            
-                running_means[i], running_vars[i] = bn_layer.get_stats()
 
         ###########################
         ### Forward Computation ###
@@ -695,13 +569,14 @@ hyper_shapes_distilled` and the current statistics will be returned by the
 
                 # Batch norm
                 if self._use_batch_norm:
-                    raise Exception("Not implemented yet!")
                 
                     hidden = self._batchnorm_layers[bn_ind].forward(hidden,
-                        running_mean=running_means[bn_ind],
-                        running_var=running_vars[bn_ind],
-                        weight=bn_weights[2*bn_ind],
-                        bias=bn_weights[2*bn_ind+1], stats_id=bn_cond)
+                        upper_gamma=bn_upper_weights[2*bn_ind],
+                        middle_gamma=bn_middle_weights[2*bn_ind],
+                        lower_gamma=bn_lower_weights[2*bn_ind],
+                        upper_beta=bn_upper_weights[2*bn_ind+1],
+                        middle_beta=bn_middle_weights[2*bn_ind+1],
+                        lower_beta=bn_lower_weights[2*bn_ind+1])
                     bn_ind += 1
 
                 # Dropout
@@ -716,29 +591,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             return self._out_fn(hidden), hidden
 
         return hidden
-
-    def distillation_targets(self):
-        """Targets to be distilled after training.
-
-        See docstring of abstract super method
-        :meth:`mnets.mnet_interface.MainNetInterface.distillation_targets`.
-
-        This method will return the current batch statistics of all batch
-        normalization layers if ``distill_bn_stats`` and ``use_batch_norm``
-        was set to ``True`` in the constructor.
-
-        Returns:
-            The target tensors corresponding to the shapes specified in
-            attribute :attr:`hyper_shapes_distilled`.
-        """
-        if self.hyper_shapes_distilled is None:
-            return None
-
-        ret = []
-        for bn_layer in self._batchnorm_layers:
-            ret.extend(bn_layer.get_stats())
-
-        return ret
 
     @staticmethod
     def weight_shapes(n_in=1, n_out=1, hidden_layers=[10, 10], use_bias=True):
@@ -767,6 +619,98 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             prev_dim = size
 
         return shapes
+    
+    def _is_properly_setup(self, check_has_bias=True):
+        """This method can be used by classes that implement this interface to
+        check whether all required properties have been set."""
+        assert(self._param_shapes is not None or self._all_shapes is not None)
+        if self._param_shapes is None:
+            warn('Private member "_param_shapes" should be specified in each ' +
+                 'sublcass that implements this interface, since private ' +
+                 'member "_all_shapes" is deprecated.', DeprecationWarning)
+            self._param_shapes = self._all_shapes
+
+        if self._hyper_shapes is not None or \
+                self._hyper_shapes_learned is not None:
+            if self._hyper_shapes_learned is None:
+                warn('Private member "_hyper_shapes_learned" should be ' +
+                     'specified in each sublcass that implements this ' +
+                     'interface, since private member "_hyper_shapes" is ' +
+                     'deprecated.', DeprecationWarning)
+                self._hyper_shapes_learned = self._hyper_shapes
+            # FIXME we should actually assert equality if
+            # `_hyper_shapes_learned` was not None.
+            self._hyper_shapes = self._hyper_shapes_learned
+
+        if self._weights is not None and self._internal_params is None:
+            # Note, in the future we might throw a deprecation warning here,
+            # once "weights" becomes deprecated.
+            self._internal_params = self._weights
+
+        assert self._internal_params is not None or \
+               self._hyper_shapes_learned is not None
+
+        if self._hyper_shapes_learned is None and \
+                self.hyper_shapes_distilled is None:
+            # Note, `internal_params` should only contain trainable weights and
+            # not other things like running statistics. Thus, things that are
+            # passed to an optimizer.
+            assert len(self._internal_params) == len(self._param_shapes)
+
+        if self._param_shapes_meta is None:
+            # Note, this attribute was inserted post-hoc.
+            # FIXME Warning is annoying, programmers will notice when they use
+            # this functionality.
+            #warn('Attribute "param_shapes_meta" has not been implemented!')
+            pass
+        else:
+            assert(len(self._param_shapes_meta) == len(self._param_shapes))
+            for dd in self._param_shapes_meta:
+                assert isinstance(dd, dict)
+                assert 'name' in dd.keys() and 'index' in dd.keys() and \
+                    'layer' in dd.keys()
+                assert dd['name'] is None or \
+                       dd['name'] in ['weight', 'bias', 'bn_scale', 'bn_shift',
+                                      'cm_scale', 'cm_shift', 'embedding']
+
+                assert isinstance(dd['index'], int)
+                if self._internal_params is None:
+                    assert dd['index'] == -1
+                else:
+                    assert dd['index'] == -1 or \
+                        0 <= dd['index'] < len(self._internal_params)
+
+                assert isinstance(dd['layer'], int)
+                assert dd['layer'] == -1 or dd['layer'] >= 0
+
+        if self._hyper_shapes_learned is not None:
+            if self._hyper_shapes_learned_ref is None:
+                # Note, this attribute was inserted post-hoc.
+                # FIXME Warning is annoying, programmers will notice when they
+                # use this functionality.
+                #warn('Attribute "hyper_shapes_learned_ref" has not been ' +
+                #     'implemented!')
+                pass
+            else:
+                assert isinstance(self._hyper_shapes_learned_ref, list)
+                for ii in self._hyper_shapes_learned_ref:
+                    assert isinstance(ii, int)
+                    assert ii == -1 or 0 <= ii < len(self._param_shapes)
+
+        assert(isinstance(self._has_fc_out, bool))
+        assert(isinstance(self._mask_fc_out, bool))
+        assert(isinstance(self._has_linear_out, bool))
+
+        assert(self._layer_weight_tensors is not None)
+        assert(self._layer_bias_vectors is not None)
+
+        # Note, you should overwrite the `has_bias` attribute if you do not
+        # follow this requirement.
+        if check_has_bias:
+            assert isinstance(self._has_bias, bool)
+            if self._has_bias:
+                assert len(self._layer_weight_tensors) == \
+                       len(self._layer_bias_vectors)
 
 if __name__ == '__main__':
     pass

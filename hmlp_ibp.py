@@ -91,14 +91,12 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             :meth:`hnets.hnet_interface.HyperNetInterface.forward`.
         """
 
-        assert cond_id is not None, "Cond id should be not none because of trainable radii parameters"
-
         uncond_input, cond_input, uncond_weights, _ = \
             self._preprocess_forward_args(uncond_input=uncond_input,
                 cond_input=cond_input, cond_id=cond_id, weights=weights,
                 distilled_params=distilled_params, condition=condition,
                 ret_format=ret_format)
-       
+
         ### Prepare hypernet input ###
         assert self._uncond_in_size == 0 or uncond_input is not None
         assert self._cond_in_size == 0 or cond_input is not None
@@ -125,14 +123,11 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         self.perturbated_eps_T[cond_id] = eps
 
-        #if perturbated_eps is not None:
-            #assert torch.round(eps.sum(), decimals=3) == round(perturbated_eps, ndigits=3)
-
         ### Extract layer weights ###
-        bn_scales  = []
-        bn_shifts  = []
+        bn_scales = []
+        bn_shifts = []
         fc_weights = []
-        fc_biases  = []
+        fc_biases = []
 
         assert len(uncond_weights) == len(self.unconditional_param_shapes_ref)
         for i, idx in enumerate(self.unconditional_param_shapes_ref):
@@ -160,44 +155,27 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             last_layer = i == (len(fc_weights) - 1)
 
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
-
-            # Calculate weights
-            W   = torch.abs(fc_weights[i])
+            W = torch.abs(fc_weights[i])
             eps = F.linear(eps, W, bias=torch.zeros_like(fc_biases[i]))
 
             if not last_layer:
 
                 # Batch-norm
                 if self._use_batch_norm:
-                    z_l, z_u = h - eps, h + eps
-                    z_l = self.batchnorm_layers[i].forward(z_l, running_mean=None,
-                        running_var=None, weight=bn_scales[i],
-                        bias=bn_shifts[i], stats_id=condition)
-                    
-                    z_u = self.batchnorm_layers[i].forward(z_u, running_mean=None,
-                        running_var=None, weight=bn_scales[i],
-                        bias=bn_shifts[i], stats_id=condition)
-                    
-                    # Revert the order if needed
-                    z_l = torch.minimum(z_l, z_u)
-                    z_u = torch.maximum(z_l, z_u)
-
-                    h, eps = (z_u + z_l) / 2, (z_u - z_l) / 2
+                   raise Exception("BatchNorm not implemented for hypernets!")
                 
                 # Dropout
-                # TODO: Apply dropout to embeddings
-                # TODO Fix dropout
                 if self._dropout_rate != -1:
                     if self.training:
                         z_l, z_u = h - eps, h + eps
 
                         mask = torch.bernoulli(self._dropout_rate * torch.ones_like(h)).long()
                         z_l = z_l.where(mask != 1, torch.ones_like(z_l)) * self.scale
+                        h = h.where(mask != 1, torch.ones_like(h)) * self.scale
                         z_u = z_u.where(mask != 1, torch.ones_like(z_u)) * self.scale
 
-                        assert torch.all(z_u >= z_l)
-
-                        h, eps = (z_u + z_l)/2, (z_u - z_l)/2
+                        assert (z_l <= h).all(), "Lower bound must be less than or equal to middle bound."
+                        assert (h <= z_u).all(), "Middle bound must be less than or equal to upper bound."
 
                 # Non-linearity
                 if self._act_fn is not None:

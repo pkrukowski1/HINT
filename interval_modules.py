@@ -1,11 +1,12 @@
 from typing import cast
 from abc import ABC
+from warnings import warn
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn.parameter import Parameter
+from hypnettorch.utils.batchnorm_layer import BatchNormLayer
 
 class IntervalModuleWithWeights(nn.Module, ABC):
     def __init__(self):
@@ -114,6 +115,7 @@ class IntervalAvgPool2d(nn.AvgPool2d):
         x_upper = super().forward(x_upper)
         return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
                                                                              "W")  # type: ignore
+    
 
 class IntervalBatchNorm2d(IntervalModuleWithWeights):
     def __init__(self, num_features,
@@ -131,6 +133,7 @@ class IntervalBatchNorm2d(IntervalModuleWithWeights):
         self.interval_statistics = interval_statistics
         self.affine = affine
         self.momentum = momentum
+        self._param_shapes = [[num_features], [num_features]]
 
         self.epsilon = 1e-5
         if self.affine:
@@ -144,6 +147,10 @@ class IntervalBatchNorm2d(IntervalModuleWithWeights):
 
         self.register_buffer('running_mean', torch.zeros(num_features, requires_grad=False))
         self.register_buffer('running_var', torch.ones(num_features, requires_grad=False))
+    
+    @property
+    def param_shapes(self):
+        return self._param_shapes
 
 
     def forward(self, x, upper_gamma, middle_gamma, lower_gamma, upper_beta, middle_beta, lower_beta):

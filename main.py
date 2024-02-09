@@ -11,6 +11,7 @@ import seaborn as sns
 import torch.optim as optim
 from interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
+from hypnettorch.hnets import HMLP
 from ZenkeNet64 import ZenkeNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
@@ -202,8 +203,7 @@ def calculate_accuracy(data,
                 lower_weights=weights
             )
 
-        # FIXME: Return predicitions without `map`
-        _, logits, _ = map(lambda x_: cast(Tensor, x_.rename(None)), logits.unbind("bounds"))  # type: ignore
+        _, logits, _ = parse_predictions(logits)
         predictions = logits.max(dim=1)[1]
 
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
@@ -465,6 +465,23 @@ def plot_intervals_around_embeddings(hypernetwork,
     plt.savefig(save_path, dpi=300)
     plt.close()
 
+def parse_predictions(x):
+    """
+    Parse the output of a target network to get lower, middle and upper predictions
+
+    Arguments:
+    ----------
+        *x*: (torch.Tensor) the output to be parsed
+    
+    Returns:
+    --------
+        a tuple of lower, middle and upper predictions
+    """
+
+    return map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
+
+
+
 def train_single_task(hypernetwork,
                       target_network,
                       criterion,
@@ -593,8 +610,7 @@ def train_single_task(hypernetwork,
                                             middle_weights=target_weights,
                                             lower_weights=lower_weights)
         
-        # FIXME: Return predicitions without `map`
-        lower_pred, middle_pred, upper_pred = map(lambda x_: cast(Tensor, x_.rename(None)), prediction.unbind("bounds"))  # type: ignore
+        lower_pred, middle_pred, upper_pred = parse_predictions(prediction)
         
         # Please note that some of the interval elements may switch order of
         # components due to the lack of ReLU which map negative values onto zeros,
@@ -738,18 +754,21 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                              n_out=output_shape,
                              hidden_layers=parameters['target_hidden_layers'],
                              use_bias=parameters['use_bias'],
-                             no_weights=False).to(parameters['device'])
+                             no_weights=False,
+                             use_batch_norm=parameters["use_batch_norm"],
+                             bn_track_stats=False).to(parameters['device'])
+        
     elif parameters['target_network'] == 'ResNet':
-        target_network = ResNet(in_shape=(parameters['input_shape'],
-                                          parameters['input_shape'],
-                                          3),
-                                use_bias=parameters['use_bias'],
-                                num_classes=output_shape,
-                                n=parameters['resnet_number_of_layer_groups'],
-                                k=parameters['resnet_widening_factor'],
-                                no_weights=False,
-                                use_batch_norm=parameters['use_batch_norm'],
-                                bn_track_stats=False).to(parameters['device'])
+        target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            use_bias=parameters["use_bias"],
+            num_classes=output_shape,
+            n=parameters["resnet_number_of_layer_groups"],
+            k=parameters["resnet_widening_factor"],
+            no_weights=False,
+            use_batch_norm=parameters["use_batch_norm"],
+            bn_track_stats=False).to(parameters['device'])
+
+
     elif parameters['target_network'] == 'ZenkeNet':
         if parameters["dataset"] in ["CIFAR100", "CIFAR100_FeCAM_setup"]:
             architecture = "cifar"
@@ -763,14 +782,14 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                   num_classes=output_shape,
                                   arch=architecture,
                                   no_weights=False).to(parameters['device'])
-    # Create a hypernetwork based on the shape of the target network
-    no_of_batch_norm_layers = get_number_of_batch_normalization_layer(
-        target_network
-    )
+
+    # TODO 1: Train neural network and make forward pass and print betas and gammas
+    # TODO 2: W target network zrób print po każdej warstwie bet i gam
+    
     if not use_chunks:
         hypernetwork = HMLP_IBP(
             perturbated_eps=parameters['perturbated_epsilon'],
-            target_shapes=target_network.param_shapes[no_of_batch_norm_layers:],
+            target_shapes=target_network.param_shapes,
             uncond_in_size=0,
             cond_in_size=parameters['embedding_size'],
             activation_fn=parameters['activation_function'],
