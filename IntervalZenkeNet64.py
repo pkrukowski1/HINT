@@ -13,6 +13,11 @@ from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 from hypnettorch.utils.misc import init_params
 
+from interval_modules import (IntervalConv2d, 
+                              IntervalMaxPool2d,
+                              IntervalDropout,
+                              IntervalLinear)
+
 
 class ZenkeNet(Classifier):
     """The network consists of four convolutional layers followed by two fully-
@@ -147,8 +152,8 @@ class ZenkeNet(Classifier):
                 # FIXME not a pretty solution, but we aim to follow the original
                 # paper.
                 raise ValueError("Dropout rate must be smaller equal 0.5.")
-            self._drop_conv = nn.Dropout2d(p=dropout_rate)
-            self._drop_fc1 = nn.Dropout(p=dropout_rate * 2.0)
+            self._drop_conv = IntervalDropout(p=dropout_rate)
+            self._drop_fc1 = IntervalDropout(p=dropout_rate * 2.0)
 
         self._layer_weight_tensors = nn.ParameterList()
         self._layer_bias_vectors = nn.ParameterList()
@@ -196,7 +201,7 @@ class ZenkeNet(Classifier):
 
         self._is_properly_setup()
 
-    def forward(self, x, weights=None, distilled_params=None, condition=None, upper_weights=None, lower_weights=None):
+    def forward(self, x, upper_weights=None, middle_weights=None, lower_weights=None, distilled_params=None, condition=None):
         """Compute the output :math:`y` of this network given the input
         :math:`x`.
 
@@ -228,64 +233,170 @@ class ZenkeNet(Classifier):
                 + "implementation for this network!"
             )
 
-        if self._no_weights and weights is None:
+        if self._no_weights and middle_weights is None:
             raise Exception(
                 "Network was generated without weights. "
                 + 'Hence, "weights" option may not be None.'
             )
+        
+        if (upper_weights is None and lower_weights is not None) or \
+            (upper_weights is not None and lower_weights is None):
+            raise Exception("Upper and lower weights must be provided "
+                            + "at the same time!")
 
-        if weights is None:
-            weights = self._weights
+        if middle_weights is None:
+            middle_weights = self._weights
         else:
             shapes = self.param_shapes
-            assert len(weights) == len(shapes)
+            assert len(middle_weights) == len(shapes)
             for i, s in enumerate(shapes):
-                assert np.all(np.equal(s, list(weights[i].shape)))
+                assert np.all(np.equal(s, list(middle_weights[i].shape)))
 
         # Note, implementation aims to follow:
         #     https://git.io/fj8xP
+                
+        if upper_weights is None and lower_weights is None:
 
-        # first block
-        # CIFAR:
-        # 32 -> 32 -> 30 -> 15
-        # TinyImageNet:
-        # 64 -> 64 -> 62 -> 31
-        x = x.view(-1, *self._in_shape)
-        x = x.permute(0, 3, 1, 2)
-        h = F.conv2d(x, weights[0], bias=weights[1], padding=1)  # 'SAME'
-        h = F.relu(h)
-        h = F.conv2d(h, weights[2], bias=weights[3], padding=0)  # 'VALID'
-        # stride and kernel size are equal to 2
-        h = F.max_pool2d(F.relu(h), 2)
-        if self._use_dropout:
-            h = self._drop_conv(h)
-
-        # second block
-        # CIFAR
-        # 15 -> 15 -> 13 -> 6
-        # TinyImageNet
-        # 31 -> 31 -> 29 -> 14
-        h = F.conv2d(h, weights[4], bias=weights[5], padding=1)  # 'SAME'
-        h = F.relu(h)
-        h = F.conv2d(h, weights[6], bias=weights[7], padding=0)  # 'VALID'
-        h = F.max_pool2d(F.relu(h), 2)
-        if self._use_dropout:
-            h = self._drop_conv(h)
-
-        # last fully connected layer or layers
-        # CIFAR
-        # 6 x 6 x 34 = 2304
-        # TinyImageNet
-        # 14 x 14 x 64 = 12.544
-        h = h.reshape(-1, weights[8].size()[1])
-        if self.architecture == "cifar":
-            h = F.relu(F.linear(h, weights[8], bias=weights[9]))
+            # first block
+            # CIFAR:
+            # 32 -> 32 -> 30 -> 15
+            # TinyImageNet:
+            # 64 -> 64 -> 62 -> 31
+            x = x.view(-1, *self._in_shape)
+            x = x.permute(0, 3, 1, 2)
+            h = F.conv2d(x, middle_weights[0], bias=middle_weights[1], padding=1)  # 'SAME'
+            h = F.relu(h)
+            h = F.conv2d(h, middle_weights[2], bias=middle_weights[3], padding=0)  # 'VALID'
+            # stride and kernel size are equal to 2
+            h = F.max_pool2d(F.relu(h), 2)
             if self._use_dropout:
-                h = self._drop_fc1(h)
-            h = F.linear(h, weights[10], bias=weights[11])
-        elif self.architecture == "tiny":
-            h = F.linear(h, weights[8], bias=weights[9])
-        return h
+                h = self._drop_conv(h)
+
+            # second block
+            # CIFAR
+            # 15 -> 15 -> 13 -> 6
+            # TinyImageNet
+            # 31 -> 31 -> 29 -> 14
+            h = F.conv2d(h, middle_weights[4], bias=middle_weights[5], padding=1)  # 'SAME'
+            h = F.relu(h)
+            h = F.conv2d(h, middle_weights[6], bias=middle_weights[7], padding=0)  # 'VALID'
+            h = F.max_pool2d(F.relu(h), 2)
+            if self._use_dropout:
+                h = self._drop_conv(h)
+
+            # last fully connected layer or layers
+            # CIFAR
+            # 6 x 6 x 34 = 2304
+            # TinyImageNet
+            # 14 x 14 x 64 = 12.544
+            h = h.reshape(-1, middle_weights[8].size()[1])
+            if self.architecture == "cifar":
+                h = F.relu(F.linear(h, middle_weights[8], bias=middle_weights[9]))
+                if self._use_dropout:
+                    h = self._drop_fc1(h)
+                h = F.linear(h, middle_weights[10], bias=middle_weights[11])
+            elif self.architecture == "tiny":
+                h = F.linear(h, middle_weights[8], bias=middle_weights[9])
+            return h
+        
+        else:
+            # first block
+            # CIFAR:
+            # 32 -> 32 -> 30 -> 15
+            # TinyImageNet:
+            # 64 -> 64 -> 62 -> 31
+            x = x.view(-1, *self._in_shape)
+            x = x.permute(0, 3, 1, 2)
+            x = torch.stack([x, x, x], dim=1)
+            h = IntervalConv2d.apply_conv2d(x, 
+                                            lower_weights=lower_weights[0],
+                                            middle_weights=middle_weights[0],
+                                            upper_weights=upper_weights[0],
+                                            lower_bias=lower_weights[1],
+                                            middle_bias=middle_weights[1],
+                                            upper_bias=upper_weights[1],
+                                            padding=1)  # 'SAME'
+            h = F.relu(h)
+            h = IntervalConv2d.apply_conv2d(h, 
+                                            lower_weights=lower_weights[2],
+                                            middle_weights=middle_weights[2],
+                                            upper_weights=upper_weights[2],
+                                            lower_bias=lower_weights[3],
+                                            middle_bias=middle_weights[3],
+                                            upper_bias=upper_weights[3],
+                                            padding=0)  # 'VALID'
+            
+            # stride and kernel size are equal to 2
+            
+            h = IntervalMaxPool2d.apply_max_pool2d(F.relu(h), 2)
+            
+            if self._use_dropout:
+                h = self._drop_conv(h)
+
+            # second block
+            # CIFAR
+            # 15 -> 15 -> 13 -> 6
+            # TinyImageNet
+            # 31 -> 31 -> 29 -> 14
+            h = IntervalConv2d.apply_conv2d(h, 
+                                            lower_weights=lower_weights[4],
+                                            middle_weights=middle_weights[4],
+                                            upper_weights=upper_weights[4],
+                                            lower_bias=lower_weights[5],
+                                            middle_bias=middle_weights[5],
+                                            upper_bias=upper_weights[5],
+                                            padding=1)  # 'SAME'
+            h = F.relu(h)
+            
+            h = IntervalConv2d.apply_conv2d(h, 
+                                            lower_weights=lower_weights[6],
+                                            middle_weights=middle_weights[6],
+                                            upper_weights=upper_weights[6],
+                                            lower_bias=lower_weights[7],
+                                            middle_bias=middle_weights[7],
+                                            upper_bias=upper_weights[7],
+                                            padding=0)  # 'SAME'  # 'VALID'
+            h = IntervalMaxPool2d.apply_max_pool2d(F.relu(h), 2)
+            if self._use_dropout:
+                h = self._drop_conv(h)
+
+            # last fully connected layer or layers
+            # CIFAR
+            # 6 x 6 x 34 = 2304
+            # TinyImageNet
+            # 14 x 14 x 64 = 12.544
+            h = h.rename(None)
+            h = h.reshape([-1, 3, middle_weights[8].shape[1]])
+
+            if self.architecture == "cifar":
+
+                h = IntervalLinear.apply_linear(h, 
+                                                lower_weights=lower_weights[8],
+                                                middle_weights=middle_weights[8],
+                                                upper_weights=upper_weights[8],
+                                                lower_bias=lower_weights[9],
+                                                middle_bias=middle_weights[9],
+                                                upper_bias=upper_weights[9])
+                h = F.relu(h)
+                if self._use_dropout:
+                    h = self._drop_fc1(h)
+
+                h = IntervalLinear.apply_linear(h, 
+                                                lower_weights=lower_weights[10],
+                                                middle_weights=middle_weights[10],
+                                                upper_weights=upper_weights[10],
+                                                lower_bias=lower_weights[11],
+                                                middle_bias=middle_weights[11],
+                                                upper_bias=upper_weights[11])
+            elif self.architecture == "tiny":
+                h = IntervalLinear.apply_linear(h, 
+                                                lower_weights=lower_weights[8],
+                                                middle_weights=middle_weights[8],
+                                                upper_weights=upper_weights[8],
+                                                lower_bias=lower_weights[9],
+                                                middle_bias=middle_weights[9],
+                                                upper_bias=upper_weights[9])
+            return h
 
     def distillation_targets(self):
         """Targets to be distilled after training.

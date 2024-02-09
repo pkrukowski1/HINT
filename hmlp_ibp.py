@@ -6,8 +6,6 @@ over tasks' embeddings being inputs to an MLP hypernetwork
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.hnet_interface import HyperNetInterface
 
-from warnings import warn
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

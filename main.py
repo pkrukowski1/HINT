@@ -12,7 +12,7 @@ import torch.optim as optim
 from interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
 from hypnettorch.hnets import HMLP
-from ZenkeNet64 import ZenkeNet
+from IntervalZenkeNet64 import ZenkeNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
@@ -191,8 +191,7 @@ def calculate_accuracy(data,
                 test_input,
                 upper_weights=weights,
                 middle_weights=weights,
-                lower_weights=weights,
-                condition=parameters['number_of_task']
+                lower_weights=weights
             )
         else:
             # FIXME: It would be better to use vanilla MLP
@@ -609,9 +608,9 @@ def train_single_task(hypernetwork,
                                             upper_weights=upper_weights,
                                             middle_weights=target_weights,
                                             lower_weights=lower_weights)
-        
+                
         lower_pred, middle_pred, upper_pred = parse_predictions(prediction)
-        
+
         # Please note that some of the interval elements may switch order of
         # components due to the lack of ReLU which map negative values onto zeros,
         # so we need to revert the order
@@ -974,7 +973,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

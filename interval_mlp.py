@@ -43,7 +43,7 @@ from hypnettorch.mnets import MLP
 
 from interval_modules import (IntervalDropout, 
                               IntervalBatchNorm2d,
-                              IntervalModules)
+                              IntervalLinear)
 
 class IntervalMLP(MLP, MainNetInterface):
     """Implementation of a Multi-Layer Perceptron (MLP) which works on intervals
@@ -556,7 +556,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 b_lower = None
 
             # Linear layer.
-            hidden = IntervalModules.apply_linear(hidden,
+            hidden = IntervalLinear.apply_linear(hidden,
                                                 upper_weights=w_upper,
                                                 middle_weights=w_middle,
                                                 lower_weights=w_lower,

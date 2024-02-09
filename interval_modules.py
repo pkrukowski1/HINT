@@ -1,4 +1,4 @@
-from typing import cast
+from typing import Callable, cast
 from abc import ABC
 from warnings import warn
 
@@ -6,15 +6,18 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from hypnettorch.utils.batchnorm_layer import BatchNormLayer
+from torch.nn.modules.module import Module
 
 class IntervalModuleWithWeights(nn.Module, ABC):
     def __init__(self):
         super().__init__()
 
-class IntervalModules():
-    def __init__() -> None:
-        super().__init__()
+class IntervalLinear(IntervalModuleWithWeights):
+    def __init__(self, in_features: int, out_features: int) -> None:
+        nn.Module.__init__()
+
+        self.in_features  = in_features
+        self.out_features = out_features
        
     @staticmethod
     def apply_linear( 
@@ -97,6 +100,21 @@ class IntervalMaxPool2d(nn.MaxPool2d):
         x_lower = super().forward(x_lower)
         x_middle = super().forward(x_middle)
         x_upper = super().forward(x_upper)
+
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
+                                                                             "W")  # type: ignore
+    
+    @staticmethod
+    def apply_max_pool2d(x, kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False):
+        x = x.refine_names("N", "bounds", ...)
+        x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
+        
+        x_lower = F.max_pool2d(x_lower, kernel_size, stride=stride, padding=padding,
+                                dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
+        x_middle = F.max_pool2d(x_middle, kernel_size, stride=stride, padding=padding,
+                                dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
+        x_upper = F.max_pool2d(x_upper, kernel_size, stride=stride, padding=padding,
+                                dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
 
         return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
                                                                              "W")  # type: ignore
@@ -327,20 +345,33 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
         self.lower_bias  = lower_bias
         self.middle_bias = middle_bias
         self.upper_bias  = upper_bias
-
-    def forward(self, x: Tensor) -> Tensor:  # type: ignore
+    
+    @staticmethod
+    def apply_conv2d(x: Tensor,
+                    lower_weights: Tensor,
+                    middle_weights: Tensor,
+                    upper_weights: Tensor,
+                    lower_bias: Tensor,
+                    middle_bias: Tensor,
+                    upper_bias: Tensor,
+                    stride: int = 1,
+                    padding: int = 0,
+                    dilation: int = 1,
+                    groups: int = 1,
+                    bias: bool = True) -> Tensor:  # type: ignore
         x = x.refine_names("N", "bounds", "C", "H", "W")
         assert (x.rename(None) >= 0.0).all(), "All input features must be non-negative."  # type: ignore
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
         assert (x_lower <= x_middle).all(), "Lower bound must be less than or equal to middle bound."
         assert (x_middle <= x_upper).all(), "Middle bound must be less than or equal to upper bound."
 
-        w_middle: Tensor = self.middle_weights
-        w_lower  = self.lower_weights
-        w_upper  = self.upper_weights
-        b_middle = self.middle_bias
-        b_lower  = self.lower_bias
-        b_upper  = self.upper_bias
+      
+        w_middle: Tensor = middle_weights
+        w_lower  = lower_weights
+        w_upper  = upper_weights
+        b_middle = middle_bias
+        b_lower  = lower_bias
+        b_upper  = upper_bias
 
         w_lower_pos = w_lower.clamp(min=0)
         w_lower_neg = w_lower.clamp(max=0)
@@ -351,18 +382,18 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
         w_middle_neg = w_middle.clamp(max=0)
         w_middle_pos = w_middle.clamp(min=0)
 
-        l_lp = F.conv2d(x_lower, w_lower_pos, None, self.stride, self.padding, self.dilation, self.groups)
-        u_ln = F.conv2d(x_upper, w_lower_neg, None, self.stride, self.padding, self.dilation, self.groups)
-        u_up = F.conv2d(x_upper, w_upper_pos, None, self.stride, self.padding, self.dilation, self.groups)
-        l_un = F.conv2d(x_lower, w_upper_neg, None, self.stride, self.padding, self.dilation, self.groups)
-        m_mp = F.conv2d(x_middle, w_middle_pos, None, self.stride, self.padding, self.dilation, self.groups)
-        m_mn = F.conv2d(x_middle, w_middle_neg, None, self.stride, self.padding, self.dilation, self.groups)
+        l_lp = F.conv2d(x_lower, w_lower_pos, None, stride, padding, dilation, groups)
+        u_ln = F.conv2d(x_upper, w_lower_neg, None, stride, padding, dilation, groups)
+        u_up = F.conv2d(x_upper, w_upper_pos, None, stride, padding, dilation, groups)
+        l_un = F.conv2d(x_lower, w_upper_neg, None, stride, padding, dilation, groups)
+        m_mp = F.conv2d(x_middle, w_middle_pos, None, stride, padding, dilation, groups)
+        m_mn = F.conv2d(x_middle, w_middle_neg, None, stride, padding, dilation, groups)
 
         lower = l_lp + u_ln
         upper = u_up + l_un
         middle = m_mp + m_mn
 
-        if self.bias is not None:
+        if bias is not None:
             lower = lower + b_lower.view(1, b_lower.size(0), 1, 1)
             upper = upper + b_upper.view(1, b_upper.size(0), 1, 1)
             middle = middle + b_middle.view(1, b_middle.size(0), 1, 1)
@@ -381,3 +412,4 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
             upper = torch.where(middle > upper, middle, upper)
 
         return torch.stack([lower, middle, upper], dim=1).refine_names("N", "bounds", "C", "H", "W")  # type: ignore
+    
