@@ -13,7 +13,7 @@ from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
 from hypnettorch.utils.misc import init_params
 
-from interval_modules import (IntervalConv2d, 
+from IntervalNets.interval_modules import (IntervalConv2d, 
                               IntervalMaxPool2d,
                               IntervalDropout,
                               IntervalLinear)

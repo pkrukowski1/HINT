@@ -9,16 +9,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.optim as optim
-from interval_mlp import IntervalMLP
+from IntervalNets.interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
 from hypnettorch.hnets import HMLP
-from IntervalZenkeNet64 import ZenkeNet
+from IntervalNets.IntervalZenkeNet64 import ZenkeNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
 from loss_functions import IBP_Loss
-from hmlp_ibp import HMLP_IBP
+from IntervalNets.hmlp_ibp import HMLP_IBP
 from datasets import (
     set_hyperparameters,
     prepare_split_cifar100_tasks,
@@ -127,7 +127,6 @@ def get_number_of_batch_normalization_layer(target_network):
             num_of_batch_norm_layers = 2 * len(target_network.batchnorm_layers)
     else:
         num_of_batch_norm_layers = 0
-        print(num_of_batch_norm_layers)
     return num_of_batch_norm_layers
 
 
@@ -973,7 +972,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'TinyImageNet'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

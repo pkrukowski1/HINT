@@ -41,7 +41,7 @@ from hypnettorch.mnets.mnet_interface import MainNetInterface
 from hypnettorch.utils.torch_utils import init_params
 from hypnettorch.mnets import MLP
 
-from interval_modules import (IntervalDropout, 
+from IntervalNets.interval_modules import (IntervalDropout, 
                               IntervalBatchNorm2d,
                               IntervalLinear)
 

@@ -8,9 +8,9 @@ import os
 import numpy as np
 import torch
 from hypnettorch.data.special import permuted_mnist
-from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
+from DatasetHandlers.split_cifar import SplitCIFAR100Data
 from hypnettorch.data.special.split_mnist import get_split_mnist_handlers
-from TinyImageNet import TinyImageNet
+from DatasetHandlers.TinyImageNet import TinyImageNet
 
 
 def generate_random_permutations(shape_of_data_instance,
@@ -472,7 +472,7 @@ def set_hyperparameters(dataset,
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 40
+        hyperparams["number_of_tasks"] = 1
         hyperparams["chunk_size"] = 100
         hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
