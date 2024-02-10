@@ -12,7 +12,8 @@ import torch.optim as optim
 from IntervalNets.interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
 from hypnettorch.hnets import HMLP
-from IntervalNets.IntervalZenkeNet64 import ZenkeNet
+from IntervalNets.IntervalZenkeNet64 import IntervalZenkeNet
+from IntervalNets.interval_ResNet import IntervalResNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from datetime import datetime
 from itertools import product
@@ -757,7 +758,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                              bn_track_stats=False).to(parameters['device'])
         
     elif parameters['target_network'] == 'ResNet':
-        target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+        target_network = IntervalResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
             use_bias=parameters["use_bias"],
             num_classes=output_shape,
             n=parameters["resnet_number_of_layer_groups"],
@@ -774,7 +775,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             architecture = "tiny"
         else:
             raise ValueError("This dataset is currently not implemented!")
-        target_network = ZenkeNet(in_shape=(parameters['input_shape'],
+        target_network = IntervalZenkeNet(in_shape=(parameters['input_shape'],
                                             parameters['input_shape'],
                                             3),  
                                   num_classes=output_shape,
@@ -972,7 +973,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

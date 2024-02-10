@@ -19,7 +19,7 @@ from IntervalNets.interval_modules import (IntervalConv2d,
                               IntervalLinear)
 
 
-class ZenkeNet(Classifier):
+class IntervalZenkeNet(Classifier):
     """The network consists of four convolutional layers followed by two fully-
     connected layers. See implementation for details.
 
@@ -107,7 +107,7 @@ class ZenkeNet(Classifier):
         init_weights=None,
         dropout_rate=0.25,
     ):
-        super(ZenkeNet, self).__init__(num_classes, verbose)
+        super(IntervalZenkeNet, self).__init__(num_classes, verbose)
 
         if arch == "cifar":
             assert in_shape[0] == 32 and in_shape[1] == 32
@@ -120,8 +120,8 @@ class ZenkeNet(Classifier):
         self._in_shape = in_shape
 
         self.architecture = arch
-        assert self.architecture in ZenkeNet._architectures.keys()
-        self._param_shapes = ZenkeNet._architectures[self.architecture]
+        assert self.architecture in IntervalZenkeNet._architectures.keys()
+        self._param_shapes = IntervalZenkeNet._architectures[self.architecture]
         self._param_shapes[-2][0] = num_classes
         self._param_shapes[-1][0] = num_classes
 

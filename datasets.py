@@ -231,7 +231,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams['lr_scheduler'] = False
-        hyperparams['number_of_iterations'] = 100
+        hyperparams['number_of_iterations'] = 5000
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 5000
         hyperparams['target_hidden_layers'] = [1000, 1000]
@@ -306,19 +306,19 @@ def set_hyperparameters(dataset,
             # single run experiment
             hyperparams = {
                 'seed': [3],
-                'embedding_sizes': [48],
+                'embedding_sizes': [96],
                 'betas': [0.01],
-                'gammas': [0.0001],
+                'gammas': [0.001],
                 'batch_sizes': [32],
-                'learning_rates': [0.001],
+                'learning_rates': [0.01],
                 'perturbated_epsilon': [0.5],
-                'hypernetworks_hidden_layers': [[100]],
-                'use_batch_norm': False,
+                'hypernetworks_hidden_layers': [[100, 100]],
+                'use_batch_norm': True,
                 'use_chunks': False,
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'number_of_epochs': 200,
-                'target_network': 'ZenkeNet',
+                'target_network': 'ResNet',
                 'optimizer': 'adam',
                 'augmentation': True
             }

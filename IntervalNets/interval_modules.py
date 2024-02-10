@@ -1,12 +1,10 @@
-from typing import Callable, cast
+from typing import cast
 from abc import ABC
-from warnings import warn
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn.modules.module import Module
 
 class IntervalModuleWithWeights(nn.Module, ABC):
     def __init__(self):
@@ -131,6 +129,22 @@ class IntervalAvgPool2d(nn.AvgPool2d):
         x_lower = super().forward(x_lower)
         x_middle = super().forward(x_middle)
         x_upper = super().forward(x_upper)
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
+                                                                             "W")  # type: ignore
+    
+    @staticmethod
+    def apply_avg_pool2d(x, kernel_size, stride=None, padding=0, ceil_mode=False, count_include_pad=True,
+                 divisor_override=None):
+        x = x.refine_names("N", "bounds", ...)
+        x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
+        
+        x_lower = F.avg_pool2d(x_lower, kernel_size, stride=stride, padding=padding,
+                                ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+        x_middle = F.avg_pool2d(x_middle, kernel_size, stride=stride, padding=padding,
+                                ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+        x_upper = F.avg_pool2d(x_upper, kernel_size, stride=stride, padding=padding,
+                                ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+
         return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
                                                                              "W")  # type: ignore
     
@@ -398,8 +412,8 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
             upper = upper + b_upper.view(1, b_upper.size(0), 1, 1)
             middle = middle + b_middle.view(1, b_middle.size(0), 1, 1)
 
-        # assert (lower <= middle).all(), "Lower bound must be less than or equal to middle bound."
-        # assert (middle <= upper).all(), "Middle bound must be less than or equal to upper bound."
+        assert (lower <= middle).all(), "Lower bound must be less than or equal to middle bound."
+        assert (middle <= upper).all(), "Middle bound must be less than or equal to upper bound."
 
         # Safety net for rare numerical errors.
         if not (lower <= middle).all():
