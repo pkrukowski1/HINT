@@ -753,7 +753,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                              use_bias=parameters['use_bias'],
                              no_weights=False,
                              use_batch_norm=parameters["use_batch_norm"],
-                             bn_track_stats=False).to(parameters['device'])
+                             bn_track_stats=False,
+                             dropout_rate=parameters['dropout_rate']).to(parameters['device'])
         
     elif parameters['target_network'] == 'ResNet':
         target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
@@ -763,7 +764,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             k=parameters["resnet_widening_factor"],
             no_weights=False,
             use_batch_norm=parameters["use_batch_norm"],
-            bn_track_stats=False).to(parameters['device'])
+            bn_track_stats=False,
+            dropout_rate=parameters['dropout_rate']).to(parameters['device'])
 
 
     elif parameters['target_network'] == 'ZenkeNet':
@@ -779,7 +781,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                   num_classes=output_shape,
                                   arch=architecture,
                                   no_weights=False,
-                                  dropout_rate=-1).to(parameters['device'])
+                                  dropout_rate=parameters["dropout_rate"]).to(parameters['device'])
 
     # TODO 1: Train neural network and make forward pass and print betas and gammas
     # TODO 2: W target network zrób print po każdej warstwie bet i gam
@@ -972,7 +974,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
@@ -1006,7 +1008,8 @@ if __name__ == "__main__":
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
                 hyperparameters["gammas"],
-                hyperparameters["perturbated_epsilon"])
+                hyperparameters["perturbated_epsilon"],
+                hyperparameters["dropout_rate"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
@@ -1015,6 +1018,7 @@ if __name__ == "__main__":
         batch_size = elements[4]
         gamma_par = elements[6]
         perturbated_eps = elements[7]
+        dropout_rate = elements[8]
 
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
@@ -1056,6 +1060,7 @@ if __name__ == "__main__":
             'summary_results_filename': summary_results_filename,
             'perturbated_epsilon': perturbated_eps,
             'kappa': hyperparameters["kappa"],
+            'dropout_rate': dropout_rate
         }
 
         os.makedirs(f"{parameters['saving_folder']}", exist_ok=True)
