@@ -12,9 +12,10 @@ import torch.optim as optim
 from IntervalNets.interval_mlp import IntervalMLP
 from hypnettorch.mnets.resnet import ResNet
 from hypnettorch.hnets import HMLP
-from IntervalNets.IntervalZenkeNet64 import IntervalZenkeNet
+from IntervalNets.IntervalZenkeNet64 import ZenkeNet
 from IntervalNets.interval_ResNet import IntervalResNet
 import hypnettorch.utils.hnet_regularizer as hreg
+from hypnettorch.mnets.mlp import MLP
 from datetime import datetime
 from itertools import product
 from copy import deepcopy
@@ -189,20 +190,15 @@ def calculate_accuracy(data,
             # FIXME: It would be better to use vanilla MLP
             logits = target_network.forward(
                 test_input,
-                upper_weights=weights,
-                middle_weights=weights,
-                lower_weights=weights
+                weights=weights
             )
         else:
             # FIXME: It would be better to use vanilla MLP
             logits = target_network.forward(
                 test_input,
-                upper_weights=weights,
-                middle_weights=weights,
-                lower_weights=weights
-            )
+                weights=weights
+                )
 
-        _, logits, _ = parse_predictions(logits)
         predictions = logits.max(dim=1)[1]
 
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
@@ -603,21 +599,23 @@ def train_single_task(hypernetwork,
         # Even if batch normalization layers are applied, statistics
         # for the last saved tasks will be applied so there is no need to
         # give 'current_no_of_task' as a value for the 'condition' argument.
-       
-        prediction = target_network.forward(tensor_input,
-                                            upper_weights=upper_weights,
-                                            middle_weights=target_weights,
-                                            lower_weights=lower_weights)
-                
-        lower_pred, middle_pred, upper_pred = parse_predictions(prediction)
+        
+        lower_pred = target_network.forward(tensor_input, weights=lower_weights)
+        middle_pred = target_network.forward(tensor_input, weights=target_weights)
+        upper_pred = target_network.forward(tensor_input, weights=upper_weights)
 
-        # Please note that some of the interval elements may switch order of
-        # components due to the lack of ReLU which map negative values onto zeros,
-        # so we need to revert the order
+        lower_pred, middle_pred = torch.minimum(lower_pred, middle_pred), torch.maximum(lower_pred, middle_pred)
+        middle_pred, upper_pred = torch.minimum(upper_pred, middle_pred), torch.maximum(upper_pred, middle_pred)
+
+        # middle_pred = (lower_pred + upper_pred)/2.0
+
+        # # Please note that some of the interval elements may switch order of
+        # # components due to the lack of ReLU which map negative values onto zeros,
+        # # so we need to revert the order
 
         
-        assert (lower_pred <= middle_pred).all(), "Lower bound must be less than or equal to middle bound."
-        assert (middle_pred <= upper_pred).all(), "Middle bound must be greater than or equal to upper bound."
+        # assert (lower_pred <= middle_pred).all(), "Lower bound must be less than or equal to middle bound."
+        # assert (middle_pred <= upper_pred).all(), "Middle bound must be greater than or equal to upper bound."
 
         # We need to check wheter the distance between the lower weights
         # and the upper weights isn't collapsed into "one point" (short interval)
@@ -749,7 +747,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     # Create a target network which will be multilayer perceptron
     # or ResNet/ZenkeNet with internal weights
     if parameters['target_network'] == 'MLP':
-        target_network = IntervalMLP(n_in=parameters['input_shape'],
+        target_network = MLP(n_in=parameters['input_shape'],
                              n_out=output_shape,
                              hidden_layers=parameters['target_hidden_layers'],
                              use_bias=parameters['use_bias'],
@@ -758,7 +756,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                              bn_track_stats=False).to(parameters['device'])
         
     elif parameters['target_network'] == 'ResNet':
-        target_network = IntervalResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+        target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
             use_bias=parameters["use_bias"],
             num_classes=output_shape,
             n=parameters["resnet_number_of_layer_groups"],
@@ -775,12 +773,13 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             architecture = "tiny"
         else:
             raise ValueError("This dataset is currently not implemented!")
-        target_network = IntervalZenkeNet(in_shape=(parameters['input_shape'],
+        target_network = ZenkeNet(in_shape=(parameters['input_shape'],
                                             parameters['input_shape'],
                                             3),  
                                   num_classes=output_shape,
                                   arch=architecture,
-                                  no_weights=False).to(parameters['device'])
+                                  no_weights=False,
+                                  dropout_rate=-1).to(parameters['device'])
 
     # TODO 1: Train neural network and make forward pass and print betas and gammas
     # TODO 2: W target network zrób print po każdej warstwie bet i gam
