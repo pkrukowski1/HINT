@@ -38,10 +38,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         self._perturbated_eps   = kwargs["perturbated_eps"]
         self._device            = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._perturbated_eps_T = nn.ParameterList()
+        self._perturbated_eps_T = []
         self.scale = 1. / (1 - self._dropout_rate)
 
-        ## Create learnable radii ###
         for _ in range(num_cond_embs):
             self._perturbated_eps_T.append(
                     F.softmax(torch.randn(cond_in_size), dim=-1)
