@@ -9,11 +9,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.optim as optim
-from IntervalNets.interval_mlp import IntervalMLP
+# from hypnettorch.mnets.resnet import ResNet
+from IntervalNets.Vanilla_ZenkeNet64 import ZenkeNet
+from IntervalNets.vanilla_ResNet18 import ResNetBasic
 from hypnettorch.mnets.resnet import ResNet
-from hypnettorch.hnets import HMLP
-from IntervalNets.IntervalZenkeNet64 import ZenkeNet
-from IntervalNets.interval_ResNet import IntervalResNet
 import hypnettorch.utils.hnet_regularizer as hreg
 from hypnettorch.mnets.mlp import MLP
 from datetime import datetime
@@ -134,7 +133,9 @@ def get_number_of_batch_normalization_layer(target_network):
 
 def calculate_accuracy(data,
                        target_network,
-                       weights,
+                       upper_weights,
+                       middle_weights,
+                       lower_weights,
                        parameters,
                        evaluation_dataset):
     """
@@ -186,20 +187,28 @@ def calculate_accuracy(data,
         )
         gt_classes = test_output.max(dim=1)[1]
 
-        if parameters['use_batch_norm_memory']:
-            # FIXME: It would be better to use vanilla MLP
-            logits = target_network.forward(
-                test_input,
-                weights=weights
-            )
-        else:
-            # FIXME: It would be better to use vanilla MLP
-            logits = target_network.forward(
-                test_input,
-                weights=weights
-                )
+        upper_logits = target_network.forward(
+            test_input,
+            weights=upper_weights
+        )
 
-        predictions = logits.max(dim=1)[1]
+        middle_logits = target_network.forward(
+            test_input,
+            weights=middle_weights
+        )
+
+        lower_logits = target_network.forward(
+            test_input,
+            weights=lower_weights
+        )
+
+
+        lower_logits, middle_logits = torch.minimum(lower_logits, middle_logits), torch.maximum(lower_logits, middle_logits)
+        middle_logits, upper_logits = torch.minimum(upper_logits, middle_logits), torch.maximum(upper_logits, middle_logits)
+
+        middle_logits = (lower_logits + upper_logits)/2.0
+        
+        predictions = middle_logits.max(dim=1)[1]
 
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
                     gt_classes.numel()) * 100.
@@ -261,12 +270,15 @@ def evaluate_previous_tasks(hypernetwork,
         currently_tested_task = list_of_permutations[task]
 
         # Generate weights of the target network
-        target_weights = hypernetwork.forward(cond_id=task, perturbated_eps=parameters['perturbated_epsilon'])
+        lower_weights, target_weights, upper_weights, _ = hypernetwork.forward(cond_id=task, perturbated_eps=parameters['perturbated_epsilon'],
+                                              return_extended_output=True)
 
         accuracy = calculate_accuracy(
             currently_tested_task,
             target_network,
-            target_weights,
+            lower_weights=lower_weights,
+            middle_weights=target_weights,
+            upper_weights=upper_weights,
             parameters=parameters,
             evaluation_dataset='test'
         )
@@ -280,78 +292,6 @@ def evaluate_previous_tasks(hypernetwork,
         dataframe_results = dataframe_results.append(
             result, ignore_index=True)
         
-    return dataframe_results
-
-def evaluate_previous_tasks_for_intersection(hypernetwork,
-                            target_network,
-                            input_to_target_network,
-                            dataframe_results,
-                            list_of_permutations,
-                            parameters):
-    """
-    Evaluate the target network according to the weights generated
-    by the hypernetwork for all previously trained tasks for intersection
-    of tasks' embeddings.
-    
-    Arguments:
-    ----------
-      *hypernetwork* (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
-                     a hypernetwork that generates weights for the target
-                     network
-      *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
-                       a target network that finally will perform
-                       classification
-      *input_to_target_network* (torch.Tensor): an input to the hypernetwork
-      *dataframe_results* (Pandas Dataframe) stores results; contains
-                          following columns: 'after_learning_of_task',
-                          'tested_task' and 'accuracy'
-      *list_of_permutations*: (hypnettorch.data module), e.g. in the case
-                              of PermutedMNIST it will be
-                              special.permuted_mnist.PermutedMNISTList
-      *parameters* a dictionary containing the following keys:
-        -device- string: 'cuda' or 'cpu', defines in which device calculations
-                 will be performed
-        -use_batch_norm_memory- Boolean: defines whether stored weights
-                                of the batch normalization layer should be used
-                                If True then *number_of_task* has to be given
-        -number_of_task- int/None: gives an information which task is currently
-                         solved
-
-    Returns:
-    --------
-      *dataframe_results* (Pandas Dataframe) a dataframe updated with
-                          the calculated results
-    """
-    # Calculate accuracy for each previously trained task
-    # as well as for the last trained task
-    hypernetwork.eval()
-    target_network.eval()
-    inter_target_weights = hypernetwork.forward(cond_input=input_to_target_network.view(1,-1),
-                                                perturbated_eps=parameters['perturbated_epsilon'])
-
-    for task in range(parameters['number_of_task'] + 1):
-        # Target entropy calculation should be included here: hypernetwork has to be inferred
-        # for each task (together with the target network) and the task_id with the lowest entropy
-        # has to be chosen
-        # Arguments of the function: list of permutations, hypernetwork, sparsity, target network
-        # output: task id
-        currently_tested_task = list_of_permutations[task]
-        
-        accuracy = calculate_accuracy(
-            currently_tested_task,
-            target_network,
-            inter_target_weights,
-            parameters=parameters,
-            evaluation_dataset='test'
-        )
-        result = {
-            'after_learning_of_task': parameters['number_of_task'],
-            'tested_task': task,
-            'accuracy': accuracy.cpu().item()
-        }
-        print(f'Accuracy for task {task}: {accuracy}%.')
-        dataframe_results = dataframe_results.append(
-            result, ignore_index=True)
     return dataframe_results
 
 
@@ -460,7 +400,7 @@ def plot_intervals_around_embeddings(hypernetwork,
     plt.savefig(save_path, dpi=300)
     plt.close()
 
-def parse_predictions(x):
+def parse_logits(x):
     """
     Parse the output of a target network to get lower, middle and upper predictions
 
@@ -592,7 +532,7 @@ def train_single_task(hypernetwork,
 
         # Get weights, lower weights, upper weights and predicted radii
         # returned by the hypernetwork
-        target_weights, lower_weights, upper_weights, _ = hypernetwork.forward(cond_id=current_no_of_task, 
+        lower_weights, target_weights, upper_weights, _ = hypernetwork.forward(cond_id=current_no_of_task, 
                                                                                 return_extended_output=True,
                                                                                 perturbated_eps=eps)
     
@@ -607,7 +547,7 @@ def train_single_task(hypernetwork,
         lower_pred, middle_pred = torch.minimum(lower_pred, middle_pred), torch.maximum(lower_pred, middle_pred)
         middle_pred, upper_pred = torch.minimum(upper_pred, middle_pred), torch.maximum(upper_pred, middle_pred)
 
-        # middle_pred = (lower_pred + upper_pred)/2.0
+        middle_pred = (lower_pred + upper_pred)/2.0
 
         # # Please note that some of the interval elements may switch order of
         # # components due to the lack of ReLU which map negative values onto zeros,
@@ -644,8 +584,7 @@ def train_single_task(hypernetwork,
         
         # Calculate total loss
         loss = loss_current_task + \
-            parameters['beta'] * loss_regularization / max(1, current_no_of_task) - \
-            parameters['gamma'] * loss_weights
+            parameters['beta'] * loss_regularization / max(1, current_no_of_task)
         
         # Save total loss to file
         append_row_to_file(
@@ -679,7 +618,9 @@ def train_single_task(hypernetwork,
             accuracy = calculate_accuracy(
                 current_dataset_instance,
                 target_network,
-                target_weights,
+                upper_weights=upper_weights,
+                middle_weights=target_weights,
+                lower_weights=lower_weights,
                 parameters={
                     'device': parameters['device'],
                     'use_batch_norm_memory': use_batch_norm_memory,
@@ -757,15 +698,36 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                              dropout_rate=parameters['dropout_rate']).to(parameters['device'])
         
     elif parameters['target_network'] == 'ResNet':
-        target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            use_bias=parameters["use_bias"],
-            num_classes=output_shape,
-            n=parameters["resnet_number_of_layer_groups"],
-            k=parameters["resnet_widening_factor"],
-            no_weights=False,
-            use_batch_norm=parameters["use_batch_norm"],
-            bn_track_stats=False,
-            dropout_rate=parameters['dropout_rate']).to(parameters['device'])
+            if parameters["dataset"] == "TinyImageNet":
+                mode = "tiny"
+            elif parameters["dataset"] == "CIFAR100":
+                mode = "cifar"
+            else:
+                mode = "default"
+            target_network = ResNetBasic(
+                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+                use_bias=False,
+                use_fc_bias=parameters["use_bias"],
+                bottleneck_blocks=False,
+                num_classes=output_shape,
+                num_feature_maps=[16, 16, 32, 64, 128],
+                blocks_per_group=[2, 2, 2, 2],
+                no_weights=False,
+                use_batch_norm=parameters["use_batch_norm"],
+                projection_shortcut=True,
+                bn_track_stats=False,
+                cutout_mod=True,
+                mode=mode,
+            ).to(parameters["device"])
+            # target_network = ResNet( in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            # use_bias=parameters["use_bias"],
+            # num_classes=output_shape,
+            # n=parameters["resnet_number_of_layer_groups"],
+            # k=parameters["resnet_widening_factor"],
+            # no_weights=False,
+            # use_batch_norm=parameters["use_batch_norm"],
+            # bn_track_stats=False,
+            # dropout_rate=parameters['dropout_rate']).to(parameters['device'])
 
 
     elif parameters['target_network'] == 'ZenkeNet':
@@ -782,9 +744,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                   arch=architecture,
                                   no_weights=False,
                                   dropout_rate=parameters["dropout_rate"]).to(parameters['device'])
-
-    # TODO 1: Train neural network and make forward pass and print betas and gammas
-    # TODO 2: W target network zrób print po każdej warstwie bet i gam
     
     if not use_chunks:
         hypernetwork = HMLP_IBP(
@@ -847,6 +806,9 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 f'target_network_after_{no_of_task}_task',
                 target_network.weights
             )
+
+        # Freeze task's embedding and corresponding radii
+        hypernetwork.detach_tensor(no_of_task)
 
         # Evaluate previous tasks
         dataframe = evaluate_previous_tasks(
@@ -974,7 +936,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     #path_to_datasets = '/shared/sets/datasets/'
     path_to_datasets = './Data'
-    dataset = 'PermutedMNIST'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
+    dataset = 'CIFAR100'  # 'PermutedMNIST', 'CIFAR100', 'SplitMNIST', 'TinyImageNet'
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
@@ -1007,7 +969,6 @@ if __name__ == "__main__":
                 hyperparameters["hypernetworks_hidden_layers"],
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
-                hyperparameters["gammas"],
                 hyperparameters["perturbated_epsilon"],
                 hyperparameters["dropout_rate"])
     ):
@@ -1016,9 +977,8 @@ if __name__ == "__main__":
         beta = elements[2]
         hypernetwork_hidden_layers = elements[3]
         batch_size = elements[4]
-        gamma_par = elements[6]
-        perturbated_eps = elements[7]
-        dropout_rate = elements[8]
+        perturbated_eps = elements[6]
+        dropout_rate = elements[7]
 
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
@@ -1048,7 +1008,6 @@ if __name__ == "__main__":
             'no_of_validation_samples': hyperparameters["no_of_validation_samples"],
             'embedding_size': embedding_size,
             'norm': hyperparameters["norm"],
-            'gamma': gamma_par,
             'optimizer': hyperparameters["optimizer"],
             'beta': beta,
             'padding': hyperparameters["padding"],

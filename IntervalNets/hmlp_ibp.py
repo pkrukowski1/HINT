@@ -27,7 +27,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                  layers=(100, 100), verbose=True, activation_fn=torch.nn.ReLU(),
                  use_bias=True, no_uncond_weights=False, no_cond_weights=False,
                  num_cond_embs=1, dropout_rate=-1, use_spectral_norm=False,
-                 use_batch_norm=False, *args, **kwargs):
+                 use_batch_norm=False, embd_dropout_rate=-1, *args, **kwargs):
 
         HMLP.__init__(self, target_shapes, uncond_in_size=uncond_in_size, cond_in_size=cond_in_size,
                  layers=layers, verbose=verbose, activation_fn=activation_fn,
@@ -36,40 +36,42 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                  use_batch_norm=use_batch_norm)
 
         
-        self._perturbated_eps   = kwargs["perturbated_eps"]
-        self._device            = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self._perturbated_eps_T = []
-        self.scale = 1. / (1 - self._dropout_rate)
+        self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.embd_dropout_rate = embd_dropout_rate
+
+        if embd_dropout_rate != -1:
+            assert embd_dropout_rate >= 0 and embd_dropout_rate <= 1, "Dropout rate should be contained in the [0,1] interval"
+            self.embd_dropout = nn.Dropout(p = embd_dropout_rate)
+        
+        ### Create epsilons which are summed up to the constant value
+        self._perturbated_eps_T = nn.ParameterList()
 
         for _ in range(num_cond_embs):
-            self._perturbated_eps_T.append(
-                    F.softmax(torch.randn(cond_in_size), dim=-1)
-                )
 
-        self._is_properly_setup()
-
+            self._perturbated_eps_T.append(nn.Parameter(
+                data=F.softmax(torch.ones(self._cond_in_size), dim=-1),
+                requires_grad=True
+            )).to(self._device)
             
-    @property
-    def perturbated_eps(self):
-        return self._perturbated_eps
+        self._is_properly_setup()
     
     @property
     def perturbated_eps_T(self):
         return self._perturbated_eps_T
     
-    @perturbated_eps_T.setter
-    def perturbated_eps_T(self, task_id, value):
-
-        assert isinstance(task_id, int), "Task's id should be an integer!"
-        assert isinstance(value, torch.Tensor), "Assigned value should be a PyTorch tensor!"
-
-        self._perturbated_eps_T[task_id] = value
+    def detach_tensor(self, idx):
+        """
+        This method detaches an embedding from the computation graph
+        """
+        self.conditional_params[idx].requires_grad_(False)
+        self._perturbated_eps_T[idx].requires_grad_(False)
     
 
     def forward(self, uncond_input=None, cond_input=None, cond_id=None,
                 weights=None, distilled_params=None, condition=None,
                 ret_format='squeezed', return_extended_output = False,
-                perturbated_eps = None):
+                perturbated_eps = None, common_emb=False, 
+                common_radii = None):
         """Compute the weights of a target network.
 
         Args:
@@ -79,14 +81,18 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 ``stats_id`` to the method
                 :meth:`utils.batchnorm_layer.BatchNormLayer.forward` if batch
                 normalization is used.
-            return_extended_output (bool): if true, then the function returns target weights,
+            return_extended_output: (bool) if true, then the function returns target weights,
                                             lower target weight, upper target weights and predicted radii 
-                                            of intervals 
+                                            of intervals
+            perturbated_eps: (float)
 
         Returns:
             (list or torch.Tensor): See docstring of method
             :meth:`hnets.hnet_interface.HyperNetInterface.forward`.
         """
+
+        assert (common_radii is None and not common_emb) or \
+                (common_radii is not None and common_emb)
 
         uncond_input, cond_input, uncond_weights, _ = \
             self._preprocess_forward_args(uncond_input=uncond_input,
@@ -108,23 +114,29 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         if uncond_input is not None and cond_input is not None:
             h = torch.cat([uncond_input, cond_input], dim=1)
 
-        if isinstance(cond_id, list):
-            cond_id = cond_id[0]
+        ### Normalize the learnable radii tensor
+            
+        # cond_id may be a list while a regularization process
+        if not isinstance(cond_id, list) and cond_id is not None:
+            eps = perturbated_eps * F.softmax(
+                    self._perturbated_eps_T[cond_id],
+                    dim=-1)
+            
+        elif isinstance(cond_id, list) and cond_id is not None:
+            eps = torch.stack([
+                perturbated_eps * F.softmax(self._perturbated_eps_T[i], dim=-1) for i in range(len(cond_id))
+            ], dim=0)
 
-        if perturbated_eps is None:
-            eps = self._perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
         else:
-            eps = perturbated_eps * F.softmax(self._perturbated_eps_T[cond_id], dim=-1)
+            eps = common_radii
         
         eps = eps.to(self._device)
-        
-        self.perturbated_eps_T[cond_id] = eps
 
         ### Extract layer weights ###
-        bn_scales = []
-        bn_shifts = []
+        bn_scales  = []
+        bn_shifts  = []
         fc_weights = []
-        fc_biases = []
+        fc_biases  = []
 
         assert len(uncond_weights) == len(self.unconditional_param_shapes_ref)
         for i, idx in enumerate(self.unconditional_param_shapes_ref):
@@ -146,12 +158,16 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         if self._use_batch_norm:
             assert len(bn_scales) == len(fc_weights) - 1
+        
+        if self.embd_dropout_rate != -1:
+            h = self.embd_dropout(h)
+    
 
-        ### Process inputs through the network ###
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)
-
+            
             h = F.linear(h, fc_weights[i], bias=fc_biases[i])
+
             W = torch.abs(fc_weights[i])
             eps = F.linear(eps, W, bias=torch.zeros_like(fc_biases[i]))
 
@@ -160,19 +176,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 # Batch-norm
                 if self._use_batch_norm:
                    raise Exception("BatchNorm not implemented for hypernets!")
-                
-                # Dropout
-                if self._dropout_rate != -1:
-                    if self.training:
-                        z_l, z_u = h - eps, h + eps
-
-                        mask = torch.bernoulli(self._dropout_rate * torch.ones_like(h)).long()
-                        z_l = z_l.where(mask != 1, torch.ones_like(z_l)) * self.scale
-                        h = h.where(mask != 1, torch.ones_like(h)) * self.scale
-                        z_u = z_u.where(mask != 1, torch.ones_like(z_u)) * self.scale
-
-                        assert (z_l <= h).all(), "Lower bound must be less than or equal to middle bound."
-                        assert (h <= z_u).all(), "Middle bound must be less than or equal to upper bound."
 
                 # Non-linearity
                 if self._act_fn is not None:
@@ -184,15 +187,14 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         ### Split output into target shapes ###
         ret = self._flat_to_ret_format(h, ret_format)
+
         if return_extended_output:
             ret_zl = self._flat_to_ret_format(z_l, ret_format)
             ret_zu = self._flat_to_ret_format(z_u, ret_format)
+            # radii  = self._flat_to_ret_format(eps, ret_format)  # Calculate epsilon for each weight of a target network
+            radii = eps
 
-            # Make a copy of the radii and freeze
-            radii = eps.clone().detach()
-            radii = self._flat_to_ret_format(radii, ret_format)  # Calculate epsilon for each weight of a target network
-
-            return ret, ret_zl, ret_zu, radii
+            return ret_zl, ret, ret_zu, radii
         else:
             return ret
         

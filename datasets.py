@@ -194,17 +194,16 @@ def set_hyperparameters(dataset,
     if dataset == 'PermutedMNIST':
         if grid_search:
             hyperparams = {
-                'embedding_sizes': [8, 16, 24],
-                'learning_rates': [0.001, 0.01],
-                'batch_sizes': [128],
-                'betas': [0.001, 0.005, 0.0005],
+                'embedding_sizes': [16, 24, 48],
+                'learning_rates': [0.001],
+                'batch_sizes': [128, 64],
+                'betas': [0.001, 0.05, 0.01, 0.1],
                 'hypernetworks_hidden_layers': [[100, 100], [25, 25]],
-                'perturbated_epsilon': [10.0, 5.0, 1.0, 0.5],
-                'gammas': [0.01, 0.001, 0.0005],
+                'perturbated_epsilon': [5.0, 1.0, 0.5],
                 'best_model_selection_method': 'val_loss',
-                'dropout_rate': [-1, 0.25, 0.5],
+                'dropout_rate': [-1, 0.2],
                 # not for optimization
-                'seed': [1, 2, 3, 4, 5]
+                'seed': [1]
             }
             if part == 0:
                 pass
@@ -223,7 +222,6 @@ def set_hyperparameters(dataset,
                 'learning_rates': [0.001],
                 'batch_sizes': [128],
                 'betas': [0.005],
-                'gammas': [0.0],
                 'perturbated_epsilon': [0.05],
                 'hypernetworks_hidden_layers': [[100, 100]],
                 'dropout_rate': [-1, 0.25, 0.5],
@@ -256,20 +254,19 @@ def set_hyperparameters(dataset,
     elif dataset == 'CIFAR100':
         if grid_search:
             hyperparams = {
-                'seed': [1,2,3,4,5],
+                'seed': [1],
                 'embedding_sizes': [48],
                 'betas': [0.01, 0.1, 1.0],
-                'gammas': [0.01, 0.1, 1.0],
                 'learning_rates': [0.001],
-                'batch_sizes': [32],
+                'batch_sizes': [32, 128],
                 'hypernetworks_hidden_layers': [[100]],
                 'perturbated_epsilon': [10, 5, 1, 0.5],
-                'dropout_rate': [-1, 0.25, 0.5],
+                'dropout_rate': [-1],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 'optimizer': 'adam',
-                'use_batch_norm': False,
-                'target_network': 'ZenkeNet',
+                'use_batch_norm': True,
+                'target_network': 'ResNet',
                 'use_chunks': False,
                 'number_of_epochs': 200,
                 'augmentation': True
@@ -279,15 +276,12 @@ def set_hyperparameters(dataset,
                 pass
             elif part == 1:
                 hyperparams['betas'] = [0.1]
-                hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 2:
                 hyperparams['betas'] = [1]
-                hyperparams['gammas'] = [1]
                 hyperparams['seed'] = [5, 4]
             elif part == 6:
                 hyperparams['betas'] = [0.01, 0.1, 1, 0.05]
-                hyperparams['gammas'] = [0.01]
             elif part == 7:
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
@@ -297,13 +291,12 @@ def set_hyperparameters(dataset,
                 hyperparams['use_batch_norm'] = False
                 hyperparams['seed'] = [4, 5]
                 hyperparams['betas'] = [0.01]
-                hyperparams['gammas'] = [0.01]
             else:
                 raise ValueError(f'Wrong argument: {part}!')
             hyperparams['saving_folder'] = (
                 '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
                 f'CIFAR-100_single_seed/'
-                f'part_{part}_ResNet_stronger_reg/'
+                f'ResNet/'
             )
 
         else:
@@ -312,7 +305,6 @@ def set_hyperparameters(dataset,
                 'seed': [1],
                 'embedding_sizes': [48],
                 'betas': [0.01],
-                'gammas': [0.001],
                 'batch_sizes': [32],
                 'learning_rates': [0.001],
                 'perturbated_epsilon': [1.0],
@@ -333,7 +325,6 @@ def set_hyperparameters(dataset,
                 hyperparams['embedding_sizes'] = [48]
                 hyperparams['hypernetworks_hidden_layers'] = [[100]]
                 hyperparams['betas'] = [0.01]
-                hyperparams['gammas'] = [0.01]
                 hyperparams['target_network'] = 'ZenkeNet'
                 hyperparams['resnet_number_of_layer_groups'] = None
                 hyperparams['resnet_widening_factor'] = None
@@ -363,16 +354,15 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 'learning_rates': [0.001],
-                'batch_sizes': [64, 128],
-                'betas': [0.01, 0.001],
+                'batch_sizes': [128, 64],
+                'betas': [0.001, 0.005, 0.01, 0.1],
                 'hypernetworks_hidden_layers': [[25, 25], [50, 50]],
-                'dropout_rate': [-1, 0.25, 0.5],
-                'perturbated_epsilon': [10, 5, 1, 0.5],
-                'gammas': [0.01, 0.001],
+                'dropout_rate': [-1, 0.25],
+                'perturbated_epsilon': [5, 1, 0.5],
                 # seed is not for optimization but for ensuring multiple results
-                'seed': [1, 2, 3, 4, 5],
+                'seed': [1],
                 'best_model_selection_method': 'val_loss',
-                'embedding_sizes': [8, 16, 24],
+                'embedding_sizes': [24, 48, 96, 128],
                 'augmentation': True
             }
             if part == 0:
@@ -381,13 +371,12 @@ def set_hyperparameters(dataset,
                 hyperparams['embedding_sizes'] = [96]
                 hyperparams['hypernetworks_hidden_layers'] = [[50, 50]]
                 hyperparams['betas'] = [0.01]
-                hyperparams['gammas'] = [0.0001]
             else:
                 raise ValueError('Not implemented subset of hyperparameters!')
 
             hyperparams['saving_folder'] = (
                 '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
-                f'split_mnist/augmented/ICLR_models/part_{part}/'
+                f'split_mnist/augmented/'
             )
 
         else:
@@ -395,12 +384,11 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 'seed': [3],
                 'embedding_sizes': [128],
-                'learning_rates': [0.001],
+                'learning_rates': [0.001, 0.01],
                 'batch_sizes': [1],
                 'betas': [0.001],
                 'perturbated_epsilon': [0.5],
                 'dropout_rate': [-1, 0.25, 0.5],
-                'gammas': [0.001],
                 'hypernetworks_hidden_layers': [[25, 25]],
                 'augmentation': True,
                 'best_model_selection_method': 'last_model',
@@ -414,7 +402,7 @@ def set_hyperparameters(dataset,
         hyperparams['number_of_iterations'] = 2000
         hyperparams['number_of_epochs'] = None
         hyperparams['no_of_validation_samples'] = 1000
-        hyperparams['target_hidden_layers'] = [2, 3]
+        hyperparams['target_hidden_layers'] = [400, 400]
         hyperparams['shape'] = 28**2
         hyperparams['number_of_tasks'] = 5
         hyperparams['chunk_size'] = 100
@@ -427,20 +415,19 @@ def set_hyperparameters(dataset,
     elif dataset == 'TinyImageNet':
         if grid_search:
             hyperparams = {
-                "seed": [1,2,3,4,5],
+                "seed": [1],
                 "perturbated_epsilon": [10, 5, 1, 0.5],
-                "embedding_sizes": [48],
-                "learning_rates": [0.001],
-                "batch_sizes": [32],
-                'dropout_rate': [-1, 0.25, 0.5],
+                "embedding_sizes": [48, 64, 96, 128],
+                "learning_rates": [0.0001],
+                "batch_sizes": [32, 16],
+                'dropout_rate': [-1],
                 'betas': [0.01, 0.1, 1.0],
-                'gammas': [0.01, 0.1, 1.0],
-                'hypernetworks_hidden_layers': [[100], [10, 10]],
+                'hypernetworks_hidden_layers': [[100, 100]],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
-                "target_network": "ZenkeNet",
+                "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
                 "augmentation": True
@@ -449,7 +436,7 @@ def set_hyperparameters(dataset,
             hyperparams['saving_folder'] = (
                 '/shared/results/pkrukowski/HyperIntervalResults/non_forced_intervals/grid_search_relu/'
                 f'TinyImageNet/'
-                f'part_0_ZenkeNet/'
+                f'ResNet/'
             )
         else:
             hyperparams = {
@@ -459,7 +446,6 @@ def set_hyperparameters(dataset,
                 "learning_rates": [0.001],
                 "batch_sizes": [32],
                 'betas': [0.01],
-                'gammas': [0.01],
                 'hypernetworks_hidden_layers': [[100]],
                 'resnet_number_of_layer_groups': 3,
                 'resnet_widening_factor': 2,
@@ -481,7 +467,7 @@ def set_hyperparameters(dataset,
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 1
+        hyperparams["number_of_tasks"] = 40
         hyperparams["chunk_size"] = 100
         hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
