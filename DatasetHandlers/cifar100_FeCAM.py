@@ -1,384 +1,380 @@
-#!/usr/bin/env python3
-# Copyright 2019 Johannes von Oswald
+# Modification of hypnettorch file
+# (https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/data/cifar100_data.html#CIFAR100Data)
+# licensed under the Apache License, Version 2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# @title           :split_cifar.py
-# @author          :jvo
-# @contact         :oswald@ini.ethz.ch
-# @created         :05/13/2019
-# @version         :1.0
-# @python_version  :3.7.3
-"""
-Split CIFAR-10/100 Dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+# HyperMask with FeCAM needed some modifications during loading of CIFAR-100.
 
-The module :mod:`data.special.split_cifar` contains a wrapper for data handlers
-for the Split-CIFAR10/CIFAR100 task.
-"""
-# FIXME The code in this module is mostly a copy of the code in the
-# corresponding `split_mnist` module.
-import numpy as np
-from PIL import Image, ImageEnhance, ImageOps
+
+import os
 import random
+import numpy as np
+import time
 import torch
+import _pickle as pickle
+import urllib.request
+import tarfile
+import matplotlib.pyplot as plt
+import torchvision.transforms as transforms
 
+from PIL import Image, ImageEnhance, ImageOps
+from hypnettorch.data.dataset import Dataset
+from hypnettorch.data.cifar10_data import CIFAR10Data
 from hypnettorch.data.special.split_cifar import _transform_split_outputs
-from DatasetHandlers.cifar10_data import CIFAR10Data
-from DatasetHandlers.cifar100_data import CIFAR100Data
 
-def get_split_cifar_handlers(data_path, use_one_hot=True, validation_size=0,
-                             use_data_augmentation=False, use_cutout=False,
-                             num_classes_per_task=10, num_tasks=6):
-    """This method will combine 1 object of the class
-    :class:`data.cifar10_data.CIFAR10Data` and 5 objects of the class
-    :class:`SplitCIFAR100Data`.
 
-    The SplitCIFAR benchmark consists of 6 tasks, corresponding to the images
-    in CIFAR-10 and 5 tasks from CIFAR-100 corresponding to the images with
-    labels [0-10], [10-20], [20-30], [30-40], [40-50].
+class CIFAR100Data(Dataset):
+    """An instance of the class shall represent the CIFAR-100 dataset.
 
     Args:
-        data_path: Where should the CIFAR-10 and CIFAR-100 datasets
-            be read from? If not existing, the datasets will be downloaded
-            into this folder.
+        data_path (str): Where should the dataset be read from? If not
+            existing, the dataset will be downloaded into this folder.
         use_one_hot (bool): Whether the class labels should be represented in a
             one-hot encoding.
-        validation_size: The size of the validation set of each individual
-            data handler.
-        use_data_augmentation (optional): Note, this option currently only
-            applies to input batches that are transformed using the class
-            member :meth:`data.dataset.Dataset.input_to_torch_tensor`
-            (hence, **only available for PyTorch**).
-        use_cutout (bool): See docstring of class
-            :class:`data.cifar10_data.CIFAR10Data`.
-        num_classes_per_task (int): Number of classes to put into one data
-            handler. For example, if ``2``, then every data handler will include
-            2 digits.
+        use_data_augmentation (bool): Note, this option currently only applies
+            to input batches that are transformed using the class member
+            :meth:`input_to_torch_tensor` (hence, **only available for
+            PyTorch**, so far).
 
-            If ``10``, then the first dataset will simply be CIFAR-10.
-        num_tasks (int): A number between 1 and 11 (assuming
-            ``num_classes_per_task == 10``), specifying the number of data
-            handlers to be returned. If ``num_tasks=6``, then there will be
-            the CIFAR-10 data handler and the first 5 splits of the CIFAR-100
-            dataset (as in the usual CIFAR benchmark for CL).
-
-    Returns:
-        (list) A list of data handlers. The first being an instance of class
-        :class:`data.cifar10_data.CIFAR10Data` and the remaining ones being an
-        instance of class :class:`SplitCIFAR100Data`.
-    """
-    if not (num_tasks >= 1 and (num_tasks * num_classes_per_task) <= 110):
-        raise ValueError('Cannot create SplitCIFAR datasets for %d tasks ' \
-                         % (num_tasks) + 'with %d classes per task.' \
-                         % (num_classes_per_task))
-
-    print('Creating data handlers for SplitCIFAR tasks ...')
-
-    handlers = []
-    ### CIFAR-10
-    if num_classes_per_task == 10:
-        # First task is CIFAR-10.
-        handlers.append(CIFAR10Data(data_path, use_one_hot=use_one_hot,
-                validation_size=validation_size,
-                use_data_augmentation=use_data_augmentation,
-                use_cutout=use_cutout))
-    else:
-        if (num_tasks * num_classes_per_task) > 10 and \
-                10 % num_classes_per_task != 0:
-            # Our implementation doesn't allow to create datasets where CIFAR-10
-            # and CIFAR-100 data is mixed.
-            raise ValueError('Argument "num_classes_per_task" must be in ' +
-                             '[1, 2, 5, 10].')
-
-        steps = num_classes_per_task
-        for i in range(0, 10, steps):
-            handlers.append(SplitCIFAR10Data(data_path,
-                use_one_hot=use_one_hot, validation_size=validation_size,
-                use_data_augmentation=use_data_augmentation,
-                use_cutout=use_cutout, labels=range(i, i+steps)))
-
-            if len(handlers) == num_tasks:
-                break
-
-    ### CIFAR-100
-    if len(handlers) < num_tasks:
-        steps = num_classes_per_task
-        for i in range(0, 100, steps):
-            handlers.append(SplitCIFAR100Data(data_path,
-                use_one_hot=use_one_hot, validation_size=validation_size,
-                use_data_augmentation=use_data_augmentation,
-                use_cutout=use_cutout, labels=range(i, i+steps)))
-
-            if len(handlers) == num_tasks:
-                break
-
-    print('Creating data handlers for SplitCIFAR tasks ... Done')
-
-    return handlers
-
-class SplitCIFAR100Data(CIFAR100Data):
-    """An instance of the class shall represent a single SplitCIFAR-100 task.
-
-    Args:
-        data_path: Where should the dataset be read from? If not existing,
-            the dataset will be downloaded into this folder.
-        use_one_hot (bool): Whether the class labels should be
-            represented in a one-hot encoding.
-        validation_size: The number of validation samples. Validation
+            Note:
+                If activated, the statistics of test samples are changed as
+                a normalization is applied (identical to the of class
+                :class:`data.cifar10_data.CIFAR10Data`).
+        validation_size (int): The number of validation samples. Validation
             samples will be taking from the training set (the first :math:`n`
             samples).
-        use_data_augmentation (optional): Note, this option currently only
-            applies to input batches that are transformed using the class
-            member :meth:`data.dataset.Dataset.input_to_torch_tensor`
-            (hence, **only available for PyTorch**).
-            Note, we are using the same data augmentation pipeline as for
-            CIFAR-10.
-        use_cutout (bool): See docstring of class
-            :class:`data.cifar10_data.CIFAR10Data`.
-        labels: The labels that should be part of this task.
-        full_out_dim: Choose the original CIFAR instead of the the new
-            task output dimension. This option will affect the attributes
-            :attr:`data.dataset.Dataset.num_classes` and
-            :attr:`data.dataset.Dataset.out_shape`.
+        use_cutout (bool): Whether option ``apply_cutout`` should be set of
+            method :meth:`torch_input_transforms`. We use cutouts of size
+            ``8 x 8`` as recommended
+            `here <https://arxiv.org/pdf/1708.04552.pdf>`__.
+
+            Note:
+                Only applies if ``use_data_augmentation`` is set.
     """
-    # Note, we build the validation set below!
-    def __init__(self, data_path, use_one_hot=False, validation_size=1000,
-                 use_data_augmentation=False, use_cutout=False,
-                 labels=range(0, 10), full_out_dim=False):
-        super().__init__(data_path, use_one_hot=use_one_hot, validation_size=0,
-                         use_data_augmentation=use_data_augmentation,
-                         use_cutout=use_cutout)
 
-        _split_cifar_object(self, data_path, use_one_hot, validation_size,
-                            use_data_augmentation, labels, full_out_dim)
+    _DOWNLOAD_PATH = "https://www.cs.toronto.edu/~kriz/"
+    _DOWNLOAD_FILE = "cifar-100-python.tar.gz"
+    _EXTRACTED_FOLDER = "cifar-100-python"
 
-    def transform_outputs(self, outputs):
-        """Transform the outputs from the 100D CIFAR100 dataset into proper
-        labels based on the constructor argument ``labels``.
+    _TRAIN_BATCH_FN = "train"
+    _TEST_BATCH_FN = "test"
+    _META_DATA_FN = "meta"
 
-        See :meth:`data.special.split_mnist.SplitMNIST.transform_outputs` for
-        more information.
+    def __init__(
+        self,
+        data_path,
+        use_one_hot=False,
+        use_data_augmentation=False,
+        validation_size=5000,
+        use_cutout=False,
+    ):
+        super().__init__()
+
+        start = time.time()
+
+        print("Reading CIFAR-100 dataset ...")
+
+        if not os.path.exists(data_path):
+            print('Creating directory "%s" ...' % (data_path))
+            os.makedirs(data_path)
+
+        extracted_data_dir = os.path.join(
+            data_path, CIFAR100Data._EXTRACTED_FOLDER
+        )
+
+        archive_fn = os.path.join(data_path, CIFAR100Data._DOWNLOAD_FILE)
+
+        if not os.path.exists(extracted_data_dir):
+            print("Downloading dataset ...")
+            urllib.request.urlretrieve(
+                CIFAR100Data._DOWNLOAD_PATH + CIFAR100Data._DOWNLOAD_FILE,
+                archive_fn,
+            )
+
+            # Extract downloaded dataset.
+            tar = tarfile.open(archive_fn, "r:gz")
+            tar.extractall(path=data_path)
+            tar.close()
+
+            os.remove(archive_fn)
+
+        train_batch_fn = os.path.join(
+            extracted_data_dir, CIFAR100Data._TRAIN_BATCH_FN
+        )
+        test_batch_fn = os.path.join(
+            extracted_data_dir, CIFAR100Data._TEST_BATCH_FN
+        )
+        meta_fn = os.path.join(extracted_data_dir, CIFAR100Data._META_DATA_FN)
+
+        assert (
+            os.path.exists(train_batch_fn)
+            and os.path.exists(test_batch_fn)
+            and os.path.exists(meta_fn)
+        )
+
+        self._data["classification"] = True
+        self._data["sequence"] = False
+        self._data["num_classes"] = 100
+        self._data["is_one_hot"] = use_one_hot
+
+        self._data["in_shape"] = [32, 32, 3]
+        self._data["out_shape"] = [100 if use_one_hot else 1]
+
+        # Fill the remaining _data fields with the information read from
+        # the downloaded files.
+        self._read_meta(meta_fn)
+        self._read_batches(train_batch_fn, test_batch_fn, validation_size)
+
+        # Initialize PyTorch data augmentation.
+        self._augment_inputs = False
+        if use_data_augmentation:
+            self._augment_inputs = True
+            self._torch_input_transforms()
+        end = time.time()
+        print("Elapsed time to read dataset: %f sec" % (end - start))
+
+    def _read_meta(self, filename):
+        """Read the meta data file.
+
+        This method will add an additional field to the _data attribute named
+        "cifar100". This dictionary will be filled with two members:
+            * "fine_label_names": The names of the associated categorical class
+                labels.
+            * "coarse_label_names": The names of the 20 coarse labels that are
+                associated to each sample.
 
         Args:
-            outputs: 2D numpy array of outputs.
-
-        Returns:
-            2D numpy array of transformed outputs.
+            filename: The path to the meta data file.
         """
-        return _transform_split_outputs(self, outputs)
+        with open(filename, "rb") as f:
+            meta_data = pickle.load(f, encoding="UTF-8")
+
+        self._data["cifar100"] = dict()
+
+        self._data["cifar100"]["fine_label_names"] = meta_data[
+            "fine_label_names"
+        ]
+        self._data["cifar100"]["coarse_label_names"] = meta_data[
+            "coarse_label_names"
+        ]
+
+    def _read_batches(self, train_fn, test_fn, validation_size):
+        """Read training and testing batch from files.
+
+        The method fills the remaining mandatory fields of the _data attribute,
+        that have not been set yet in the constructor.
+
+        The images are converted to match the output shape (32, 32, 3) and
+        scaled to have values between 0 and 1. For labels, the correct encoding
+        is enforced.
+
+        Args:
+            train_fn: Filepath of the train batch.
+            test_fn: Filepath of the test batch.
+            validation_size: Number of validation samples.
+        """
+        # Read test batch.
+        with open(test_fn, "rb") as f:
+            test_batch = pickle.load(f, encoding="bytes")
+
+        # Note, that we ignore the two keys: "batch_label", "coarse_labels" and
+        # "filenames".
+        test_labels = np.array(test_batch["fine_labels".encode()])
+        test_samples = test_batch["data".encode()]
+
+        # Read test batch.
+        with open(train_fn, "rb") as f:
+            train_batch = pickle.load(f, encoding="bytes")
+
+        train_labels = np.array(train_batch["fine_labels".encode()])
+        train_samples = train_batch["data".encode()]
+
+        if validation_size > 0:
+            if validation_size >= train_labels.shape[0]:
+                raise ValueError(
+                    "Validation set must contain less than %d "
+                    % (train_labels.shape[0])
+                    + "samples!"
+                )
+            val_inds = np.arange(validation_size)
+            train_inds = np.arange(validation_size, train_labels.size)
+
+        else:
+            train_inds = np.arange(train_labels.size)
+
+        test_inds = np.arange(
+            train_labels.size, train_labels.size + test_labels.size
+        )
+
+        labels = np.concatenate([train_labels, test_labels])
+        labels = np.reshape(labels, (-1, 1))
+
+        images = np.concatenate([train_samples, test_samples], axis=0)
+
+        # Note, images are currently encoded in a way, that there shape
+        # corresponds to (3, 32, 32). For consistency reasons, we would like to
+        # change that to (32, 32, 3).
+        images = np.reshape(images, (-1, 3, 32, 32))
+        images = np.rollaxis(images, 1, 4)
+        images = np.reshape(images, (-1, 32 * 32 * 3))
+        # Scale images into a range between 0 and 1.
+        images = images / 255
+
+        self._data["in_data"] = images
+        self._data["train_inds"] = train_inds
+        self._data["test_inds"] = test_inds
+        if validation_size > 0:
+            self._data["val_inds"] = val_inds
+
+        if self._data["is_one_hot"]:
+            labels = self._to_one_hot(labels)
+
+        self._data["out_data"] = labels
 
     def get_identifier(self):
         """Returns the name of the dataset."""
-        return 'SplitCIFAR100'
+        return "CIFAR-100"
 
-class SplitCIFAR10Data(CIFAR10Data):
-    """An instance of the class shall represent a single SplitCIFAR-10 task.
+    def input_to_torch_tensor(
+        self,
+        x,
+        device,
+        mode="inference",
+        force_no_preprocessing=False,
+        sample_ids=None,
+    ):
+        """This method can be used to map the internal numpy arrays to PyTorch
+        tensors.
 
-    Each instance will contain only samples of CIFAR-10 belonging to a subset
-    of the labels.
+        Note, this method has been overwritten from the base class.
 
-    Args:
-        (....): See docstring of class :class:`SplitCIFAR100Data`.
-    """
-    def __init__(self, data_path, use_one_hot=False, validation_size=1000,
-                 use_data_augmentation=False, use_cutout=False,
-                 labels=range(0, 2), full_out_dim=False):
-        # Note, we build the validation set below!
-        super().__init__(data_path, use_one_hot=use_one_hot, validation_size=0,
-                         use_data_augmentation=use_data_augmentation,
-                         use_cutout=use_cutout)
-
-        _split_cifar_object(self, data_path, use_one_hot, validation_size,
-                            use_data_augmentation, labels, full_out_dim)
-
-    def transform_outputs(self, outputs):
-        """Transform the outputs from the 10D CIFAR10 dataset into proper labels
-        based on the constructor argument ``labels``.
-
-        See :meth:`data.special.split_mnist.SplitMNIST.transform_outputs` for
-        more information.
+        The input images are preprocessed if data augmentation is enabled.
+        Preprocessing involves normalization and (for training mode) random
+        perturbations.
 
         Args:
-            outputs (numpy.ndarray): 2D numpy array of outputs.
+            (....): See docstring of method
+                :meth:`data.dataset.Dataset.input_to_torch_tensor`.
 
         Returns:
-            (numpy.ndarray): 2D numpy array of transformed outputs.
+            (torch.Tensor): The given input ``x`` as PyTorch tensor.
         """
-        return _transform_split_outputs(self, outputs)
+        if self._augment_inputs and not force_no_preprocessing:
+            if mode == "inference":
+                transform = self._test_transform
+            elif mode == "train":
+                transform = self._train_transform
+            else:
+                raise ValueError(
+                    '"%s" not a valid value for argument "mode".' % mode
+                )
 
-    def get_identifier(self):
-        """Returns the name of the dataset."""
-        return 'SplitCIFAR10'
+            return CIFAR10Data.torch_augment_images(x, device, transform)
 
-def _split_cifar_object(data, data_path, use_one_hot, validation_size,
-                        use_data_augmentation, labels, full_out_dim):
-    """Extract a subset of labels from a CIFAR-10 or CIFAR-100 dataset.
-
-    The constructors of classes :class:`SplitCIFAR10Data` and
-    :class:`SplitCIFAR100Data` are essentially identical. Therefore, the code
-    is realized in this function.
-    
-    Args:
-        data: The data handler (which is a full CIFAR-10 or CIFAR-100 dataset,
-            which will be modified).
-        (....): See docstring of class :class:`SplitCIFAR10Data`.
-    """
-    assert isinstance(data, SplitCIFAR10Data) or \
-           isinstance(data, SplitCIFAR100Data)
-    data._full_out_dim = full_out_dim
-
-    if isinstance(labels, range):
-        labels = list(labels)
-    assert np.all(np.array(labels) >= 0) and \
-           np.all(np.array(labels) < data.num_classes) and \
-           len(labels) == len(np.unique(labels))
-    K = len(labels)
-
-    data._labels = labels
-
-    train_ins = data.get_train_inputs()
-    test_ins = data.get_test_inputs()
-
-    train_outs = data.get_train_outputs()
-    test_outs = data.get_test_outputs()
-
-    # Get labels.
-    if data.is_one_hot:
-        train_labels = data._to_one_hot(train_outs, reverse=True)
-        test_labels = data._to_one_hot(test_outs, reverse=True)
-    else:
-        train_labels = train_outs
-        test_labels = test_outs
-
-    train_labels = train_labels.squeeze()
-    test_labels = test_labels.squeeze()
-
-    train_mask = train_labels == labels[0]
-    test_mask = test_labels == labels[0]
-    for k in range(1, K):
-        train_mask = np.logical_or(train_mask, train_labels == labels[k])
-        test_mask = np.logical_or(test_mask, test_labels == labels[k])
-
-    train_ins = train_ins[train_mask, :]
-    test_ins = test_ins[test_mask, :]
-
-    train_outs = train_outs[train_mask, :]
-    test_outs = test_outs[test_mask, :]
-
-    if validation_size > 0:
-        if validation_size >= train_outs.shape[0]:
-            raise ValueError('Validation set must contain less than %d ' \
-                             % (train_outs.shape[0]) + 'samples!')
-        val_inds = np.arange(validation_size)
-        train_inds = np.arange(validation_size, train_outs.shape[0])
-
-    else:
-        train_inds = np.arange(train_outs.shape[0])
-
-    test_inds = np.arange(train_outs.shape[0],
-                          train_outs.shape[0] + test_outs.shape[0])
-
-    outputs = np.concatenate([train_outs, test_outs], axis=0)
-
-    if not full_out_dim:
-        # Note, the method assumes `full_out_dim` when later called by a
-        # user. We just misuse the function to call it inside the
-        # constructor.
-        data._full_out_dim = True
-        outputs = data.transform_outputs(outputs)
-        data._full_out_dim = full_out_dim
-
-        # Note, we may also have to adapt the output shape appropriately.
-        if data.is_one_hot:
-            data._data['out_shape'] = [len(labels)]
-
-        # And we also correct the label names.
-        if isinstance(data, SplitCIFAR10Data):
-            data._data['cifar10']['label_names'] = \
-                [data._data['cifar10']['label_names'][ii] for ii in labels]
         else:
-            data._data['cifar100']['fine_label_names'] = \
-                [data._data['cifar100']['fine_label_names'][ii] \
-                 for ii in labels]
-            # FIXME I just set it to `None` as I don't know what to do with it
-            # right now.
-            data._data['cifar100']['coarse_label_names'] = None
+            return Dataset.input_to_torch_tensor(
+                self,
+                x,
+                device,
+                mode=mode,
+                force_no_preprocessing=force_no_preprocessing,
+                sample_ids=sample_ids,
+            )
 
-    images = np.concatenate([train_ins, test_ins], axis=0)
-    print(np.min(images))
+    def _plot_sample(
+        self,
+        fig,
+        inner_grid,
+        num_inner_plots,
+        ind,
+        inputs,
+        outputs=None,
+        predictions=None,
+    ):
+        """Implementation of abstract method
+        :meth:`data.dataset.Dataset._plot_sample`.
+        """
+        ax = plt.Subplot(fig, inner_grid[0])
 
-    ### Overwrite internal data structure. Only keep desired labels.
-
-    # Note, we continue to pretend to be a 100 class problem, such that
-    # the user has easy access to the correct labels and has the original
-    # 1-hot encodings.
-    if not full_out_dim:
-        data._data['num_classes'] = len(labels)
-    else:
-        # Note, we continue to pretend to be a 10/100 class problem, such that
-        # the user has easy access to the correct labels and has the
-        # original 1-hot encodings.
-        if isinstance(data, SplitCIFAR10Data):
-            assert data._data['num_classes'] == 10
+        if outputs is None:
+            ax.set_title("CIFAR-100 Sample")
         else:
-            assert data._data['num_classes'] == 100
-    data._data['in_data'] = images
-    data._data['out_data'] = outputs
-    data._data['train_inds'] = train_inds
-    data._data['test_inds'] = test_inds
-    if validation_size > 0:
-        data._data['val_inds'] = val_inds
+            assert np.size(outputs) == 1
+            label = np.asscalar(outputs)
+            label_name = self._data["cifar100"]["fine_label_names"][label]
 
-    n_val = 0
-    if validation_size > 0:
-        n_val = val_inds.size
+            if predictions is None:
+                ax.set_title(
+                    "Label of shown sample:\n%s (%d)" % (label_name, label)
+                )
+            else:
+                if np.size(predictions) == self.num_classes:
+                    pred_label = np.argmax(predictions)
+                else:
+                    pred_label = np.asscalar(predictions)
+                pred_label_name = self._data["cifar100"]["fine_label_names"][
+                    pred_label
+                ]
 
-    print('Created SplitCIFAR-%d task with labels %s and %d train, %d test '
-          % (10 if isinstance(data, SplitCIFAR10Data) else 100, str(labels),
-             train_inds.size, test_inds.size) +
-          'and %d val samples.' % (n_val))
+                ax.set_title(
+                    "Label of shown sample:\n%s (%d)" % (label_name, label)
+                    + "\nPrediction: %s (%d)" % (pred_label_name, pred_label)
+                )
 
-def _transform_split_outputs(data, outputs):
-    """Actual implementation of method ``transform_outputs`` for split dataset
-    handlers.
+        ax.set_axis_off()
+        ax.imshow(np.squeeze(np.reshape(inputs, self.in_shape)))
+        fig.add_subplot(ax)
 
-    Args:
-        data: Data handler.
-        outputs (numpy.ndarray): See docstring of method
-            :meth:`data.special.split_mnist.SplitMNIST.transform_outputs`
-    
-    Returns:
-        (numpy.ndarray)
-    """
-    if not data._full_out_dim:
-        # TODO implement reverse direction as well.
-        raise NotImplementedError('This method is currently only ' +
-            'implemented if constructor argument "full_out_dim" was set.')
+        if num_inner_plots == 2:
+            ax = plt.Subplot(fig, inner_grid[1])
+            ax.set_title("Predictions")
+            bars = ax.bar(range(self.num_classes), np.squeeze(predictions))
+            ax.set_xticks(range(self.num_classes))
+            if outputs is not None:
+                bars[int(label)].set_color("r")
+            fig.add_subplot(ax)
 
-    labels = data._labels
-    if data.is_one_hot:
-        assert(outputs.shape[1] == data._data['num_classes'])
-        mask = np.zeros(data._data['num_classes'], dtype=np.bool)
-        mask[labels] = True
+    def _plot_config(self, inputs, outputs=None, predictions=None):
+        """Re-Implementation of method
+        :meth:`data.dataset.Dataset._plot_config`.
 
-        return outputs[:, mask]
-    else:
-        assert (outputs.shape[1] == 1)
-        ret = outputs.copy()
-        for i, l in enumerate(labels):
-            ret[ret == l] = i
-        return ret
+        This method has been overriden to ensure, that there are 2 subplots,
+        in case the predictions are given.
+        """
+        plot_configs = super()._plot_config(
+            inputs, outputs=outputs, predictions=predictions
+        )
+
+        if (
+            predictions is not None
+            and np.shape(predictions)[1] == self.num_classes
+        ):
+            plot_configs["outer_hspace"] = 0.6
+            plot_configs["inner_hspace"] = 0.4
+            plot_configs["num_inner_rows"] = 2
+            # plot_configs['num_inner_cols'] = 1
+            plot_configs["num_inner_plots"] = 2
+
+        return plot_configs
+
+    def _torch_input_transforms(self):
+
+        self._train_transform = transforms.Compose(
+            [
+                transforms.ToPILImage("RGB"),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(brightness=63 / 255),
+                CIFAR10Policy(),
+                transforms.ToTensor(),
+            ]
+        )
+
+        self._test_transform = transforms.Compose(
+            [
+                transforms.ToPILImage("RGB"),
+                transforms.ToTensor(),
+            ]
+        )
 
 
 class SplitCIFAR100Data_FeCAM(CIFAR100Data):
@@ -846,5 +842,6 @@ class CIFAR10Policy(object):
     def __repr__(self):
         return "AutoAugment CIFAR10 Policy"
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     pass

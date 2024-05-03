@@ -42,7 +42,6 @@ from hypnettorch.utils.torch_utils import init_params
 from hypnettorch.mnets import MLP
 
 from IntervalNets.interval_modules import (IntervalDropout, 
-                              IntervalBatchNorm2d,
                               IntervalLinear)
 
 class IntervalMLP(MLP, MainNetInterface):
@@ -246,7 +245,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
 
             bn_ind = 0
             for i, n in enumerate(hidden_layers):
-                bn_layer = IntervalBatchNorm2d(n, affine=not no_weights,
+
+                raise NotImplementedError
+                bn_layer = IntervalBatchNormLayer(n, affine=not no_weights,
                     interval_statistics=bn_track_stats)
                 self._batchnorm_layers.append(bn_layer)
 
@@ -499,6 +500,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         bn_ind = 0
 
         if self._use_batch_norm:
+            raise NotImplementedError
             n_bn = 2 * len(self.batchnorm_layers)
 
             bn_upper_weights = int_upper_weights[:n_bn]
@@ -569,6 +571,7 @@ hyper_shapes_distilled` and the current statistics will be returned by the
 
                 # Batch norm
                 if self._use_batch_norm:
+                    raise NotImplementedError
                 
                     hidden = self._batchnorm_layers[bn_ind].forward(hidden,
                         upper_gamma=bn_upper_weights[2*bn_ind],
@@ -714,6 +717,3 @@ hyper_shapes_distilled` and the current statistics will be returned by the
 
 if __name__ == '__main__':
     pass
-
-
-

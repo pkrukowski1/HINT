@@ -555,5 +555,3 @@ class CIFAR10Data(Dataset):
 
 if __name__ == '__main__':
     pass
-
-
