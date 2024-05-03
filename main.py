@@ -1050,38 +1050,38 @@ def main_running_experiments(path_to_datasets,
     ]["accuracy"].values
     row_with_results = (
         f"{dataset_tasks_list[0].get_identifier()};"
-        f"{parameters["augmentation"]};"
-        f"{parameters["embedding_size"]};"
-        f"{parameters["seed"]};"
-        f"{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};"
-        f"{parameters["use_chunks"]};{parameters["chunk_emb_size"]};"
-        f"{parameters["target_network"]};"
-        f"{str(parameters["target_hidden_layers"]).replace(" ", "")};"
-        f"{parameters["resnet_number_of_layer_groups"]};"
-        f"{parameters["resnet_widening_factor"]};"
-        f"{parameters["best_model_selection_method"]};"
-        f"{parameters["optimizer"]};"
-        f"{parameters["activation_function"]};"
-        f"{parameters["learning_rate"]};{parameters["batch_size"]};"
-        f"{parameters["beta"]};"
-        f"{parameters["norm"]};"
-        f"{parameters["perturbated_epsilon"]};"
-        f"{parameters["kappa"]};"
+        f'{parameters["augmentation"]};'
+        f'{parameters["embedding_size"]};'
+        f'{parameters["seed"]};'
+        f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
+        f'{parameters["use_chunks"]};{parameters["chunk_emb_size"]};'
+        f'{parameters["target_network"]};'
+        f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
+        f'{parameters["resnet_number_of_layer_groups"]};'
+        f'{parameters["resnet_widening_factor"]};'
+        f'{parameters["best_model_selection_method"]};'
+        f'{parameters["optimizer"]};'
+        f'{parameters["activation_function"]};'
+        f'{parameters["learning_rate"]};{parameters["batch_size"]};'
+        f'{parameters["beta"]};'
+        f'{parameters["norm"]};'
+        f'{parameters["perturbated_epsilon"]};'
+        f'{parameters["kappa"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
     )
     append_row_to_file(
-        f"{parameters["grid_search_folder"]}"
-        f"{parameters["summary_results_filename"]}.csv",
+        f'{parameters["grid_search_folder"]}'
+        f'{parameters["summary_results_filename"]}.csv',
         row_with_results
     )
 
     # Plot heatmap for results
-    load_path = (f"{parameters["saving_folder"]}/"
+    load_path = (f'{parameters["saving_folder"]}/'
                  f"results.csv")
     plot_heatmap(load_path)
 
     # Plot heatmap for results intersection
-    load_path = (f"{parameters["saving_folder"]}/"
+    load_path = (f'{parameters["saving_folder"]}/'
                  f"results_intersection.csv")
     plot_heatmap(load_path)
     
@@ -1091,7 +1091,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "CIFAR100_FeCAM_setup"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
+    dataset = "CIFAR100"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
@@ -1102,9 +1102,8 @@ if __name__ == "__main__":
         summary_results_filename = "summary_results"
     hyperparameters = set_hyperparameters(
         dataset,
-        grid_search=create_grid_search,
-        part=part
-    )
+        grid_search=create_grid_search
+        )
 
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
@@ -1114,7 +1113,7 @@ if __name__ == "__main__":
     )
 
     append_row_to_file(
-        f"{hyperparameters["saving_folder"]}/{summary_results_filename}.csv",
+        f'{hyperparameters["saving_folder"]}/{summary_results_filename}.csv',
         header
     )
 
@@ -1126,9 +1125,7 @@ if __name__ == "__main__":
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
                 hyperparameters["perturbated_epsilon"],
-                hyperparameters["dropout_rate"],
-                hyperparameters["embd_dropout_rate"],
-                hyperparameters["custom_init"])
+                hyperparameters["dropout_rate"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
@@ -1137,8 +1134,6 @@ if __name__ == "__main__":
         batch_size = elements[4]
         perturbated_eps = elements[6]
         dropout_rate = elements[7]
-        embd_dropout_rate = elements[8]
-        custom_init = elements[9]
         
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
@@ -1176,14 +1171,12 @@ if __name__ == "__main__":
             "use_bias": hyperparameters["use_bias"],
             "use_batch_norm": hyperparameters["use_batch_norm"],
             "device": hyperparameters["device"],
-            "saving_folder": f"{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/",
+            "saving_folder": f'{hyperparameters["saving_folder"]}/{TIMESTAMP}/{no}/',
             "grid_search_folder": hyperparameters["saving_folder"],
             "summary_results_filename": summary_results_filename,
             "perturbated_epsilon": perturbated_eps,
             "kappa": hyperparameters["kappa"],
             "dropout_rate": dropout_rate,
-            "embd_dropout_rate": embd_dropout_rate,
-            "custom_init": custom_init,
             "full_interval": hyperparameters["full_interval"]
         }
 
@@ -1192,7 +1185,7 @@ if __name__ == "__main__":
                 "no_of_validation_samples_per_class"
             ]
 
-        os.makedirs(f"{parameters["saving_folder"]}", exist_ok=True)
+        os.makedirs(f'{parameters["saving_folder"]}', exist_ok=True)
         # start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         save_parameters(parameters["saving_folder"],
                         parameters,

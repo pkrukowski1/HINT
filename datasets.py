@@ -340,7 +340,7 @@ def set_hyperparameters(dataset,
             
             hyperparams["saving_folder"] = (
                 "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/"
-                f"permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/"
+                f'permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/'
             )
 
         else:
@@ -663,7 +663,7 @@ def set_hyperparameters(dataset,
 
             hyperparams["saving_folder"] = (
                 "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/"
-                f"CIFAR100_FeCAM_setup/{hyperparams["best_model_selection_method"]}/"
+                f'CIFAR100_FeCAM_setup/{hyperparams["best_model_selection_method"]}/'
             )
         else:
             # Single experiment
