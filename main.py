@@ -144,6 +144,7 @@ def calculate_interval_intersection(hypernetwork, parameters, current_task_id):
     with torch.no_grad():
 
         eps    = parameters["perturbated_epsilon"]
+        n_embs = parameters["embedding_size"]
 
         if current_task_id == 0:
             first_emb = hypernetwork.conditional_params[0]
@@ -666,7 +667,7 @@ def train_single_task(hypernetwork,
         # validation accuracy.
         best_hypernetwork = deepcopy(hypernetwork).to(parameters["device"])
         best_target_network = deepcopy(target_network).to(parameters["device"])
-        best_val_loss = 1e15
+        best_val_accuracy = 0.0
         
     elif parameters["best_model_selection_method"] != "last_model":
         raise ValueError("Wrong value of best_model_selection_method parameter!")
@@ -876,10 +877,9 @@ def train_single_task(hypernetwork,
                   f" perturbated_epsilon: {eps}")
             # If the accuracy on the validation dataset is higher
             # than previously
-            if parameters["best_model_selection_method"] == "val_loss" and \
-                round(eps, 0) == parameters["perturbated_epsilon"]:
-                if loss.item() < best_val_loss:
-                    best_val_loss = loss.item()
+            if parameters["best_model_selection_method"] == "val_loss":
+                if accuracy > best_val_accuracy:
+                    best_val_accuracy = accuracy
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
             
@@ -1234,7 +1234,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "CIFAR100"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
+    dataset = "TinyImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = True
