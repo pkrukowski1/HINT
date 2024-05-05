@@ -13,9 +13,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import torch.optim as optim
 from VanillaNets.ResNet18 import ResNetBasic
+from IntervalNets.interval_ResNet import IntervalResNetBasic
 from copy import deepcopy
-from datetime import datetime
 import hnet_regularizer as hreg
+from datetime import datetime
 from itertools import product
 from loss_functions import IBP_Loss
 from IntervalNets.hmlp_ibp import HMLP_IBP
@@ -82,17 +83,22 @@ def get_shapes_of_network(model):
         shapes_of_model.append(list(layer.shape))
     return shapes_of_model
 
-def reverse_predictions(target_network, tensor_input, lower_weights, upper_weights):
+def reverse_predictions(target_network, tensor_input, lower_weights, middle_weights, upper_weights, condition=None):
 
     lower_pred = target_network.forward(x=tensor_input,
-                                                weights=lower_weights)
-            
+                                        weights=lower_weights,
+                                        condition=condition)
+    middle_pred = target_network.forward(x=tensor_input,
+                                        weights=middle_weights,
+                                        condition=condition)
     upper_pred = target_network.forward(x=tensor_input,
-                                        weights=upper_weights)
+                                        weights=upper_weights,
+                                        condition=condition)
     
-    lower_pred, upper_pred = torch.minimum(lower_pred, upper_pred), torch.maximum(lower_pred, upper_pred)
+    lower_pred, middle_pred = torch.minimum(lower_pred, middle_pred), torch.maximum(lower_pred, middle_pred)
+    middle_pred, upper_pred = torch.minimum(middle_pred, upper_pred), torch.maximum(middle_pred, upper_pred)
     
-    middle_pred = (lower_pred + upper_pred)/2.0
+    # middle_pred = (lower_pred + upper_pred)/2.0
 
     return lower_pred, middle_pred, upper_pred
 
@@ -138,7 +144,6 @@ def calculate_interval_intersection(hypernetwork, parameters, current_task_id):
     with torch.no_grad():
 
         eps    = parameters["perturbated_epsilon"]
-        n_embs = parameters["embedding_size"]
 
         if current_task_id == 0:
             first_emb = hypernetwork.conditional_params[0]
@@ -272,13 +277,19 @@ def calculate_accuracy(data,
         )
         gt_classes = test_output.max(dim=1)[1]
 
+        if parameters["use_batch_norm_memory"]:
+            condition = parameters["number_of_task"]
+        else:
+            condition = None
+
         if parameters["full_interval"]:
 
             logits = target_network.forward(
                 x=test_input,
                 upper_weights=upper_weights,
                 middle_weights=middle_weights,
-                lower_weights=lower_weights
+                lower_weights=lower_weights,
+                condition=condition
             )
 
             _, logits, _ = parse_logits(logits)
@@ -287,14 +298,96 @@ def calculate_accuracy(data,
 
             _, logits, _ = reverse_predictions(target_network, 
                                                test_input, 
-                                               lower_weights, 
-                                               upper_weights)
+                                               lower_weights,
+                                               middle_weights,
+                                               upper_weights,
+                                               condition)
        
         predictions = logits.max(dim=1)[1]
 
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
                     gt_classes.numel()) * 100.
     return accuracy
+
+def evaluate_previous_tasks_for_intersection(hypernetwork,
+                            target_network,
+                            common_emb,
+                            dataframe_results,
+                            list_of_permutations,
+                            parameters):
+    """
+    Evaluate the target network according to the weights generated
+    by the hypernetwork for all previously trained tasks for intersection
+    of tasks" embeddings.
+    
+    Arguments:
+    ----------
+      *hypernetwork* (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
+                     a hypernetwork that generates weights for the target
+                     network
+      *target_network* (hypnettorch.mnets module, e.g. mlp.MLP)
+                       a target network that finally will perform
+                       classification
+      *common_emb* (torch.Tensor) an embedding which is produced as a middle
+                    of intervals" intersection for already learned tasks
+      *dataframe_results* (Pandas Dataframe) stores results; contains
+                          following columns: "after_learning_of_task",
+                          "tested_task" and "accuracy"
+      *list_of_permutations*: (hypnettorch.data module), e.g. in the case
+                              of PermutedMNIST it will be
+                              special.permuted_mnist.PermutedMNISTList
+      *parameters* a dictionary containing the following keys:
+        -device- string: "cuda" or "cpu", defines in which device calculations
+                 will be performed
+        -use_batch_norm_memory- Boolean: defines whether stored weights
+                                of the batch normalization layer should be used
+                                If True then *number_of_task* has to be given
+        -number_of_task- int/None: gives an information which task is currently
+                         solved
+        -full_interval- bool: a flag to indicate whether we have full intervals
+                              or not
+
+    Returns:
+    --------
+      *dataframe_results* (Pandas Dataframe) a dataframe updated with
+                          the calculated results
+    """
+    # Calculate accuracy for each previously trained task
+    # as well as for the last trained task
+    hypernetwork.eval()
+    target_network.eval()
+
+    inter_lower_weights, inter_target_weights, inter_upper_weights, _ = hypernetwork.forward(cond_input=common_emb.view(1, -1),
+                                                                        perturbated_eps=parameters["perturbated_epsilon"],
+                                                                        return_extended_output=True,
+                                                                        common_emb=True)
+
+    for task in range(parameters["number_of_task"] + 1):
+        # Target entropy calculation should be included here: hypernetwork has to be inferred
+        # for each task (together with the target network) and the task_id with the lowest entropy
+        # has to be chosen
+        # Arguments of the function: list of permutations, hypernetwork, sparsity, target network
+        # output: task id
+        currently_tested_task = list_of_permutations[task]
+        
+        accuracy = calculate_accuracy(
+            currently_tested_task,
+            target_network,
+            inter_lower_weights,
+            inter_target_weights,
+            inter_upper_weights,
+            parameters=parameters,
+            evaluation_dataset="test"
+        )
+        result = {
+            "after_learning_of_task": parameters["number_of_task"],
+            "tested_task": task,
+            "accuracy": accuracy.cpu().item()
+        }
+        print(f"Accuracy for task {task}: {accuracy}%.")
+        dataframe_results = dataframe_results.append(
+            result, ignore_index=True)
+    return dataframe_results
 
 
 def evaluate_previous_tasks(hypernetwork,
@@ -515,7 +608,7 @@ def plot_intervals_around_embeddings(hypernetwork,
         # Add labels and a legend
         plt.xlabel("Embedding's coordinate")
         plt.ylabel("Embedding's value")
-        plt.title(f"Intervals around embeddings with sum of radius = {parameters['perturbated_epsilon']}, dim = {n_embs}")
+        plt.title(f'Intervals around embeddings with sum of radius = {parameters["perturbated_epsilon"]}, dim = {n_embs}')
         plt.xticks(x)
         plt.legend(loc="upper left", bbox_to_anchor=(1.05, 1.0))
         plt.grid()
@@ -573,7 +666,7 @@ def train_single_task(hypernetwork,
         # validation accuracy.
         best_hypernetwork = deepcopy(hypernetwork).to(parameters["device"])
         best_target_network = deepcopy(target_network).to(parameters["device"])
-        best_val_accuracy = 0.0
+        best_val_loss = 1e15
         
     elif parameters["best_model_selection_method"] != "last_model":
         raise ValueError("Wrong value of best_model_selection_method parameter!")
@@ -583,16 +676,16 @@ def train_single_task(hypernetwork,
     target_network.train()
     print(f"task: {current_no_of_task}")
     if current_no_of_task > 0:
-
-
-        middle_reg_targets = hreg.get_current_targets(
-                                                task_id=current_no_of_task,
-                                                hnet=hypernetwork,
-                                                eps=parameters["perturbated_epsilon"])
-
-
         previous_hnet_theta = None
         previous_hnet_embeddings = None
+
+        # Save previous hnet weights
+        hypernetwork._prev_hnet_weights = deepcopy(hypernetwork.unconditional_params)
+
+        middle_reg_targets = hreg.get_current_targets(
+                                        task_id=current_no_of_task,
+                                        hnet=hypernetwork,
+                                        eps=parameters["perturbated_epsilon"])
 
     if (parameters["target_network"] == "ResNet") and \
        parameters["use_batch_norm"]:
@@ -609,7 +702,7 @@ def train_single_task(hypernetwork,
                 parameters["batch_size"],
                 parameters["number_of_epochs"]
             )
-
+        # Scheduler can be set only when the number of epochs is given
         # Scheduler can be set only when the number of epochs is given
         if parameters["lr_scheduler"]:
             current_epoch = 0
@@ -663,6 +756,7 @@ def train_single_task(hypernetwork,
                                                                                 perturbated_eps=eps)
 
         if parameters["full_interval"]:
+
             predictions = target_network.forward(x=tensor_input,
                                                 upper_weights=upper_weights,
                                                 middle_weights=target_weights,
@@ -673,6 +767,7 @@ def train_single_task(hypernetwork,
             lower_pred, middle_pred, upper_pred = reverse_predictions(target_network,
                                                                       tensor_input,
                                                                       lower_weights,
+                                                                      target_weights,
                                                                       upper_weights)
         
         
@@ -718,7 +813,7 @@ def train_single_task(hypernetwork,
                      "worst_case_error;loss_regularization;loss_weights"
             
         append_row_to_file(
-        filename=f"{parameters['saving_folder']}total_loss",
+        filename=f'{parameters["saving_folder"]}total_loss',
         elements=f"{current_no_of_task};{iteration};{loss};{loss_current_task};"
                  f"{worst_case_error};{loss_regularization};{loss_weights}",
         header=header
@@ -730,7 +825,7 @@ def train_single_task(hypernetwork,
         if iteration % 500 == 499:
         # if iteration % 10 == 9:
             # Plot intervals over tasks" embeddings plot
-            interval_plot_save_path = f"{parameters['saving_folder']}/plots/"
+            interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
             plot_common_embedding = iteration >= iterations_to_adjust
 
             plot_intervals_around_embeddings(hypernetwork=hypernetwork,
@@ -756,8 +851,8 @@ def train_single_task(hypernetwork,
 
             # Save distance between the upper and lower weights to file
             append_row_to_file(
-            filename=f"{parameters['saving_folder']}upper_lower_weights_distance",
-            elements=f"{current_no_of_task};{iteration};{loss_weights}"
+            filename=f'{parameters["saving_folder"]}upper_lower_weights_distance',
+            elements=f'{current_no_of_task};{iteration};{loss_weights}'
             )
 
             accuracy = 0.0
@@ -781,9 +876,10 @@ def train_single_task(hypernetwork,
                   f" perturbated_epsilon: {eps}")
             # If the accuracy on the validation dataset is higher
             # than previously
-            if parameters["best_model_selection_method"] == "val_loss":
-                if accuracy > best_val_accuracy:
-                    best_val_accuracy = accuracy
+            if parameters["best_model_selection_method"] == "val_loss" and \
+                round(eps, 0) == parameters["perturbated_epsilon"]:
+                if loss.item() < best_val_loss:
+                    best_val_loss = loss.item()
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
             
@@ -849,22 +945,41 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             mode = "cifar"
         else:
             mode = "default"
+        
+        if parameters["full_interval"]:
 
-        target_network = ResNetBasic(
-            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            use_bias=False,
-            use_fc_bias=parameters["use_bias"],
-            bottleneck_blocks=False,
-            num_classes=output_shape,
-            num_feature_maps=[16, 16, 32, 64, 128],
-            blocks_per_group=[2, 2, 2, 2],
-            no_weights=False,
-            use_batch_norm=parameters["use_batch_norm"],
-            projection_shortcut=True,
-            bn_track_stats=False,
-            cutout_mod=True,
-            mode=mode,
-        ).to(parameters["device"])
+            target_network = IntervalResNetBasic(
+                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+                use_bias=False,
+                use_fc_bias=parameters["use_bias"],
+                bottleneck_blocks=False,
+                num_classes=output_shape,
+                num_feature_maps=[16, 16, 32, 64, 128],
+                blocks_per_group=[2, 2, 2, 2],
+                no_weights=False,
+                use_batch_norm=parameters["use_batch_norm"],
+                projection_shortcut=True,
+                bn_track_stats=False,
+                cutout_mod=True,
+                mode=mode,
+            ).to(parameters["device"])
+        else:
+
+            target_network = ResNetBasic(
+                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+                use_bias=False,
+                use_fc_bias=parameters["use_bias"],
+                bottleneck_blocks=False,
+                num_classes=output_shape,
+                num_feature_maps=[16, 16, 32, 64, 128],
+                blocks_per_group=[2, 2, 2, 2],
+                no_weights=False,
+                use_batch_norm=parameters["use_batch_norm"],
+                projection_shortcut=True,
+                bn_track_stats=False,
+                cutout_mod=True,
+                mode=mode,
+            ).to(parameters["device"])
 
 
     elif parameters["target_network"] == "ZenkeNet":
@@ -875,13 +990,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         else:
             raise ValueError("This dataset is currently not implemented!")
 
-        target_network = ZenkeNet(in_shape=(parameters["input_shape"],
-                                            parameters["input_shape"],
-                                            3),  
-                                  num_classes=output_shape,
-                                  arch=architecture,
-                                  no_weights=False,
-                                  dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
+        raise ValueError("ZenkeNet is not supported right now!")
     
     if not use_chunks:
         hypernetwork = HMLP_IBP(
@@ -928,13 +1037,13 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         if no_of_task == (parameters["number_of_tasks"] - 1):
         # Save current state of networks
             write_pickle_file(
-                f"{parameters['saving_folder']}/"
-                f"hypernetwork_after_{no_of_task}_task",
+                f'{parameters["saving_folder"]}/'
+                f'hypernetwork_after_{no_of_task}_task',
                 hypernetwork.weights
             )
             write_pickle_file(
-                f"{parameters['saving_folder']}/"
-                f"target_network_after_{no_of_task}_task",
+                f'{parameters["saving_folder"]}/'
+                f'target_network_after_{no_of_task}_task',
                 target_network.weights
             )
         
@@ -959,13 +1068,47 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             "after_learning_of_task": "int",
             "tested_task": "int"
         })
-        dataframe.to_csv(f"{parameters['saving_folder']}/"
+        dataframe.to_csv(f'{parameters["saving_folder"]}/'
                          f"results.csv",
                          sep=";")
         
 
+        with torch.no_grad():
+            
+            if no_of_task == 0:
+                common_emb = calculate_interval_intersection(hypernetwork=hypernetwork,
+                                                                parameters=parameters,
+                                                                current_task_id=no_of_task)
+                
+            else:
+                zl_common_emb, common_emb, zu_common_emb = calculate_interval_intersection(hypernetwork=hypernetwork,
+                                                                                            parameters=parameters,
+                                                                                            current_task_id=no_of_task)                
+            # Evaluate previous tasks for intersection
+            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
+                                                    hypernetwork,
+                                                    target_network,
+                                                    common_emb,
+                                                    results_from_interval_intersection,
+                                                    dataset_list_of_tasks,
+                                                    parameters={
+                                                        "device": parameters["device"],
+                                                        "use_batch_norm_memory": use_batch_norm_memory,
+                                                        "number_of_task": no_of_task,
+                                                        "perturbated_epsilon": parameters["perturbated_epsilon"],
+                                                        "full_interval": parameters["full_interval"]
+                                                    }
+                                                )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                    "after_learning_of_task": "int",
+                                                    "tested_task": "int"
+                                                })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                f"results_intersection.csv",
+                                                sep=";")
+
         # Plot intervals over tasks" embeddings plot
-        interval_plot_save_path = f"{parameters['saving_folder']}/plots/"
+        interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
         plot_intervals_around_embeddings(hypernetwork=hypernetwork,
                                         parameters=parameters,
                                         save_folder=interval_plot_save_path,
@@ -1094,7 +1237,7 @@ if __name__ == "__main__":
     dataset = "CIFAR100"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = False
+    create_grid_search = True
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
@@ -1102,8 +1245,8 @@ if __name__ == "__main__":
         summary_results_filename = "summary_results"
     hyperparameters = set_hyperparameters(
         dataset,
-        grid_search=create_grid_search
-        )
+        grid_search=create_grid_search,
+    )
 
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"

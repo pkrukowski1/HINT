@@ -91,9 +91,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             :meth:`hnets.hnet_interface.HyperNetInterface.forward`.
         """
 
-        assert (common_radii is None and not common_emb) or \
-                (common_radii is not None and common_emb)
-
         uncond_input, cond_input, uncond_weights, _ = \
             self._preprocess_forward_args(uncond_input=uncond_input,
                 cond_input=cond_input, cond_id=cond_id, weights=weights,
@@ -128,7 +125,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
             ], dim=0)
 
         else:
-            eps = common_radii
+            eps = perturbated_eps * F.softmax(torch.ones_like(h), dim=-1)
         
         eps = eps.to(self._device)
 
@@ -161,7 +158,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         if self.embd_dropout_rate != -1:
             h = self.embd_dropout(h)
-    
+        
+        # Apply cos transformation
+        sigma = 0.5 * perturbated_eps / self._cond_in_size
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)
@@ -198,4 +197,3 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         else:
             return ret
         
-       

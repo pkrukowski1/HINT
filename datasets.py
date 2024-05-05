@@ -1,14 +1,13 @@
 """
 This file implements functions to deal with datasets and tasks in continual learning
-
-Author: Kamil Książek
 """
 
 import os
 import numpy as np
 import torch
 from hypnettorch.data.special import permuted_mnist
-from DatasetHandlers.split_cifar import SplitCIFAR100Data
+# from DatasetHandlers.split_cifar import SplitCIFAR100Data
+from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from DatasetHandlers.split_mnist import get_split_mnist_handlers
 from DatasetHandlers.subset_image_net import SubsetImageNet
 from DatasetHandlers.TinyImageNet import TinyImageNet
@@ -326,17 +325,30 @@ def set_hyperparameters(dataset,
     if dataset == "PermutedMNIST":
         if grid_search:
             hyperparams = {
-                "embedding_sizes": [24, 32, 64],
+                "embedding_sizes": [24],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.01, 0.005, 0.1],
-                "hypernetworks_hidden_layers": [[100, 100], [200, 200]],
-                "perturbated_epsilon": [5.0, 10.0, 15.0],
+                "betas": [0.01],
+                "hypernetworks_hidden_layers": [[100, 100]],
+                "perturbated_epsilon": [0.5],
                 "best_model_selection_method": "val_loss",
-                "dropout_rate": [-1, 0.1],
+                "dropout_rate": [-1],
                 # not for optimization
-                "seed": [1]
+                "seed": [1, 2, 3, 4, 5]
             }
+
+            # hyperparams = {
+            #     "embedding_sizes": [24],
+            #     "learning_rates": [0.001, 0.01],
+            #     "batch_sizes": [128],
+            #     "betas": [0.01, 0.005, 0.1],
+            #     "hypernetworks_hidden_layers": [[100, 100], [200, 200]],
+            #     "perturbated_epsilon": [0.0, 0.5, 1.0, 5.0],
+            #     "best_model_selection_method": "val_loss",
+            #     "dropout_rate": [-1],
+            #     # not for optimization
+            #     "seed": [1]
+            # }
             
             hyperparams["saving_folder"] = (
                 "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/"
@@ -387,12 +399,12 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 "seed": [1],
                 "embedding_sizes": [48],
-                "betas": [0.01, 0.1, 1.0],
+                "betas": [0.01],
                 "learning_rates": [0.001],
                 "batch_sizes": [32],
                 "hypernetworks_hidden_layers": [[100]],
-                "perturbated_epsilon": [10, 5, 1, 0.5],
-                "dropout_rate": [-1, 0.25, 0.5],
+                "perturbated_epsilon": [5.0],
+                "dropout_rate": [-1],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
@@ -400,7 +412,7 @@ def set_hyperparameters(dataset,
                 "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 200,
-                "augmentation": False
+                "augmentation": True
             }
         
             hyperparams["saving_folder"] = (
@@ -455,19 +467,33 @@ def set_hyperparameters(dataset,
 
     elif dataset == "SplitMNIST":
         if grid_search:
+            # hyperparams = {
+            #     "learning_rates": [0.001],
+            #     "batch_sizes": [128],
+            #     "betas": [0.01, 0.001, 0.1],
+            #     "hypernetworks_hidden_layers": [[75, 75], [100, 100]],
+            #     "dropout_rate": [-1],
+            #     "perturbated_epsilon": [0.0, 0.5, 1.0, 5.0],
+            #     # seed is not for optimization but for ensuring multiple results
+            #     "seed": [1],
+            #     "best_model_selection_method": "val_loss",
+            #     "embedding_sizes": [24, 72, 96, 128],
+            #     "augmentation": True
+            # }
             hyperparams = {
                 "learning_rates": [0.001],
-                "batch_sizes": [64, 128],
-                "betas": [0.01, 0.001],
-                "hypernetworks_hidden_layers": [[25, 25], [50, 50], [75, 75]],
+                "batch_sizes": [128],
+                "betas": [0.01],
+                "hypernetworks_hidden_layers": [[75, 75]],
                 "dropout_rate": [-1],
-                "perturbated_epsilon": [5.0, 10.0, 15.0],
+                "perturbated_epsilon": [1.0],
                 # seed is not for optimization but for ensuring multiple results
-                "seed": [1],
+                "seed": [1, 2, 3, 4, 5],
                 "best_model_selection_method": "val_loss",
-                "embedding_sizes": [24, 72, 96, 128],
+                "embedding_sizes": [72],
                 "augmentation": True
             }
+
 
             hyperparams["saving_folder"] = (
                 "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/"
@@ -514,18 +540,18 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 "seed": [1],
-                "perturbated_epsilon": [10, 15, 20],
-                "embedding_sizes": [96],
-                "learning_rates": [0.001, 0.01],
-                "batch_sizes": [16, 32],
-                "dropout_rate": [-1, 0.25],
-                "betas": [1.0, 0.01, 0.1],
-                "hypernetworks_hidden_layers": [[100, 100], [200, 200]],
+                "perturbated_epsilon": [5.0, 1.0, 0.0],
+                "embedding_sizes": [96, 48, 126],
+                "learning_rates": [0.0001],
+                "batch_sizes": [16],
+                "dropout_rate": [-1],
+                "betas": [0.01, 0.1, 1.0],
+                "hypernetworks_hidden_layers": [[100, 100]],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
-                "use_batch_norm": False,
-                "target_network": "ZenkeNet",
+                "use_batch_norm": True,
+                "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
                 "augmentation": True
@@ -556,7 +582,7 @@ def set_hyperparameters(dataset,
                 "augmentation": True,
                 "saving_folder": "./Results/TinyImageNet/best_hyperparams/"
             }
-        hyperparams["lr_scheduler"] = False
+        hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 250
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet"]:
