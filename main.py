@@ -63,7 +63,7 @@ def write_pickle_file(filename, object_to_save):
 
 
 def load_pickle_file(filename):
-    return torch.load(filename)
+    return torch.load(filename, map_location=torch.device('cpu'))
 
 
 def get_shapes_of_network(model):
@@ -1176,7 +1176,8 @@ def main_running_experiments(path_to_datasets,
             no_of_validation_samples_per_class=parameters[
                 "no_of_validation_samples_per_class"
             ],
-            use_augmentation=parameters["augmentation"]
+            use_augmentation=parameters["augmentation"],
+            batch_size=parameters["batch_size"]
         )
     else:
         raise ValueError("Wrong name of the dataset!")
@@ -1234,10 +1235,10 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "TinyImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
+    dataset = "SubsetImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
