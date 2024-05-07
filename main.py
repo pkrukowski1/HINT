@@ -923,8 +923,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
       *dataframe*: (Pandas Dataframe) contains results from consecutive
                    evaluations for all previous tasks
     """
-    output_shape = list(
-        dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
+    if parameters["dataset"] == "SubsetImageNet":
+        output_shape = dataset_list_of_tasks[0]._data["num_classes"]
+    else:
+        output_shape = list(
+            dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
 
     # Create a target network which will be multilayer perceptron
     # or ResNet/ZenkeNet with internal weights
