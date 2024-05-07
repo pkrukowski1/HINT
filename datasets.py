@@ -360,10 +360,11 @@ def set_hyperparameters(dataset,
                 "embedding_sizes": [24],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.005],
-                "perturbated_epsilon": [5.0],
+                "betas": [0.01],
+                "perturbated_epsilon": [0.5],
                 "hypernetworks_hidden_layers": [[100, 100]],
                 "dropout_rate": [-1],
+                "alpha": [0.005],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/"
                 f"permuted_mnist_final_grid_experiments/last_model/"
@@ -386,7 +387,7 @@ def set_hyperparameters(dataset,
         # Directly related to the MNIST dataset
         hyperparams["padding"] = 2
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"])**2
-        hyperparams["number_of_tasks"] = 100
+        hyperparams["number_of_tasks"] = 10
         hyperparams["augmentation"] = False
 
         # Full-interval model or simpler one
@@ -506,7 +507,7 @@ def set_hyperparameters(dataset,
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
                 "betas": [0.01],
-                "alpha": [1.0],
+                "alpha": [0.01],
                 "perturbated_epsilon": [1.0],
                 "dropout_rate": [-1],
                 "hypernetworks_hidden_layers": [[75, 75]],
