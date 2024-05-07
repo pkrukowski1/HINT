@@ -603,7 +603,7 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 "seed": [1],
-                "perturbated_epsilon": [30, 50, 60],
+                "perturbated_epsilon": [5.0, 1.0, 0.5],
                 "embedding_sizes": [48, 96],
                 "learning_rates": [0.001],
                 "batch_sizes": [32],
