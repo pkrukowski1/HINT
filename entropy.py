@@ -44,7 +44,7 @@ def get_task_and_class_prediction_based_on_logits(
     number_of_samples = inferenced_logits_of_all_tasks.shape[1]
 
     for no_of_sample in range(number_of_samples):
-        task_entropies = torch.zeros((inferenced_logits_of_all_tasks.shape[0], 3))
+        task_entropies = torch.zeros((inferenced_logits_of_all_tasks.shape[0]))
 
         all_task_single_output_sample = inferenced_logits_of_all_tasks[
             :, no_of_sample, :, :
@@ -54,31 +54,22 @@ def get_task_and_class_prediction_based_on_logits(
         for no_of_inferred_task in range(task_entropies.shape[0]):
 
             softmaxed_inferred_task = F.softmax(
-                all_task_single_output_sample[no_of_inferred_task], dim=-1
+                all_task_single_output_sample[no_of_inferred_task, 1, :], dim=-1
             )
+
+            lower_logits = all_task_single_output_sample[no_of_inferred_task, 0, :]
+            upper_logits = all_task_single_output_sample[no_of_inferred_task, 2, :]
+
+            # Add 0.001 for stability
+            diff = 1 / (0.001 + (upper_logits - lower_logits).abs())
             
-            task_entropies[no_of_inferred_task] = -1 * torch.sum(
+            task_entropies[no_of_inferred_task] = -1 * torch.sum(diff * \
                 softmaxed_inferred_task * torch.log(softmaxed_inferred_task), dim=-1
             )
-            # print(all_task_single_output_sample.shape)
-            # lower_logits = all_task_single_output_sample[no_of_inferred_task]
-            # upper_logits = all_task_single_output_sample[no_of_inferred_task]
-
-            # L = upper_logits.clone()
-            # U = lower_logits.clone()
-
-            # for idx in range(len(L)):
-            #     L[idx] = lower_logits[idx]
-            #     U[idx] = upper_logits[idx]
-
-            # lower_softmax[no_of_inferred_task] = F.softmax(L, dim=-1)
-            # upper_softmax[no_of_inferred_task] = F.softmax(U, dim=-1)
-
-            # uncertainty[no_of_inferred_task] = (upper_softmax[no_of_inferred_task] - lower_softmax[no_of_inferred_task]).abs().sum()
+           
 
         # Min
-        task_entropies_min = torch.min(task_entropies, dim=-1).values
-        selected_task_id = torch.argmin(task_entropies_min)
+        selected_task_id = torch.argmin(task_entropies)
         predicted_tasks.append(selected_task_id.item())
 
         # Mode
@@ -216,7 +207,7 @@ if __name__ == "__main__":
 
     # Options for *dataset*:
     # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup', 'SubsetImageNet'
-    dataset = "SplitMNIST"
+    dataset = "PermutedMNIST"
     path_to_datasets = "./Data/"
 
     path_to_stored_networks = f"./SavedModels/{dataset}/known_task_id/"
