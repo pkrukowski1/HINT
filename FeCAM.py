@@ -223,7 +223,7 @@ def get_target_network_representation(
     """
     hypernetwork.eval()
     target_network.eval()
-    # TODO: Dokończ!!!!!
+
     with torch.no_grad():
         (
             lower_target_weights,

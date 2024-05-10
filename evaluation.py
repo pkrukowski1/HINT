@@ -6,8 +6,6 @@ from datasets import (
     prepare_split_mnist_tasks,
 )
 from main import (
-    calculate_accuracy,
-    get_number_of_batch_normalization_layer,
     load_pickle_file,
     set_seed,
 )
@@ -21,11 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-import torch
 from numpy.testing import assert_almost_equal
-from collections import defaultdict
-from sklearn.manifold import TSNE
-
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
     if dataset == "PermutedMNIST":
