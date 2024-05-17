@@ -6,7 +6,7 @@ import os
 import numpy as np
 import torch
 from hypnettorch.data.special import permuted_mnist
-# from DatasetHandlers.split_cifar import SplitCIFAR100Data
+from DatasetHandlers.split_cifar import SplitCIFAR10Data
 from hypnettorch.data.special.split_cifar import SplitCIFAR100Data
 from DatasetHandlers.split_mnist import get_split_mnist_handlers
 from DatasetHandlers.subset_image_net import SubsetImageNet
@@ -66,6 +66,40 @@ def prepare_split_cifar100_tasks(datasets_folder,
             labels=range(i, i + 10)
         ))
     return handlers
+
+
+def prepare_split_cifar10_tasks(datasets_folder,
+                                 validation_size,
+                                 use_augmentation,
+                                 use_cutout=False):
+    """
+    Prepare a list of 5 tasks with 2 classes per each task.
+    i-th task, where i in {0, 1, ..., 4} will store samples
+    from classes {2*i, 2*i + 1}.
+
+    Arguments:
+    ----------
+      *datasets_folder*: (string) Defines a path in which CIFAR-10
+                         is stored / will be downloaded
+      *validation_size*: (int) The number of validation samples
+      *use_augmentation*: (Boolean) potentially applies
+                          a data augmentation method from
+                          hypnettorch
+      *use_cutout*: (optional Boolean) in the positive case it applies
+                    "apply_cutout" option form "torch_input_transforms".
+    """
+    handlers = []
+    for i in range(0, 10, 2):
+        handlers.append(SplitCIFAR10Data(
+            datasets_folder,
+            use_one_hot=True,
+            validation_size=validation_size,
+            use_data_augmentation=use_augmentation,
+            use_cutout=use_cutout,
+            labels=range(i, i + 2)
+        ))
+    return handlers
+
 
 def prepare_split_cifar100_tasks_aka_FeCAM(
     datasets_folder,
@@ -700,8 +734,8 @@ def set_hyperparameters(dataset,
                 "betas": [0.01],
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "hypernetworks_hidden_layers": [[100]],
-                "perturbated_epsilon": [10],
+                "hypernetworks_hidden_layers": [[200]],
+                "perturbated_epsilon": [1.0],
                 "dropout_rate": [-1],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
@@ -739,6 +773,67 @@ def set_hyperparameters(dataset,
 
         # Full-interval model or simpler one
         hyperparams["full_interval"] = False
+
+    elif dataset == "CIFAR10":
+        if grid_search:
+            hyperparams = {
+                "learning_rates": [0.001],
+                "batch_sizes": [128],
+                "betas": [0.01, 0.001, 0.1],
+                "hypernetworks_hidden_layers": [[100, 100], [50, 50], [25, 25]],
+                "dropout_rate": [-1],
+                "use_batch_norm": False,
+                "target_network": "ResNet",
+                "perturbated_epsilon": [0.5, 1.0],
+                # seed is not for optimization but for ensuring multiple results
+                "seed": [1],
+                "best_model_selection_method": "val_loss",
+                "embedding_sizes": [24, 48, 72, 96],
+                "augmentation": False
+            }
+
+
+            hyperparams["saving_folder"] = (
+                "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/"
+                f"CIFAR10"
+            )
+
+        else:
+            # single run experiment
+            hyperparams = {
+                "seed": [1],
+                "embedding_sizes": [72],
+                "learning_rates": [0.001],
+                "use_batch_norm": False,
+                "target_network": "ResNet",
+                "batch_sizes": [128],
+                "betas": [0.01],
+                "perturbated_epsilon": [1.0],
+                "dropout_rate": [-1],
+                "hypernetworks_hidden_layers": [[75, 75]],
+                "augmentation": False,
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/CIFAR10/"
+            }
+        hyperparams["lr_scheduler"] = False
+        hyperparams["resnet_number_of_layer_groups"] = None
+        hyperparams["resnet_widening_factor"] = None
+        hyperparams["optimizer"] = "adam"
+        hyperparams["number_of_iterations"] = 2000
+        hyperparams["number_of_epochs"] = None
+        hyperparams["no_of_validation_samples"] = 1000
+        hyperparams["target_hidden_layers"] = [400, 400]
+        hyperparams["shape"] = 32
+        hyperparams["number_of_tasks"] = 5
+        hyperparams["chunk_size"] = 100
+        hyperparams["chunk_emb_size"] = 96
+        hyperparams["use_chunks"] = False
+        hyperparams["use_batch_norm"] = False
+        hyperparams["padding"] = None
+        hyperparams["best_model_selection_method"] = "val_loss"
+
+        # Full-interval model or simpler one
+        hyperparams["full_interval"] = True
 
     else:
         raise ValueError("This dataset is not implemented!")

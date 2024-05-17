@@ -5,7 +5,6 @@ import torch.nn as nn
 from typing import Tuple
 import torch.nn.functional as F
 from IntervalNets.interval_MLP import IntervalMLP
-from VanillaNets.ZenkeNet64 import ZenkeNet
 from IntervalNets.interval_modules import parse_logits
 import numpy as np
 import pandas as pd
@@ -23,6 +22,7 @@ from IntervalNets.hmlp_ibp import HMLP_IBP
 from datasets import (
     set_hyperparameters,
     prepare_split_cifar100_tasks,
+    prepare_split_cifar10_tasks,
     prepare_permuted_mnist_tasks,
     prepare_split_mnist_tasks,
     prepare_tinyimagenet_tasks,
@@ -944,7 +944,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     elif parameters["target_network"] == "ResNet":
         if parameters["dataset"] == "TinyImageNet" or parameters["dataset"] == "SubsetImageNet":
             mode = "tiny"
-        elif parameters["dataset"] == "CIFAR100" or parameters["dataset"] == "CIFAR100_FeCAM_setup":
+        elif parameters["dataset"] == "CIFAR100" or parameters["dataset"] == "CIFAR100_FeCAM_setup" \
+            or parameters["dataset"] == "CIFAR10":
             mode = "cifar"
         else:
             mode = "default"
@@ -1149,6 +1150,12 @@ def main_running_experiments(path_to_datasets,
             validation_size=parameters["no_of_validation_samples"],
             use_augmentation=parameters["augmentation"],
         )
+    elif parameters["dataset"] == "CIFAR10":
+        dataset_tasks_list = prepare_split_cifar10_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+        )
     elif parameters["dataset"] == "SplitMNIST":
         dataset_tasks_list = prepare_split_mnist_tasks(
             path_to_datasets,
@@ -1238,7 +1245,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "SubsetImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet"
+    dataset = "CIFAR10"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
