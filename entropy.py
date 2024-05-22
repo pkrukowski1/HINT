@@ -232,7 +232,7 @@ def get_target_network_representation(
     return logits
 
 def extract_test_set_from_single_task(
-    dataset_CL_tasks, no_of_task, dataset, device
+    dataset_CL_tasks, no_of_task, dataset, device, mode="CIFAR100"
 ):
     """
     Extract test samples dedicated for a selected task and change relative
@@ -249,6 +249,8 @@ def extract_test_set_from_single_task(
         or 'CIFAR100_FeCAM_setup'.
     device: str
         Defines whether CPU or GPU will be used.
+    mode: str
+        Defines number of classes in CIFAR, e.g. `CIFAR100` or `CIFAR10`
 
     Returns:
     --------
@@ -258,6 +260,9 @@ def extract_test_set_from_single_task(
         - gt_classes: Numpy array representing absolute classes for X_test.
         - gt_tasks: List representing the number of the task for corresponding samples.
     """
+
+    assert mode in ["CIFAR100", "CIFAR10"]
+
     tested_task = dataset_CL_tasks[no_of_task]
     input_data = tested_task.get_test_inputs()
     output_data = tested_task.get_test_outputs()
@@ -271,8 +276,9 @@ def extract_test_set_from_single_task(
     if dataset == "CIFAR100_FeCAM_setup":
         # Currently there is an assumption that only setup with
         # 5 tasks will be used
+        
         gt_classes = translate_output_CIFAR_classes(
-            gt_classes, setup=5, task=no_of_task
+            gt_classes, setup=5, task=no_of_task, mode="CIFAR100"
         )
     elif dataset in ["PermutedMNIST", "SplitMNIST"]:
         mode = "permuted" if dataset == "PermutedMNIST" else "split"
@@ -528,12 +534,12 @@ def calculate_entropy_and_predict_classes_separately(experiment_models):
 if __name__ == "__main__":
     
     # alphas = np.linspace(0.01, 1.0, 5)
-    alphas = [0.5]
+    alphas = [1.0]
     vanilla_entropy = True
 
     # Options for *dataset*:
-    # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup', 'SubsetImageNet', 'CIFAR10'
-    dataset = "PermutedMNIST"
+    # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup'
+    dataset = "CIFAR100_FeCAM_setup"
     path_to_datasets = "./Data/"
 
     for alpha in alphas:

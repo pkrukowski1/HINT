@@ -1,3 +1,6 @@
+# It is code based on the file https://github.com/gmum/InterContiNet/blob/main/intervalnet/models/interval.py
+# licensed under the MIT License
+
 from typing import cast
 from abc import ABC
 

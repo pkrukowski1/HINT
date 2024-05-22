@@ -1,11 +1,11 @@
-# It is a modification of https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/hnets/mlp_hnet.html#HMLP
-# to enable interval bound propagation mechanism in an MLP-based hypernetwork when the intersections are forced
+# It is a modification of https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/hnets/mlp_hnet.html#HMLP,
+# licensed under the Apache License, Version 2.0, to enable interval bound propagation mechanism in an MLP-based hypernetwork
+# when the intersections are forced.
 
 from hypnettorch.hnets import HMLP
 from hypnettorch.hnets.hnet_interface import HyperNetInterface
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 class HMLP_IBP(HMLP, HyperNetInterface):

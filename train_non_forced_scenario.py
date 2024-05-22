@@ -407,9 +407,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     dataframe = pd.DataFrame(columns=[
         "after_learning_of_task", "tested_task", "accuracy"])
     
-    results_from_interval_intersection = pd.DataFrame(columns=[
-                    "after_learning_of_task", "tested_task", "accuracy"])
-    
     if (parameters["target_network"] == "ResNet") and \
        parameters["use_batch_norm"]:
         use_batch_norm_memory = True
@@ -474,41 +471,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         dataframe.to_csv(f'{parameters["saving_folder"]}/'
                          f"results.csv",
                          sep=";")
-        
-
-        with torch.no_grad():
-            
-            if no_of_task == 0:
-                universal_emb = calculate_interval_intersection(hypernetwork=hypernetwork,
-                                                                parameters=parameters,
-                                                                current_task_id=no_of_task)
-                
-            else:
-                _, universal_emb, _ = calculate_interval_intersection(hypernetwork=hypernetwork,
-                                                                                            parameters=parameters,
-                                                                                            current_task_id=no_of_task)                
-            # Evaluate previous tasks for intersection
-            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
-                                                    hypernetwork,
-                                                    target_network,
-                                                    universal_emb,
-                                                    results_from_interval_intersection,
-                                                    dataset_list_of_tasks,
-                                                    parameters={
-                                                        "device": parameters["device"],
-                                                        "use_batch_norm_memory": use_batch_norm_memory,
-                                                        "number_of_task": no_of_task,
-                                                        "perturbated_epsilon": parameters["perturbated_epsilon"],
-                                                        "full_interval": parameters["full_interval"]
-                                                    }
-                                                )
-            results_from_interval_intersection = results_from_interval_intersection.astype({
-                                                    "after_learning_of_task": "int",
-                                                    "tested_task": "int"
-                                                })
-            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
-                                                f"results_intersection.csv",
-                                                sep=";")
+              
 
         # Plot intervals over tasks" embeddings plot
         interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
@@ -607,7 +570,6 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["embedding_size"]};'
         f'{parameters["seed"]};'
         f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
-        f'{parameters["use_chunks"]};{parameters["chunk_emb_size"]};'
         f'{parameters["target_network"]};'
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
@@ -617,7 +579,6 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["beta"]};'
-        f'{parameters["norm"]};'
         f'{parameters["perturbated_epsilon"]};'
         f'{parameters["kappa"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
@@ -631,11 +592,6 @@ def main_running_experiments(path_to_datasets,
     # Plot heatmap for results
     load_path = (f'{parameters["saving_folder"]}/'
                  f"results.csv")
-    plot_heatmap(load_path)
-
-    # Plot heatmap for results intersection
-    load_path = (f'{parameters["saving_folder"]}/'
-                 f"results_intersection.csv")
     plot_heatmap(load_path)
     
     return hypernetwork, target_network, dataframe
@@ -660,7 +616,7 @@ if __name__ == "__main__":
 
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
-        "use_chunks;chunk_emb_size;target_network;target_hidden_layers;"
+        "use_chunks;target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy"
     )
@@ -701,8 +657,6 @@ if __name__ == "__main__":
             "hypernetwork_hidden_layers": hypernetwork_hidden_layers,
             "activation_function": hyperparameters["activation_function"],
             "use_chunks": hyperparameters["use_chunks"],
-            "chunk_size": hyperparameters["chunk_size"],
-            "chunk_emb_size": hyperparameters["chunk_emb_size"],
             "target_network": hyperparameters["target_network"],
             "target_hidden_layers": hyperparameters["target_hidden_layers"],
             "resnet_number_of_layer_groups": hyperparameters["resnet_number_of_layer_groups"],
@@ -717,7 +671,6 @@ if __name__ == "__main__":
             "number_of_epochs": hyperparameters["number_of_epochs"],
             "number_of_iterations": hyperparameters["number_of_iterations"],
             "embedding_size": embedding_size,
-            "norm": hyperparameters["norm"],
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
             "padding": hyperparameters["padding"],

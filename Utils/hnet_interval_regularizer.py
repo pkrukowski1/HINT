@@ -1,6 +1,6 @@
 # Modification of https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/utils/hnet_regularizer.html#calc_fix_target_reg file
-# to enable regularization of the interval hypernetwork's output in the middle and in the ends of interval
-
+# licensed under the Apache License, Version 2.0 to enable regularization of the interval hypernetwork's output in the middle and in the
+# ends of interval
 
 import torch
 from hypnettorch.hnets import HyperNetInterface

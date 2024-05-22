@@ -1,6 +1,6 @@
 """
 Implementation of TinyImageNet for continual learning tasks. Implementation is based on
-(https://github.com/gmum/HyperMask/blob/main/TinyImageNet.py)
+(https://github.com/gmum/HyperMask/blob/main/TinyImageNet.py) under the GNU licence, at least 3.0 version
 
 Parts of the following code come from:
 - https://github.com/DennisHanyuanXu/Tiny-ImageNet/blob/master/src/data_prep.py,

@@ -1,5 +1,5 @@
 """
-This file implements functions to deal with datasets and tasks in continual learning
+This file implements functions to deal with datasets and tasks in continual learning for Task Incremental Learning scenario
 """
 
 import os
@@ -84,8 +84,6 @@ def set_hyperparameters(dataset,
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 8
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False
         # Directly related to the MNIST dataset
@@ -160,8 +158,6 @@ def set_hyperparameters(dataset,
             hyperparams["shape"] = 3072
             hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["number_of_tasks"] = 10
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -229,8 +225,6 @@ def set_hyperparameters(dataset,
         hyperparams["target_hidden_layers"] = [400, 400]
         hyperparams["shape"] = 28**2
         hyperparams["number_of_tasks"] = 5
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 96
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
@@ -295,8 +289,6 @@ def set_hyperparameters(dataset,
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["number_of_tasks"] = 40
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -361,8 +353,6 @@ def set_hyperparameters(dataset,
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -402,7 +392,7 @@ def set_hyperparameters(dataset,
                 "embedding_sizes": [48],
                 "betas": [0.01],
                 "learning_rates": [0.001],
-                "batch_sizes": [128],
+                "batch_sizes": [32],
                 "hypernetworks_hidden_layers": [[200]],
                 "perturbated_epsilon": [1.0],
                 "dropout_rate": [-1],
@@ -435,8 +425,6 @@ def set_hyperparameters(dataset,
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 3072
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 32
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -494,8 +482,6 @@ def set_hyperparameters(dataset,
         hyperparams["target_hidden_layers"] = [400, 400]
         hyperparams["shape"] = 32
         hyperparams["number_of_tasks"] = 5
-        hyperparams["chunk_size"] = 100
-        hyperparams["chunk_emb_size"] = 96
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
@@ -509,7 +495,6 @@ def set_hyperparameters(dataset,
 
     # General hyperparameters
     hyperparams["activation_function"] = torch.nn.ReLU()
-    hyperparams["norm"] = 1  # L1 norm
     hyperparams["use_bias"] = True
     hyperparams["dataset"] = dataset
     hyperparams["device"] = "cuda" if torch.cuda.is_available() else "cpu"

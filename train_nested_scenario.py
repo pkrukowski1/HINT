@@ -232,14 +232,14 @@ def train_single_task(hypernetwork,
         # if iteration % 10 == 9:
             # Plot intervals over tasks" embeddings plot
             interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
-            plot_common_embedding = iteration >= iterations_to_adjust
+            plot_universal_embedding = iteration >= iterations_to_adjust
 
             plot_intervals_around_embeddings(hypernetwork=hypernetwork,
                                             parameters=parameters,
                                             save_folder=interval_plot_save_path,
                                             iteration=iteration,
                                             current_task=current_no_of_task,
-                                            plot_common_embedding=plot_common_embedding)
+                                            plot_universal_embedding=plot_universal_embedding)
 
         if parameters["number_of_epochs"] is None:
             condition = (iteration % 10 == 0) or \
@@ -530,7 +530,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                         parameters=parameters,
                                         save_folder=interval_plot_save_path,
                                         current_task=no_of_task,
-                                        plot_common_embedding=True)
+                                        plot_universal_embedding=True)
 
     return hypernetwork, target_network, dataframe
 
@@ -628,7 +628,7 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["embedding_size"]};'
         f'{parameters["seed"]};'
         f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
-        f'{parameters["use_chunks"]};{parameters["chunk_emb_size"]};'
+        f'{parameters["use_chunks"]};'
         f'{parameters["target_network"]};'
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
@@ -638,7 +638,6 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["activation_function"]};'
         f'{parameters["learning_rate"]};{parameters["batch_size"]};'
         f'{parameters["beta"]};'
-        f'{parameters["norm"]};'
         f'{parameters["perturbated_epsilon"]};'
         f'{parameters["kappa"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
@@ -663,12 +662,11 @@ def main_running_experiments(path_to_datasets,
 
 
 if __name__ == "__main__":
-    # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "CIFAR100_FeCAM_setup"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
@@ -681,7 +679,7 @@ if __name__ == "__main__":
 
     header = (
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
-        "use_chunks;chunk_emb_size;target_network;target_hidden_layers;"
+        "use_chunks;target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
         "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy"
     )
@@ -724,8 +722,6 @@ if __name__ == "__main__":
             "hypernetwork_hidden_layers": hypernetwork_hidden_layers,
             "activation_function": hyperparameters["activation_function"],
             "use_chunks": hyperparameters["use_chunks"],
-            "chunk_size": hyperparameters["chunk_size"],
-            "chunk_emb_size": hyperparameters["chunk_emb_size"],
             "target_network": hyperparameters["target_network"],
             "target_hidden_layers": hyperparameters["target_hidden_layers"],
             "resnet_number_of_layer_groups": hyperparameters["resnet_number_of_layer_groups"],
@@ -740,7 +736,6 @@ if __name__ == "__main__":
             "number_of_epochs": hyperparameters["number_of_epochs"],
             "number_of_iterations": hyperparameters["number_of_iterations"],
             "embedding_size": embedding_size,
-            "norm": hyperparameters["norm"],
             "optimizer": hyperparameters["optimizer"],
             "beta": beta,
             "padding": hyperparameters["padding"],
