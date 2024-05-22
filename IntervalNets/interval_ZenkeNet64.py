@@ -1,8 +1,8 @@
-"""
 # Modification of hypnettorch file
 # https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/mnets/zenkenet.html#ZenkeNet
-# It was necessary to load TinyImageNet which has a different size than CIFAR-100.
-"""
+# It was necessary to load TinyImageNet which has a different size than CIFAR-100. We alse needed
+# to modify the ZenkeNet architecture as an interval one.
+# It is based on https://github.com/gmum/HyperMask/blob/main/ZenkeNet64.py
 
 import torch
 import torch.nn as nn
