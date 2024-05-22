@@ -43,7 +43,7 @@ def set_hyperparameters(dataset,
             }
             
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f'permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/'
             )
 
@@ -109,7 +109,7 @@ def set_hyperparameters(dataset,
             }
         
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f"CIFAR-100_single_seed/"
                 f"ResNet/"
             )
@@ -177,7 +177,7 @@ def set_hyperparameters(dataset,
             }
 
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f"split_mnist/augmented/"
             )
 
@@ -241,7 +241,7 @@ def set_hyperparameters(dataset,
             }
 
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f"TinyImageNet/"
                 f"ResNet/"
             )
@@ -307,7 +307,7 @@ def set_hyperparameters(dataset,
             }
 
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f"SubsetImageNet/"
                 f"ResNet/"
             )
@@ -376,7 +376,7 @@ def set_hyperparameters(dataset,
             }
 
             hyperparams["saving_folder"] = (
-                "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
                 f'CIFAR100_FeCAM_setup/{hyperparams["best_model_selection_method"]}/'
             )
         else:
