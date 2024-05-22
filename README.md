@@ -32,7 +32,14 @@ The datasets may be downloaded when the algorithm runs. For each dataset, the CL
 
 ## Citation
 
-If you use this library in your research project, please cite the following paper: *TO DO*
+```
+@inproceedings{krukowski2024hyperinterval,
+  title={HyperInterval: Hypernetwork approach to training weight interval regions in continual learning}, 
+  author={Patryk Krukowski and Anna Bielawska and Kamil Książek and Paweł Batorski and Paweł Wawrzyński and Przemysław Spurek},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  year={2024}
+}
+```
 
 ## License
 
