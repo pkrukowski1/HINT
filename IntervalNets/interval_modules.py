@@ -6,19 +6,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from warnings import warn
-
 def parse_logits(x):
     """
     Parse the output of a target network to get lower, middle and upper predictions
 
-    Arguments:
+    Parameters:
     ----------
-        *x*: (torch.Tensor) the output to be parsed
+        x: torch.Tensor
+          The tensor of shape (batch_size, 3, tensor_dimension) to be parsed
     
     Returns:
     --------
-        a tuple of lower, middle and upper predictions
+        A tuple of lower, middle and upper predictions
     """
 
     return map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
@@ -28,6 +27,42 @@ class IntervalModuleWithWeights(nn.Module, ABC):
         super().__init__()
 
 class IntervalLinear(IntervalModuleWithWeights):
+    """
+    Interval linear layer with weights.
+
+    Parameters:
+    -----------
+        in_features: int
+            Number of input features.
+        out_features: int
+            Number of output features.
+
+    Attributes:
+        in_features: int
+            Number of input features.
+        out_features: int
+            Number of output features.
+
+    Methods:
+        apply_linear(
+            x: torch.Tensor,
+            upper_weights: torch.Tensor,
+            middle_weights: torch.Tensor,
+            lower_weights: torch.Tensor,
+            upper_bias: torch.Tensor,
+            middle_bias: torch.Tensor,
+            lower_bias: torch.Tensor
+        ) -> torch.Tensor:
+            Computes the output bounds based on weights and biases.
+
+        Returns:
+            torch.Tensor:
+                Output tensor with bounds (batch_size, bounds, features).
+
+        Raises:
+            AssertionError:
+                If input bounds violate constraints.
+    """
     def __init__(self, in_features: int, out_features: int) -> None:
         nn.Module.__init__()
 
@@ -44,6 +79,34 @@ class IntervalLinear(IntervalModuleWithWeights):
                 middle_bias: Tensor,
                 lower_bias: Tensor
                 ) -> Tensor:  # type: ignore
+        """
+        Computes the output bounds based on weights and biases.
+
+        Parameters:
+        -----------
+            x: torch.Tensor
+                Input tensor with shape (batch_size, bounds, features).
+            upper_weights: torch.Tensor
+                Upper weights with shape (out_features, in_features).
+            middle_weights: torch.Tensor
+                Middle weights with shape (out_features, in_features).
+            lower_weights: torch.Tensor
+                Lower weights with shape (out_features, in_features).
+            upper_bias: torch.Tensor
+                Upper bias with shape (out_features).
+            middle_bias: torch.Tensor
+                Middle bias with shape (out_features).
+            lower_bias: torch.Tensor
+                Lower bias with shape (out_features).
+
+        Returns:
+            torch.Tensor:
+                Output tensor with bounds (batch_size, bounds, features).
+
+        Raises:
+            AssertionError:
+                If input bounds violate constraints.
+        """
 
         assert (lower_weights <= middle_weights).all(), "Lower bound must be less than or equal to middle bound."
         assert (middle_weights <= upper_weights).all(), "Middle bound must be less than or equal to upper bound."
@@ -86,11 +149,29 @@ class IntervalLinear(IntervalModuleWithWeights):
 
 class IntervalDropout(nn.Module):
     def __init__(self, p=0.5):
+        """
+        Initializes an IntervalDropout layer.
+
+        Parameters:
+        -----------
+            p (float): The probability of dropping an interval. Default is 0.5.
+        """
+         
         super().__init__()
         self.p = p
         self.scale = 1. / (1 - self.p)
 
     def forward(self, x):
+        """
+        Applies IntervalDropout to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", ...
+
+        Returns:
+            torch.Tensor: Output tensor after applying IntervalDropout.
+        """
         if self.training:
             x = x.refine_names("N", "bounds", ...)
             x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)),
@@ -106,78 +187,141 @@ class IntervalDropout(nn.Module):
 
 
 class IntervalMaxPool2d(nn.MaxPool2d):
+    """
+    Initializes an IntervalMaxPool2d layer.
+
+    Parameters:
+    -----------
+    kernel_size : int or tuple
+        Size of the max pooling window.
+    stride : int or tuple, optional
+        Stride of the max pooling window. Default is None.
+    padding : int or tuple, optional
+        Padding added to each dimension of the input. Default is 0.
+    dilation : int or tuple, optional
+        Spacing between kernel elements. Default is 1.
+    return_indices : bool, optional
+        If True, return the max indices along with the output. Default is False.
+    ceil_mode : bool, optional
+        If True, use ceil instead of floor to compute output shape. Default is False.
+    """
     def __init__(self, kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False):
         super().__init__(kernel_size, stride, padding, dilation, return_indices, ceil_mode)
 
     def forward(self, x):
+        """
+        Applies IntervalMaxPool2d to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", ...
+
+        Returns:
+            torch.Tensor: Output tensor after applying IntervalMaxPool2d.
+        """
         x = x.refine_names("N", "bounds", ...)
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
         x_lower = super().forward(x_lower)
         x_middle = super().forward(x_middle)
         x_upper = super().forward(x_upper)
 
-        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
-                                                                             "W")  # type: ignore
-    
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H", "W")  # type: ignore
+
     @staticmethod
     def apply_max_pool2d(x, kernel_size, stride=None, padding=0, dilation=1, return_indices=False, ceil_mode=False):
+        """
+        Applies max pooling to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", ...
+
+        Returns:
+            torch.Tensor: Output tensor after applying max pooling.
+        """
         x = x.refine_names("N", "bounds", ...)
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
-        
+
         x_lower = F.max_pool2d(x_lower, kernel_size, stride=stride, padding=padding,
-                                dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
+                               dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
         x_middle = F.max_pool2d(x_middle, kernel_size, stride=stride, padding=padding,
                                 dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
         x_upper = F.max_pool2d(x_upper, kernel_size, stride=stride, padding=padding,
-                                dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
+                               dilation=dilation, ceil_mode=ceil_mode, return_indices=return_indices)
 
-        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
-                                                                             "W")  # type: ignore
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H", "W")  # type: ignore
+
 
 
 class IntervalAvgPool2d(nn.AvgPool2d):
+    """
+    Initializes an IntervalAvgPool2d layer.
+
+    Parameters:
+    -----------
+    kernel_size : int or tuple
+        Size of the average pooling window.
+    stride : int or tuple, optional
+        Stride of the average pooling window. Default is None.
+    padding : int or tuple, optional
+        Padding added to each dimension of the input. Default is 0.
+    ceil_mode : bool, optional
+        If True, use ceil instead of floor to compute output shape. Default is False.
+    count_include_pad : bool, optional
+        If True, include zero-padding in the averaging. Default is True.
+    divisor_override : int or None, optional
+        If not None, use this value as divisor for averaging. Default is None.
+
+    """
     def __init__(self, kernel_size, stride=None, padding=0, ceil_mode=False, count_include_pad=True,
                  divisor_override=None):
         super().__init__(kernel_size, stride, padding, ceil_mode, count_include_pad, divisor_override)
 
     def forward(self, x):
+        """
+        Applies IntervalAvgPool2d to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", ...
+
+        Returns:
+            torch.Tensor: Output tensor after applying IntervalAvgPool2d.
+        """
         x = x.refine_names("N", "bounds", ...)
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
         x_lower = super().forward(x_lower)
         x_middle = super().forward(x_middle)
         x_upper = super().forward(x_upper)
-        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
-                                                                             "W")  # type: ignore
-    
+
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H", "W")  # type: ignore
+
     @staticmethod
     def apply_avg_pool2d(x, kernel_size, stride=None, padding=0, ceil_mode=False, count_include_pad=True,
-                 divisor_override=None):
+                         divisor_override=None):
+        """
+        Applies average pooling to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", ...
+
+        Returns:
+            torch.Tensor: Output tensor after applying average pooling.
+        """
         x = x.refine_names("N", "bounds", ...)
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
-        
+
         x_lower = F.avg_pool2d(x_lower, kernel_size, stride=stride, padding=padding,
-                                ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+                               ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
         x_middle = F.avg_pool2d(x_middle, kernel_size, stride=stride, padding=padding,
                                 ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
         x_upper = F.avg_pool2d(x_upper, kernel_size, stride=stride, padding=padding,
-                                ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
+                               ceil_mode=ceil_mode, count_include_pad=count_include_pad, divisor_override=divisor_override)
 
-        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
-                                                                             "W")  # type: ignore
-        
+        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H", "W")  # type: ignore
 
-class IntervalAdaptiveAvgPool2d(nn.AdaptiveAvgPool2d):
-    def __init__(self, output_size):
-        super().__init__(output_size)
-
-    def forward(self, x):
-        x = x.refine_names("N", "bounds", ...)
-        x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
-        x_lower = super().forward(x_lower)
-        x_middle = super().forward(x_middle)
-        x_upper = super().forward(x_upper)
-        return torch.stack([x_lower, x_middle, x_upper], dim=1).refine_names("N", "bounds", "C", "H",
-                                                                             "W")  # type: ignore
+    
 
 
 class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
@@ -198,6 +342,42 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
             groups: int = 1,
             bias: bool = True
     ) -> None:
+        
+        """
+        Initializes an IntervalConv2d layer.
+
+        Parameters:
+        -----------
+        in_channels : int
+            Number of input channels.
+        out_channels : int
+            Number of output channels.
+        kernel_size : int
+            Size of the convolutional kernel.
+        lower_weights : torch.Tensor
+            Lower bound weights for the convolutional layer.
+        middle_weights : torch.Tensor
+            Middle bound weights for the convolutional layer.
+        upper_weights : torch.Tensor
+            Upper bound weights for the convolutional layer.
+        lower_bias : torch.Tensor
+            Lower bound bias for the convolutional layer.
+        middle_bias : torch.Tensor
+            Middle bound bias for the convolutional layer.
+        upper_bias : torch.Tensor
+            Upper bound bias for the convolutional layer.
+        stride : int, optional
+            Stride of the convolution. Default is 1.
+        padding : int, optional
+            Padding added to each dimension of the input. Default is 0.
+        dilation : int, optional
+            Spacing between kernel elements. Default is 1.
+        groups : int, optional
+            Number of blocked connections from input channels to output channels. Default is 1.
+        bias : bool, optional
+            If True, include bias terms. Default is True.
+        """
+
         IntervalModuleWithWeights.__init__(self)
         nn.Conv2d.__init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, groups, bias)
 
@@ -222,6 +402,29 @@ class IntervalConv2d(nn.Conv2d, IntervalModuleWithWeights):
                     dilation: int = 1,
                     groups: int = 1,
                     bias: bool = True) -> Tensor:  # type: ignore
+        
+        """
+        Applies interval convolution to the input tensor.
+
+        Parameters:
+        -----------
+            x (torch.Tensor): Input tensor with named dimensions "N", "bounds", "C", "H", "W".
+            lower_weights (torch.Tensor): Lower bound weights for the convolutional layer.
+            middle_weights (torch.Tensor): Middle bound weights for the convolutional layer.
+            upper_weights (torch.Tensor): Upper bound weights for the convolutional layer.
+            lower_bias (torch.Tensor): Lower bound bias for the convolutional layer.
+            middle_bias (torch.Tensor): Middle bound bias for the convolutional layer.
+            upper_bias (torch.Tensor): Upper bound bias for the convolutional layer.
+            stride (int, optional): Stride of the convolution. Default is 1.
+            padding (int, optional): Padding added to each dimension of the input. Default is 0.
+            dilation (int, optional): Spacing between kernel elements. Default is 1.
+            groups (int, optional): Number of blocked connections from input channels to output channels. Default is 1.
+            bias (bool, optional): If True, include bias terms. Default is True.
+
+        Returns:
+            torch.Tensor: Output tensor after applying interval convolution.
+        """
+
         x = x.refine_names("N", "bounds", "C", "H", "W")
         assert (x.rename(None) >= 0.0).all(), "All input features must be non-negative."  # type: ignore
         x_lower, x_middle, x_upper = map(lambda x_: cast(Tensor, x_.rename(None)), x.unbind("bounds"))  # type: ignore
