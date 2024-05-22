@@ -1,9 +1,9 @@
-"""
 # Modification of hypnettorch file
 # https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/mnets/resnet_imgnet.html#ResNetIN
 # The structure of ResNet18 should be possibly the same like in other publications to make
 # a fair comparison between continual learning methods.
-"""
+
+# Is is based on https://github.com/gmum/HyperMask/blob/main/ResNetF.py
 
 import numpy as np
 import torch
