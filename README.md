@@ -14,6 +14,7 @@ Train interval embeddings for consecutive tasks and train a hypernetwork to tran
 ## Environment
 Use <code>environment.yml</code> file to create a conda environment with necessary libraries: <code>conda env create -f environment.yml</code>.
 The [hypnettorch](https://github.com/chrhenning/hypnettorch) package is essential to easily create hypernetworks in [PyTorch](https://pytorch.org/).
+Our implementaion is based on the [hypermask](https://github.com/gmum/HyperMask) repository.
 
 ## Datasets
 For the experiments and ablation study, we use 6 publicly available datasets:
@@ -24,24 +25,27 @@ For the experiments and ablation study, we use 6 publicly available datasets:
 * [TinyImageNet](https://arxiv.org/abs/2309.14062)
 * [Permuted MNIST-100](https://arxiv.org/abs/2309.14062) (ablation study)
 
-The datasets may be downloaded when the algorithm runs. For each dataset, the CL task division setup follows the corresponding papers and is specified in our article, supplementary materials.
+The datasets may be downloaded when the algorithm runs. For each dataset, the CL task division setup follows the corresponding papers and is specified in our work, supplementary materials.
 
 ## Usage
-Folder <code>AblationResults</code> contains results of our ablation studies, whereas <code>DatasetHandlers</code> contains handlers for datasets used in the experiments, to apply specific data augmentation policies and task division.
+Folder <code>AblationResults</code> contains results of our ablation study, whereas <code>DatasetHandlers</code> and <code>Utils</code> contain handlers and functions for datasets used in the experiments, to apply specific data augmentation policies and task division.
 Moreover, folder <code>IntervalNets</code> contains interval implementation of the network architectures used in experiments and <code>VanillaNets</code> contains the basic convolutional network architectures, which are used when applying the interval relaxation technique to the training.
 
 To train HyperInterval in the task incremetal learning (TIL) scenraio, use the command <code>python train_non_forced_scenario.py</code>.
 To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_non_forced_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_non_forced_scenario_params.py</code> file.
 
-To train in the class incremetal learning (CIL) scenraio, use the command <code>python train_nested_scenario.py</code>.
+To train in the class incremetal learning (CIL) scenraio with nesting protocols, use the command <code>python train_nested_scenario.py</code>.
 To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_nested_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_nested_scenario_params.py</code> file.
+
+To train in the CIL scenario with entropy, set the variable <code>dataset</code> to a name of any of the datasets supported, e.g., <code>dataset = "PermutedMNIST"</code> in the <code>entropy.py</code> file and use the command <code>python entropy.py</code>.
+
 
 ## Citation
 
 ```
 @inproceedings{krukowski2024hyperinterval,
   title={HyperInterval: Hypernetwork approach to training weight interval regions in continual learning}, 
-  author={Patryk Krukowski and Anna Bielawska and Kamil Książek and Paweł Batorski and Paweł Wawrzyński and Przemysław Spurek},
+  author={Patryk Krukowski and Anna Bielawska and Kamil Książek and Paweł Wawrzyński and Paweł Batorski and Przemysław Spurek},
   booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
   year={2024}
 }
