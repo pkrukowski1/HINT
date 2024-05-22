@@ -1,37 +1,9 @@
-#!/usr/bin/env python3
-# Copyright 2019 Christian Henning
+# Modification of hypnettorch file
+# (https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/mnets/mlp.html#MLP)
+# licensed under the Apache License, Version 2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# @title          :mnets/mlp.py
-# @author         :ch
-# @contact        :henningc@ethz.ch
-# @created        :10/21/2019
-# @version        :1.0
-# @python_version :3.6.8
-"""
-Multi-Layer Perceptron
-----------------------
+# HyperInterval needs an interval version of MLP.
 
-Implementation of a fully-connected neural network.
-
-An example usage is as a main model, that doesn't include any trainable weights.
-Instead, weights are received as additional inputs. For instance, using an
-auxilliary network, a so called hypernetwork, see
-
-    Ha et al., "HyperNetworks", arXiv, 2016,
-    https://arxiv.org/abs/1609.09106
-"""
 import torch
 import torch.nn as nn
 import numpy as np
@@ -42,10 +14,11 @@ from hypnettorch.utils.torch_utils import init_params
 from hypnettorch.mnets import MLP
 
 from IntervalNets.interval_modules import (IntervalDropout, 
-                              IntervalLinear)
+                                            IntervalLinear)
 
 class IntervalMLP(MLP, MainNetInterface):
-    """Implementation of a Multi-Layer Perceptron (MLP) which works on intervals
+    """
+    Implementation of a Multi-Layer Perceptron (MLP) which works on intervals
 
     This is a simple fully-connected network, that receives input vector
     :math:`\mathbf{x}` and outputs a vector :math:`\mathbf{y}` of real values.
@@ -53,122 +26,51 @@ class IntervalMLP(MLP, MainNetInterface):
     The output mapping does not include a non-linearity by default, as we wanna
     map to the whole real line (but see argument ``out_fn``).
 
-    Args:
-        n_in (int): Number of inputs.
-        n_out (int): Number of outputs.
-        hidden_layers (list or tuple): A list of integers, each number denoting
-            the size of a hidden layer.
-        activation_fn: The nonlinearity used in hidden layers. If ``None``, no
-            nonlinearity will be applied.
-        use_bias (bool): Whether layers may have bias terms.
-        no_weights (bool): If set to ``True``, no trainable parameters will be
-            constructed, i.e., weights are assumed to be produced ad-hoc
-            by a hypernetwork and passed to the :meth:`forward` method.
-        init_weights (optional): This option is for convinience reasons.
-            The option expects a list of parameter values that are used to
-            initialize the network weights. As such, it provides a
-            convinient way of initializing a network with a weight draw
-            produced by the hypernetwork.
-
-            Note, internal weights (see 
-            :attr:`mnets.mnet_interface.MainNetInterface.weights`) will be
-            affected by this argument only.
-        dropout_rate: If ``-1``, no dropout will be applied. Otherwise a number
-            between 0 and 1 is expected, denoting the dropout rate of hidden
-            layers.
-        use_spectral_norm: Use spectral normalization for training.
-        use_batch_norm (bool): Whether batch normalization should be used. Will
-            be applied before the activation function in all hidden layers.
-        bn_track_stats (bool): If batch normalization is used, then this option
-            determines whether running statistics are tracked in these
-            layers or not (see argument ``track_running_stats`` of class
-            :class:`utils.batchnorm_layer.BatchNormLayer`).
-
-            If ``False``, then batch statistics are utilized even during
-            evaluation. If ``True``, then running stats are tracked. When
-            using this network in a continual learning scenario with
-            different tasks then the running statistics are expected to be
-            maintained externally. The argument ``stats_id`` of the method
-            :meth:`utils.batchnorm_layer.BatchNormLayer.forward` can be
-            provided using the argument ``condition`` of method :meth:`forward`.
-
-            Example:
-                To maintain the running stats, one can simply iterate over
-                all batch norm layers and checkpoint the current running
-                stats (e.g., after learning a task when applying a Continual
-                learning scenario).
-
-                .. code:: python
-
-                    for bn_layer in net.batchnorm_layers:
-                        bn_layer.checkpoint_stats()
-        distill_bn_stats (bool): If ``True``, then the shapes of the batchnorm
-            statistics will be added to the attribute
-            :attr:`mnets.mnet_interface.MainNetInterface.\
-hyper_shapes_distilled` and the current statistics will be returned by the
-            method :meth:`distillation_targets`.
-
-            Note, this attribute may only be ``True`` if ``bn_track_stats``
-            is ``True``.
-        use_context_mod (bool): Add context-dependent modulation layers
-            :class:`utils.context_mod_layer.ContextModLayer` after the linear
-            computation of each layer.
-        context_mod_inputs (bool): Whether context-dependent modulation should
-            also be applied to network intpus directly. I.e., assume
-            :math:`\mathbf{x}` is the input to the network. Then the first
-            network operation would be to modify the input via
-            :math:`\mathbf{x} \cdot \mathbf{g} + \mathbf{s}` using context-
-            dependent gain and shift parameters.
-
-            Note:
-                Argument applies only if ``use_context_mod`` is ``True``.
-        no_last_layer_context_mod (bool): If ``True``, context-dependent
-            modulation will not be applied to the output layer.
-
-            Note:
-                Argument applies only if ``use_context_mod`` is ``True``.
-        context_mod_no_weights (bool): The weights of the context-mod layers
-            (:class:`utils.context_mod_layer.ContextModLayer`) are treated
-            independently of the option ``no_weights``.
-            This argument can be used to decide whether the context-mod
-            parameters (gains and shifts) are maintained internally or
-            externally.
-
-            Note:
-                Check out argument ``weights`` of the :meth:`forward` method
-                on how to correctly pass weights to the network that are
-                externally maintained.
-        context_mod_post_activation (bool): Apply context-mod layers after the
-            activation function (``activation_fn``) in hidden layer rather than
-            before, which is the default behavior.
-
-            Note:
-                This option only applies if ``use_context_mod`` is ``True``.
-
-            Note:
-                This option does not affect argument ``context_mod_inputs``.
-
-            Note:
-                This option does not affect argument
-                ``no_last_layer_context_mod``. Hence, if a output-nonlinearity
-                is applied through argument ``out_fn``, then context-modulation
-                would be applied before this non-linearity.
-        context_mod_gain_offset (bool): Activates option ``apply_gain_offset``
-            of class :class:`utils.context_mod_layer.ContextModLayer` for all
-            context-mod layers that will be instantiated.
-        context_mod_gain_softplus (bool): Activates option
-            ``apply_gain_softplus`` of class
-            :class:`utils.context_mod_layer.ContextModLayer` for all
-            context-mod layers that will be instantiated.
-        out_fn (optional): If provided, this function will be applied to the
-            output neurons of the network.
-
-            Warning:
-                This changes the interpretation of the output of the
-                :meth:`forward` method.
-        verbose (bool): Whether to print information (e.g., the number of
-            weights) during the construction of the network.
-    """
+    Parameters:
+    -----------
+    n_in : int
+        Number of inputs.
+    n_out : int
+        Number of outputs.
+    hidden_layers : list or tuple
+        A list of integers, each number denoting the size of a hidden layer.
+    activation_fn : torch.nn.Module, optional
+        The nonlinearity used in hidden layers. If ``None``, no nonlinearity will be applied.
+    use_bias : bool, optional
+        Whether layers may have bias terms.
+    no_weights : bool, optional
+        If set to ``True``, no trainable parameters will be constructed, i.e., weights are assumed to be produced ad-hoc by a hypernetwork and passed to the :meth:`forward` method.
+    init_weights : optional
+        This option is for convenience reasons. The option expects a list of parameter values that are used to initialize the network weights. As such, it provides a convenient way of initializing a network with a weight draw produced by the hypernetwork. Note, internal weights will be affected by this argument only.
+    dropout_rate : float, optional
+        If ``-1``, no dropout will be applied. Otherwise a number between 0 and 1 is expected, denoting the dropout rate of hidden layers.
+    use_spectral_norm : bool, optional
+        Use spectral normalization for training.
+    use_batch_norm : bool, optional
+        Whether batch normalization should be used. Will be applied before the activation function in all hidden layers.
+    bn_track_stats : bool, optional
+        If batch normalization is used, then this option determines whether running statistics are tracked in these layers or not. If ``False``, then batch statistics are utilized even during evaluation. If ``True``, then running stats are tracked. When using this network in a continual learning scenario with different tasks then the running statistics are expected to be maintained externally.
+    distill_bn_stats : bool, optional
+        If ``True``, then the shapes of the batchnorm statistics will be added to the attribute ``hyper_shapes_distilled`` and the current statistics will be returned by the method ``distillation_targets``.
+    use_context_mod : bool, optional
+        Add context-dependent modulation layers after the linear computation of each layer.
+    context_mod_inputs : bool, optional
+        Whether context-dependent modulation should also be applied to network inputs directly. I.e., assume :math:`\mathbf{x}` is the input to the network. Then the first network operation would be to modify the input via :math:`\mathbf{x} \cdot \mathbf{g} + \mathbf{s}` using context-dependent gain and shift parameters.
+    no_last_layer_context_mod : bool, optional
+        If ``True``, context-dependent modulation will not be applied to the output layer.
+    context_mod_no_weights : bool, optional
+        The weights of the context-mod layers are treated independently of the option ``no_weights``. This argument can be used to decide whether the context-mod parameters (gains and shifts) are maintained internally or externally.
+    context_mod_post_activation : bool, optional
+        Apply context-mod layers after the activation function in hidden layer rather than before, which is the default behavior.
+    context_mod_gain_offset : bool, optional
+        Activates option ``apply_gain_offset`` of class ``ContextModLayer`` for all context-mod layers that will be instantiated.
+    context_mod_gain_softplus : bool, optional
+        Activates option ``apply_gain_softplus`` of class ``ContextModLayer`` for all context-mod layers that will be instantiated.
+    out_fn : optional
+        If provided, this function will be applied to the output neurons of the network.
+    verbose : bool, optional
+        Whether to print information (e.g., the number of weights) during the construction of the network.
+"""
     def __init__(self, n_in=1, n_out=1, hidden_layers=(10, 10),
                  activation_fn=torch.nn.ReLU(), use_bias=True, no_weights=False,
                  init_weights=None, dropout_rate=-1, use_spectral_norm=False,
@@ -192,9 +94,10 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                  context_mod_gain_offset=context_mod_gain_offset, context_mod_gain_softplus=context_mod_gain_softplus,
                  out_fn=out_fn, verbose=verbose)
         
-        assert init_weights is None, "`init_weights` option is deprecated"
-        assert use_context_mod is False, "`use_context_mod` is deprecated"
-        assert use_spectral_norm is False, "`use_spectral_norm` is deprecated"
+        assert not init_weights, "`init_weights` option is not supported"
+        assert not use_context_mod, "`use_context_mod` is not supported"
+        assert not use_spectral_norm, "`use_spectral_norm` is not supported"
+        assert (not use_batch_norm) and (not bn_track_stats), "BatchNorm layers are not supported in MLP"
 
         # Tuple are not mutable.
         hidden_layers = list(hidden_layers)
@@ -237,37 +140,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         if dropout_rate != -1:
             assert(dropout_rate >= 0. and dropout_rate <= 1.)
             self._dropout = IntervalDropout(p=dropout_rate)
-
-        ### Define and initialize batch norm weights.
-        self._batchnorm_layers = nn.ModuleList() if use_batch_norm else None
-
-        if use_batch_norm:
-
-            bn_ind = 0
-            for i, n in enumerate(hidden_layers):
-
-                raise NotImplementedError
-                bn_layer = IntervalBatchNormLayer(n, affine=not no_weights,
-                    interval_statistics=bn_track_stats)
-                self._batchnorm_layers.append(bn_layer)
-
-                self._param_shapes.extend(bn_layer.param_shapes)
-                assert len(bn_layer.param_shapes) == 2
-                self._param_shapes_meta.extend([
-                    {'name': 'bn_scale',
-                     'index': -1 if no_weights else len(self._middle_weights),
-                     'layer': -1}, # 'layer' is set later.
-                    {'name': 'bn_shift',
-                     'index': -1 if no_weights else len(self._middle_weights)+1,
-                     'layer': -1}, # 'layer' is set later.
-                ])
-
-                if no_weights:
-                    self._hyper_shapes_learned.extend(bn_layer.param_shapes)
-                else:
-                    self._upper_weights.extend([bn_layer.upper_gamma, bn_layer.upper_beta])
-                    self._middle_weights.extend([bn_layer.middle_gamma, bn_layer.middle_beta])
-                    self._lower_weights.extend([bn_layer.lower_gamma, bn_layer.lower_beta])
 
         ### Compute shapes of linear layers.
         linear_shapes = MLP.weight_shapes(n_in=n_in, n_out=n_out,
@@ -324,13 +196,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
                 if not use_bias or dd['name'] == 'bias':
                     layer_ind += 1
 
-        ### Uer information
-        if verbose:
-            print('Creating an MLP with %d weights' % num_weights
-                  + '.'
-                  + (' The network uses dropout.' if dropout_rate != -1 else '')
-                  + (' The network uses batchnorm.' if use_batch_norm  else ''))
-
         self._layer_upper_weight_tensors = nn.ParameterList()
         self._layer_middle_weight_tensors = nn.ParameterList()
         self._layer_lower_weight_tensors = nn.ParameterList()
@@ -383,37 +248,38 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         self._is_properly_setup()
 
     def forward(self, x, upper_weights, middle_weights, lower_weights, condition=None):
-        """Compute the output :math:`y` of this network given the input
-        :math:`x`.
+        """
+        Compute the output y of this network given the input x.
 
-        Args:
-            (....): See docstring of method
-                :meth:`mnets.mnet_interface.MainNetInterface.forward`. We
-                provide some more specific information below.
-            weights (list or dict): If a list of parameter tensors is given and
-                context modulation is used (see argument ``use_context_mod`` in
-                constructor), then these parameters are interpreted as context-
-                modulation parameters if the length of ``weights`` equals
-                :code:`2*len(net.context_mod_layers)`. Otherwise, the length is
-                expected to be equal to the length of the attribute
-                :attr:`mnets.mnet_interface.MainNetInterface.param_shapes`.
-
-                Alternatively, a dictionary can be passed with the possible
-                keywords ``internal_weights`` and ``mod_weights``. Each keyword
-                is expected to map onto a list of tensors.
-                The keyword ``internal_weights`` refers to all weights of this
-                network except for the weights of the context-modulation layers.
-                The keyword ``mod_weights``, on the other hand, refers
-                specifically to the weights of the context-modulation layers.
-                It is not necessary to specify both keywords.
+        Parameters:
+        -----------
+        x : torch.Tensor
+            The input tensor of shape (batch_size, input_size).
+        upper_weights : list of torch.Tensor or dict
+            The upper weights of the network.
+            If a list, each tensor corresponds to the upper weights of a layer.
+            If a dictionary, it can have the following keys:
+                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
+                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
+        middle_weights : list of torch.Tensor or dict
+            The middle weights of the network.
+            If a list, each tensor corresponds to the middle weights of a layer.
+            If a dictionary, it can have the following keys:
+                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
+                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
+        lower_weights : list of torch.Tensor or dict
+            The lower weights of the network.
+            If a list, each tensor corresponds to the lower weights of a layer.
+            If a dictionary, it can have the following keys:
+                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
+                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
+        condition : int, optional
+            Needed for application of BatchNorm statistics to test set
 
         Returns:
-            (tuple): Tuple containing:
-
-            - **y**: The output of the network.
-            - **h_y** (optional): If ``out_fn`` was specified in the
-              constructor, then this value will be returned. It is the last
-              hidden activation (before the ``out_fn`` has been applied).
+        --------
+        tuple
+            A tuple containing the output tensor of shape (batch_size, 3, output_size).
         """
         if ((not self._use_context_mod and self._no_weights) or \
                 (self._no_weights or self._context_mod_no_weights)) and \
@@ -497,23 +363,9 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             assert(np.all(np.equal(s, list(int_middle_weights[i].shape))))
             assert(np.all(np.equal(s, list(int_lower_weights[i].shape))))
 
-        bn_ind = 0
-
-        if self._use_batch_norm:
-            raise NotImplementedError
-            n_bn = 2 * len(self.batchnorm_layers)
-
-            bn_upper_weights = int_upper_weights[:n_bn]
-            bn_middle_weights = int_middle_weights[:n_bn]
-            bn_lower_weights = int_lower_weights[:n_bn]
-            
-            layer_upper_weights = int_upper_weights[n_bn:]
-            layer_middle_weights = int_middle_weights[n_bn:]
-            layer_lower_weights = int_lower_weights[n_bn:]
-        else:
-            layer_upper_weights = int_upper_weights
-            layer_middle_weights = int_middle_weights
-            layer_lower_weights = int_lower_weights
+        layer_upper_weights = int_upper_weights
+        layer_middle_weights = int_middle_weights
+        layer_lower_weights = int_lower_weights
 
         w_upper_weights = []
         b_upper_weights = []
@@ -569,19 +421,6 @@ hyper_shapes_distilled` and the current statistics will be returned by the
             # Only for hidden layers.
             if l < len(w_middle_weights) - 1:
 
-                # Batch norm
-                if self._use_batch_norm:
-                    raise NotImplementedError
-                
-                    hidden = self._batchnorm_layers[bn_ind].forward(hidden,
-                        upper_gamma=bn_upper_weights[2*bn_ind],
-                        middle_gamma=bn_middle_weights[2*bn_ind],
-                        lower_gamma=bn_lower_weights[2*bn_ind],
-                        upper_beta=bn_upper_weights[2*bn_ind+1],
-                        middle_beta=bn_middle_weights[2*bn_ind+1],
-                        lower_beta=bn_lower_weights[2*bn_ind+1])
-                    bn_ind += 1
-
                 # Dropout
                 if self._dropout_rate != -1:
                     hidden = self._dropout(hidden)
@@ -600,12 +439,16 @@ hyper_shapes_distilled` and the current statistics will be returned by the
         """Compute the tensor shapes of all parameters in a fully-connected
         network.
 
-        Args:
-            n_in: Number of inputs.
-            n_out: Number of output units.
-            hidden_layers: A list of ints, each number denoting the size of a
-                hidden layer.
-            use_bias: Whether the FC layers should have biases.
+        Parameters:
+        -----------
+            n_in: int
+                Number of inputs.
+            n_out: int
+                Number of output units.
+            hidden_layers: a list of ints
+                Each number denoting the size of a hidden layer.
+            use_bias: bool
+                Whether the FC layers should have biases.
 
         Returns:
             A list of list of integers, denoting the shapes of the individual
