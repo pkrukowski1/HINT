@@ -2,7 +2,7 @@
 # (https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/data/cifar100_data.html#CIFAR100Data)
 # licensed under the Apache License, Version 2.0
 #
-# HyperMask with FeCAM needed some modifications during loading of CIFAR-100.
+# HyperInterval with FeCAM needed some modifications during loading of CIFAR-100.
 
 
 import os

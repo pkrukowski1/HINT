@@ -2,6 +2,8 @@
 Implementation of Subset-ImageNet for continual learning tasks. Please note that this dataset
 consists of 100 randomly chosen classes with taken 1993 seed.
 
+Link to the dataset: https://www.kaggle.com/datasets/arjunashok33/imagenet-subset-for-inc-learn
+Augmentation policy was taken from: https://github.com/dipamgoswami/FeCAM/blob/main/utils/autoaugment.py
 """
 
 import torch
@@ -25,6 +27,33 @@ class SubsetImageNet(Dataset):
                 task_id: int = 0,
                 setting: int = 4,
                 batch_size: int = 16):
+        
+        """
+        Initializes the class with the provided parameters.
+
+        Parameters:
+        -----------
+        path : str
+            The path to the dataset or directory containing the data.
+
+        use_one_hot : bool, optional
+            If True, labels will be converted to one-hot encoding format. Default is False.
+
+        use_data_augmentation : bool, optional
+            If True, data augmentation techniques will be applied to the training data. Default is False.
+
+        validation_size : int, optional
+            The number of samples to be used for validation purposes. Default is 100.
+
+        task_id : int, optional
+            An identifier for the specific task or experiment being run. Default is 0.
+
+        setting : int, optional
+            An integer representing the specific configuration or setting for the experiment. Default is 4.
+
+        batch_size : int, optional
+            The number of samples per batch to be fed into the model during training. Default is 16.
+        """
         
         assert validation_size <= 250
 
@@ -95,6 +124,24 @@ class SubsetImageNet(Dataset):
 
 
     def _get_task(self, task_id: int = 0, mode: str = 'train'):
+        """
+        Retrieves the task-specific data based on the provided task identifier and mode.
+
+        Parameters:
+        -----------
+        task_id : int, optional
+            An identifier for the specific task to retrieve. Default is 0.
+
+        mode : str, optional
+            The mode of data retrieval, indicating whether to fetch training ('train'),
+            validation ('val'), or test ('test') data. Default is 'train'.
+
+        Returns:
+        --------
+        task_data : Any
+            The data corresponding to the specified task and mode. The exact type and structure
+            of the returned data will depend on the implementation details of the method.
+        """
         assert task_id >= 0
         assert mode in ['train', 'test']
         MAX_NUM_CLASSES = self._data["num_classes"]
@@ -154,64 +201,218 @@ class SubsetImageNet(Dataset):
         # return images, labels
     
     def get_val_inputs(self):
+        """
+        Retrieves the input images for the validation dataset.
+
+        Returns:
+        --------
+        images : torch.Tensor
+            A tensor containing the stacked validation images.
+        """
         images = torch.stack([elem[0] for elem in self.val_data], dim=0)
         return images
-    
+
     def get_train_inputs(self):
+        """
+        Retrieves the input images for the training dataset.
+
+        Returns:
+        --------
+        images : torch.Tensor
+            A tensor containing the stacked training images.
+        """
         images = torch.stack([elem[0] for elem in self.train_data], dim=0)
         return images
-    
+
     def get_test_inputs(self):
+        """
+        Retrieves the input images for the test dataset.
+
+        Returns:
+        --------
+        images : torch.Tensor
+            A tensor containing the stacked test images.
+        """
         images = torch.stack([elem[0] for elem in self.test_data], dim=0)
         return images
 
     def get_val_outputs(self):
+        """
+        Retrieves the output labels for the validation dataset.
+
+        Returns:
+        --------
+        labels : torch.Tensor
+            A tensor containing the stacked validation labels.
+        """
         labels = torch.stack([elem[1] for elem in self.val_data], dim=0)
         return labels
-    
+
     def get_train_outputs(self):
+        """
+        Retrieves the output labels for the training dataset.
+
+        Returns:
+        --------
+        labels : torch.Tensor
+            A tensor containing the stacked training labels.
+        """
         labels = torch.stack([elem[1] for elem in self.train_data], dim=0)
         return labels
-    
+
     def get_test_outputs(self):
+        """
+        Retrieves the output labels for the test dataset.
+
+        Returns:
+        --------
+        labels : torch.Tensor
+            A tensor containing the stacked test labels.
+        """
         labels = torch.stack([elem[1] for elem in self.test_data], dim=0)
         return labels
-    
-    def input_to_torch_tensor(self, x, device, mode='inference',
-                              force_no_preprocessing=False, sample_ids=None):
 
+    def input_to_torch_tensor(self, x, device, mode='inference', force_no_preprocessing=False, sample_ids=None):
+        """
+        Converts the input data to a PyTorch tensor and moves it to the specified device.
+
+        Parameters:
+        -----------
+        x : Any
+            The input data to be converted.
+        
+        device : torch.device
+            The device to move the tensor to (e.g., 'cpu' or 'cuda').
+        
+        mode : str, optional
+            The mode of operation, either 'inference' or 'training'. Default is 'inference'.
+        
+        force_no_preprocessing : bool, optional
+            If True, skips any preprocessing steps. Default is False.
+        
+        sample_ids : Any, optional
+            Sample identifiers, if applicable. Default is None.
+
+        Returns:
+        --------
+        torch.Tensor
+            The input data as a PyTorch tensor on the specified device.
+        """
         return x.to(device)
-    
-    def output_to_torch_tensor(self, x, device, mode='inference',
-                              force_no_preprocessing=False, sample_ids=None):
 
+    def output_to_torch_tensor(self, x, device, mode='inference', force_no_preprocessing=False, sample_ids=None):
+        """
+        Converts the output data to a PyTorch tensor and moves it to the specified device.
+
+        Parameters:
+        -----------
+        x : Any
+            The output data to be converted.
+        
+        device : torch.device
+            The device to move the tensor to (e.g., 'cpu' or 'cuda').
+        
+        mode : str, optional
+            The mode of operation, either 'inference' or 'training'. Default is 'inference'.
+        
+        force_no_preprocessing : bool, optional
+            If True, skips any preprocessing steps. Default is False.
+        
+        sample_ids : Any, optional
+            Sample identifiers, if applicable. Default is None.
+
+        Returns:
+        --------
+        torch.Tensor
+            The output data as a PyTorch tensor on the specified device.
+        """
         return x.to(device)
 
     def next_train_batch(self, batch_size: int):
-        """Returns the next train batch of data"""
+        """
+        Returns the next training batch of data.
 
+        Parameters:
+        -----------
+        batch_size : int
+            The size of the batch to retrieve.
+
+        Returns:
+        --------
+        batch : Any
+            The next batch of training data.
+        """
         return next(iter(self._train_data_loader))
-    
-    def next_test_batch(self, batch_size: int):
-        """Returns the next test batch of data"""
 
+    def next_test_batch(self, batch_size: int):
+        """
+        Returns the next test batch of data.
+
+        Parameters:
+        -----------
+        batch_size : int
+            The size of the batch to retrieve.
+
+        Returns:
+        --------
+        batch : Any
+            The next batch of test data.
+        """
         return next(iter(self._test_data_loader))
-    
-    def next_test_batch(self, batch_size: int):
-        """Returns the next val batch of data"""
 
+    def next_val_batch(self, batch_size: int):
+        """
+        Returns the next validation batch of data.
+
+        Parameters:
+        -----------
+        batch_size : int
+            The size of the batch to retrieve.
+
+        Returns:
+        --------
+        batch : Any
+            The next batch of validation data.
+        """
         return next(iter(self._val_data_loader))
 
     def _get_train_val_split(self):
+        """
+        Splits the data into training and validation sets.
+
+        This method should be implemented to define how the data is split
+        into training and validation datasets.
+        """
         pass
 
-
     def get_identifier(self) -> str:
-        """Returns the name of the dataset."""
+        """
+        Returns the name of the dataset.
+
+        Returns:
+        --------
+        identifier : str
+            The name of the dataset.
+        """
         return "SubsetImageNet"
-    
-    
+
     def _calculate_modulo(self, target: int, task_id: int) -> int:
+        """
+        Calculates the modulo of the target based on the task identifier.
+
+        Parameters:
+        -----------
+        target : int
+            The target class label to be modulated.
+        
+        task_id : int
+            The identifier of the task.
+
+        Returns:
+        --------
+        modulated_target : int
+            The modulated target class label.
+        """
         MAX_NUM_CLASSES = self._data["num_classes"]
         INCR_NUM_CLASSES = self._data["num_incr_classes"]
         if task_id == 0:
@@ -220,15 +421,51 @@ class SubsetImageNet(Dataset):
             target = target % INCR_NUM_CLASSES
         return target
 
-
     def _target_to_one_hot(self, target: int, task_id: int) -> torch.Tensor:
+        """
+        Converts the target class label to a one-hot encoded tensor.
+
+        Parameters:
+        -----------
+        target : int
+            The target class label to be converted.
+        
+        task_id : int
+            The identifier of the task.
+
+        Returns:
+        --------
+        one_hot : torch.Tensor
+            The one-hot encoded tensor of the target class label.
+        """
         target = self._calculate_modulo(target, task_id=task_id)
         one_hot = torch.eye(self._data["num_classes"])[target]
         return one_hot
+
     
 
     @staticmethod
     def plot_sample(image, label):
+        """
+        Plots a sample image with its corresponding label.
+
+        Parameters:
+        -----------
+        image : torch.Tensor
+            The image tensor to be plotted. The tensor should be in a format compatible with matplotlib's `imshow`,
+            typically a 2D or 3D tensor.
+
+        label : torch.Tensor or int
+            The label corresponding to the image. If it is a torch.Tensor, it is assumed to be a one-hot encoded 
+            tensor from which the class will be extracted. If it is an integer, it is used directly as the class label.
+
+        Returns:
+        --------
+        None
+            This method does not return anything. It displays the image with the label as the title.
+        """
+        import matplotlib.pyplot as plt
+
         plt.imshow(image.numpy())
         if isinstance(label, torch.Tensor):
             plt.title(f'Class: {label.argmax().item()}')
@@ -237,27 +474,48 @@ class SubsetImageNet(Dataset):
         plt.axis("off")
         plt.show()
 
+
 def prepare_subset_imagenet_tasks(
     datasets_folder: str = './',
-    validation_size: int = 50, setting: int = 1
-    ):
+    validation_size: int = 50,
+    setting: int = 1
+):
     """
-    Prepare a list of *number_of_tasks* tasks related
-    to the SubsetImageNet dataset according to the WSN setup.
+    Prepare a list of tasks related to the SubsetImageNet dataset according to the WSN setup.
 
-    Arguments:
-    ----------
-      *datasets_folder*: (string) Defines a path in which Subset ImageNet
-                         is stored / will be downloaded 
-      *validation_size*: (optional int) defines the number of validation
-                         samples in each task, by default it is 250 like
-                         in the case of WSN
-      *setting*: (optional int) defines the number and type of continual
-                            learning tasks
+    Parameters:
+    -----------
+    datasets_folder : str, optional
+        The path where SubsetImageNet is stored or will be downloaded. Default is './'.
     
-    Returns a list of SubsetImageNet objects.
-    """
+    validation_size : int, optional
+        The number of validation samples in each task. Default is 50, following the WSN setup.
 
+    setting : int, optional
+        Defines the number and type of continual learning tasks. Default is 1.
+        The possible values for `setting` determine the number of tasks:
+        - 1: 6 tasks
+        - 2: 11 tasks
+        - 3: 21 tasks
+        - 4: 5 tasks
+        Raises NotImplementedError for other values.
+
+    Returns:
+    --------
+    list of SubsetImageNet objects
+        A list containing SubsetImageNet objects, each corresponding to a different task.
+
+    Raises:
+    -------
+    NotImplementedError
+        If the setting value is not 1, 2, 3, or 4.
+
+    Example:
+    --------
+    >>> tasks = prepare_subset_imagenet_tasks('./data', validation_size=100, setting=2)
+    >>> for task in tasks:
+    >>>     print(task.get_identifier())
+    """
     if setting == 1:
         number_of_tasks = 6
     elif setting == 2:
@@ -267,7 +525,7 @@ def prepare_subset_imagenet_tasks(
     elif setting == 4:
         number_of_tasks = 5
     else:
-        raise(NotImplementedError)
+        raise NotImplementedError("Setting must be 1, 2, 3, or 4")
 
     handlers = []
     for i in range(number_of_tasks):
@@ -277,8 +535,8 @@ def prepare_subset_imagenet_tasks(
                 validation_size=validation_size,
                 use_one_hot=True,
                 use_data_augmentation=True,
-                task_id = i,
-                setting = setting
+                task_id=i,
+                setting=setting
             )
         )
 

@@ -1,24 +1,9 @@
-#!/usr/bin/env python3
-# Copyright 2019 Christian Henning
+# Modification of hypnettorch file
+# (https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/data/special/split_mnist.html#SplitMNIST)
+# licensed under the Apache License, Version 2.0
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# @title           :split_mnist.py
-# @author          :ch
-# @contact         :henningc@ethz.ch
-# @created         :04/11/2019
-# @version         :1.0
-# @python_version  :3.6.7
+# HyperInterval needed SplitMNIST with tensors with non-negative values.
+
 """
 Split MNIST Dataset
 ^^^^^^^^^^^^^^^^^^^
@@ -29,7 +14,37 @@ handlers for the SplitMNIST task.
 import numpy as np
 
 from hypnettorch.data.mnist_data import MNISTData
-from DatasetHandlers.split_cifar import _transform_split_outputs
+
+def _transform_split_outputs(data, outputs):
+    """Actual implementation of method ``transform_outputs`` for split dataset
+    handlers.
+
+    Args:
+        data: Data handler.
+        outputs (numpy.ndarray): See docstring of method
+            :meth:`data.special.split_mnist.SplitMNIST.transform_outputs`
+    
+    Returns:
+        (numpy.ndarray)
+    """
+    if not data._full_out_dim:
+        # TODO implement reverse direction as well.
+        raise NotImplementedError('This method is currently only ' +
+            'implemented if constructor argument "full_out_dim" was set.')
+
+    labels = data._labels
+    if data.is_one_hot:
+        assert(outputs.shape[1] == data._data['num_classes'])
+        mask = np.zeros(data._data['num_classes'], dtype=np.bool)
+        mask[labels] = True
+
+        return outputs[:, mask]
+    else:
+        assert (outputs.shape[1] == 1)
+        ret = outputs.copy()
+        for i, l in enumerate(labels):
+            ret[ret == l] = i
+        return ret
 
 
 def get_split_mnist_handlers(data_path, use_one_hot=True, validation_size=0,
