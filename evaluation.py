@@ -1,11 +1,6 @@
-from datasets import (
-    set_hyperparameters,
-    prepare_permuted_mnist_tasks,
-    prepare_split_cifar100_tasks,
-    prepare_split_cifar100_tasks_aka_FeCAM,
-    prepare_split_mnist_tasks,
-)
-from main import (
+from Utils.prepare_non_forced_scenario_params import set_hyperparameters
+from Utils.dataset_utils import *
+from train_non_forced_scenario import (
     load_pickle_file,
     set_seed,
     intersection_of_embeds
@@ -14,7 +9,6 @@ from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from VanillaNets.ResNet18 import ResNetBasic
 from IntervalNets.interval_ZenkeNet64 import IntervalZenkeNet
-from copy import deepcopy
 import torch
 import torch.nn.functional as F
 import pandas as pd
@@ -221,6 +215,14 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}target_network_after_"
         f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
+
+    perturbation_vectors = load_pickle_file(
+        f"{path_to_model}perturbation_vectors_"
+        f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
+    )
+
+    hypernetwork._perturbated_eps_T = perturbation_vectors
+
     # Check whether the number of target weights is exactly the same like
     # the loaded weights
     for prepared, loaded in zip(

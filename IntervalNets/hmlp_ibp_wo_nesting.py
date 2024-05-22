@@ -27,7 +27,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                  layers=(100, 100), verbose=True, activation_fn=torch.nn.ReLU(),
                  use_bias=True, no_uncond_weights=False, no_cond_weights=False,
                  num_cond_embs=1, dropout_rate=-1, use_spectral_norm=False,
-                 use_batch_norm=False, embd_dropout_rate=-1, *args, **kwargs):
+                 use_batch_norm=False, *args, **kwargs):
 
         HMLP.__init__(self, target_shapes, uncond_in_size=uncond_in_size, cond_in_size=cond_in_size,
                  layers=layers, verbose=verbose, activation_fn=activation_fn,
@@ -37,11 +37,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         
         self._device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.embd_dropout_rate = embd_dropout_rate
 
-        if embd_dropout_rate != -1:
-            assert embd_dropout_rate >= 0 and embd_dropout_rate <= 1, "Dropout rate should be contained in the [0,1] interval"
-            self.embd_dropout = nn.Dropout(p = embd_dropout_rate)
         
         ### Create learnable perturbation vectors
         self._perturbated_eps_T = nn.ParameterList()
@@ -168,9 +164,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
 
         if self._use_batch_norm:
             assert len(bn_scales) == len(fc_weights) - 1
-        
-        if self.embd_dropout_rate != -1:
-            h = self.embd_dropout(h)
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)

@@ -97,7 +97,7 @@ class IntervalMLP(MLP, MainNetInterface):
         assert not init_weights, "`init_weights` option is not supported"
         assert not use_context_mod, "`use_context_mod` is not supported"
         assert not use_spectral_norm, "`use_spectral_norm` is not supported"
-        assert (not use_batch_norm) and (not bn_track_stats), "BatchNorm layers are not supported in MLP"
+        # assert (not use_batch_norm) and (not bn_track_stats), "BatchNorm layers are not supported in MLP"
 
         # Tuple are not mutable.
         hidden_layers = list(hidden_layers)

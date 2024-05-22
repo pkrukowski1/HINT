@@ -1,66 +1,45 @@
-#!/usr/bin/env python3
-# Copyright 2019 Christian Henning
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# @title           :utils/hnet_regularizer.py
-# @author          :ch
-# @contact         :henningc@ethz.ch
-# @created         :06/05/2019
-# @version         :1.0
-# @python_version  :3.6.8
-"""
-Hypernetwork Regularization
----------------------------
-
-We summarize our own regularizers in this module. These regularizer ensure that
-the output of a hypernetwork don't change.
-"""
+# Modification of https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/utils/hnet_regularizer.html#calc_fix_target_reg file
+# to enable regularization of the interval hypernetwork's output in the middle of interval
 
 import torch
-import torch.nn.functional as F
 
 from hypnettorch.hnets import HyperNetInterface
 
 def get_current_targets(task_id, hnet, eps):
-    r"""For all :math:`j < \text{task\_id}`, compute the output of the
-    hypernetwork. This output will be detached from the graph before being added
-    to the return list of this function.
+    """
+    For all j < task_id, compute the output of the hypernetwork. This output
+    will be detached from the graph before being added to the return list of
+    this function.
 
     Note, if these targets don't change during training, it would be more memory
-    efficient to store the weights :math:`\theta^*` of the hypernetwork (which
-    is a fixed amount of memory compared to the variable number of tasks).
-    Though, it is more computationally expensive to recompute
-    :math:`h(c_j, \theta^*)` for all :math:`j < \text{task\_id}` everytime the
-    target is needed.
+    efficient to store the weights θ* of the hypernetwork (which is a fixed
+    amount of memory compared to the variable number of tasks). However, it is
+    more computationally expensive to recompute h(c_j, θ*) for all j < task_id
+    every time the target is needed.
 
     Note, this function sets the hypernet temporarily in eval mode. No gradients
     are computed.
 
-    See argument ``targets`` of :func:`calc_fix_target_reg` for a use-case of
-    this function.
+    See the argument "targets" of calc_fix_target_reg for a use-case of this
+    function.
 
-    Args:
-        task_id (int): The ID of the current task.
-        hnet: An instance of the hypernetwork before learning a new task
-            (i.e., the hypernetwork has the weights :math:`\theta^*` necessary
-            to compute the targets).
-        eps (float): a perturbated epsilon
+    Parameters:
+    -----------
+
+        task_id (int):
+            The ID of the current task.
+        hnet:
+            An instance of the hypernetwork before learning a new task (i.e.,
+            the hypernetwork has the weights θ* necessary to compute the
+            targets).
+        eps (float):
+            A perturbation value.
 
     Returns:
-        An empty list, if ``task_id`` is ``0``. Otherwise, a list of
-        ``task_id-1`` middle targets. These targets can be passed to the function
-        :func:`calc_fix_target_reg` while training on the new task.
+    --------
+
+        An empty list if task_id is 0. Otherwise, a list of middle targets.
+        These targets can be passed to the function calc_fix_target_reg while training on the new task.
     """
     # We temporarily switch to eval mode for target computation (e.g., to get
     # rid of training stochasticities such as dropout).
@@ -84,46 +63,52 @@ def get_current_targets(task_id, hnet, eps):
 
 def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None, 
                         mnet=None, prev_theta=None, prev_task_embs=None):
-    r"""This regularizer simply restricts the output-mapping for previous
-    task embeddings. I.e., for all :math:`j < \text{task\_id}` minimize:
+    """
+    This regularizer restricts the output-mapping for previous task embeddings.
+    For all tasks :math:`j < \text{task\_id}`.
 
-    .. math::
-        \lVert \text{target}_j - h(c_j, \theta + \Delta\theta) \rVert^2
+    Parameters:
+    ------------
 
-    where :math:`c_j` is the current task embedding for task :math:`j` (and we
-    assumed that ``dTheta`` was passed).
-
-    Args:
-        hnet: The hypernetwork whose output should be regularized; has to
-            implement the interface
-            :class:`hnets.hnet_interface.HyperNetInterface`.
-        task_id (int): The ID of the current task (the one that is used to
-            compute ``dTheta``).
-        eps (float): a perturbated epsilon
-        middle_targets (list): A list of outputs of the hypernetwork. Each list entry
-            must have the output shape as returned by the
-            :meth:`hnets.hnet_interface.HyperNetInterface.forward` method of the
-            ``hnet``. Note, this function doesn't detach targets. If desired,
-            that should be done before calling this function.
-
-            Also see :func:`get_current_targets`.
-        mnet: Instance of the main network. Has to be provided if
+        eps: float
+            A perturbation value.
+        lower_targets: list, optional
+            A list of outputs of the hypernetwork for
+            the lower targets. Each list entry must have the output shape as
+            returned by the :meth:`hnets.hnet_interface.HyperNetInterface.forward`
+            method of the ``hnet``. Note that this function doesn't detach targets.
+            If desired, that should be done before calling this function.
+        middle_targets: list, optional
+            A list of outputs of the hypernetwork for
+            the middle targets. Each list entry must have the output shape as
+            returned by the :meth:`hnets.hnet_interface.HyperNetInterface.forward`
+            method of the ``hnet``.
+        upper_targets: list, optional
+             A list of outputs of the hypernetwork for
+            the upper targets. Each list entry must have the output shape as
+            returned by the :meth:`hnets.hnet_interface.HyperNetInterface.forward`
+            method of the ``hnet``.
+        mnet: 
+            Instance of the main network. Has to be provided if
             ``inds_of_out_heads`` are specified.
-        prev_theta (list, optional): If given, ``prev_task_embs`` but not
+        prev_theta: list, optional,
+            If given, ``prev_task_embs`` but not
             ``targets`` has to be specified. ``prev_theta`` is expected to be
-            the internal unconditional weights :math:`theta` prior to learning
+            the internal unconditional weights :math:`\theta` prior to learning
             the current task. Hence, it can be used to compute the targets on
             the fly (which is more memory efficient (constant memory), but more
             computationally demanding).
             The computed targets will be detached from the computational graph.
             Independent of the current hypernet mode, the targets are computed
             in ``eval`` mode.
-        prev_task_embs (list, optional): If given, ``prev_theta`` but not
+        prev_task_embs: list, optional
+            If given, ``prev_theta`` but not
             ``targets`` has to be specified. ``prev_task_embs`` are the task
             embeddings (conditional parameters) of the hypernetwork.
             See docstring of ``prev_theta`` for more details.
-        
+
     Returns:
+    --------
         The value of the regularizer.
     """
     assert isinstance(hnet, HyperNetInterface)

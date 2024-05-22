@@ -9,7 +9,7 @@ from evaluation import (
     prepare_and_load_weights_for_models,
 )
 
-from main import reverse_predictions
+from train_non_forced_scenario import reverse_predictions
 
 
 def translate_output_CIFAR_classes(labels, setup, task, mode):
@@ -87,58 +87,6 @@ def translate_output_CIFAR_classes(labels, setup, task, mode):
         [currently_used_classes[i] for i in labels]
     )
     return y_translated
-
-
-def unittest_translate_output_CIFAR_classes():
-    """
-    Unittest of translate_output_CIFAR_classes() function.
-    """
-    # 21 tasks
-    labels = [i for i in range(40)]
-    test_1 = translate_output_CIFAR_classes(labels, 21, 0)
-    gt_1 = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15,
-            94, 92, 10, 72, 49, 78, 61, 14, 8, 86,
-            84, 96, 18, 24, 32, 45, 88, 11, 4, 67,
-            69, 66, 77, 47, 79, 93, 29, 50, 57, 83]
-    assert (test_1 == gt_1).all()
-    labels = [i for i in range(3)]
-    test_2 = translate_output_CIFAR_classes(labels, 21, 1)
-    gt_2 = [17, 81, 41]
-    assert (test_2 == gt_2).all()
-    test_3 = translate_output_CIFAR_classes(labels, 21, 20)
-    gt_3 = [26, 35, 39]
-    assert (test_3 == gt_3).all()
-    # 11 tasks
-    labels = [i for i in range(50)]
-    test_4 = translate_output_CIFAR_classes(labels, 11, 0)
-    gt_4 = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15,
-            94, 92, 10, 72, 49, 78, 61, 14, 8, 86,
-            84, 96, 18, 24, 32, 45, 88, 11, 4, 67,
-            69, 66, 77, 47, 79, 93, 29, 50, 57, 83,
-            17, 81, 41, 12, 37, 59, 25, 20, 80, 73]
-    assert (test_4 == gt_4).all()
-    labels = [i for i in range(5)]
-    test_5 = translate_output_CIFAR_classes(labels, 11, 2)
-    gt_5 = [82, 53, 9, 31, 75]
-    assert (test_5 == gt_5).all()
-    # 6 tasks
-    labels = [i for i in range(50)]
-    test_6 = translate_output_CIFAR_classes(labels, 6, 0)
-    assert (test_6 == gt_4).all()
-    labels = [i for i in range(10)]
-    test_7 = translate_output_CIFAR_classes(labels, 6, 4)
-    gt_7 = [40, 30, 23, 85, 2, 95, 56, 48, 71, 64]
-    assert (test_7 == gt_7).all()
-    # 5 tasks
-    labels = [i for i in range(20)]
-    test_8 = translate_output_CIFAR_classes(labels, 5, 0)
-    gt_8 = [87, 0, 52, 58, 44, 91, 68, 97, 51, 15,
-            94, 92, 10, 72, 49, 78, 61, 14, 8, 86]
-    assert (test_8 == gt_8).all()
-    test_9 = translate_output_CIFAR_classes(labels, 5, 3)
-    gt_9 = [38, 63, 33, 74, 27, 22, 36, 3, 16, 21,
-            60, 19, 70, 90, 89, 43, 5, 42, 65, 76]
-    assert (test_9 == gt_9).all()
 
 
 def translate_output_MNIST_classes(relative_labels, task, mode):
@@ -551,12 +499,12 @@ if __name__ == "__main__":
     # in one piece.
     
     # alphas = np.linspace(0.01, 1.0, 5)
-    alphas = [1.0]
+    alphas = [0.5]
     vanilla_entropy = True
 
     # Options for *dataset*:
     # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup', 'SubsetImageNet', 'CIFAR10'
-    dataset = "SplitMNIST"
+    dataset = "PermutedMNIST"
     path_to_datasets = "./Data/"
 
     for alpha in alphas:
@@ -571,7 +519,6 @@ if __name__ == "__main__":
         seeds = [i + 1 for i in range(5)]
 
         dict_to_save = {}
-
 
         for number_of_model, seed in zip(numbers_of_models, seeds):
             print(f"Calculations for model no: {number_of_model}")
