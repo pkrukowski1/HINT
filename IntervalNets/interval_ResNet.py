@@ -3,6 +3,8 @@
 # https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/mnets/resnet_imgnet.html#ResNetIN
 # The structure of ResNet18 should be possibly the same like in other publications to make
 # a fair comparison between continual learning methods.
+
+Is is based on 
 """
 
 import numpy as np
@@ -486,20 +488,31 @@ class IntervalResNetBasic(Classifier):
         return self._has_bias
 
     def forward(self, x, lower_weights=None, middle_weights=None, upper_weights=None, distilled_params=None, condition=None):
-        """Compute the output :math:`y` of this network given the input
-        :math:`x`.
+        """
+        Compute the output y of this network given the input x.
 
-        Args:
-            (....): See docstring of method
-                :meth:`mnets.resnet.ResNet.forward`. We provide some more
-                specific information below.
-            x (torch.Tensor): Based on the constructor argument
-                ``chw_input_format``, either a flattened image batch with
-                encoding ``HWC`` or an unflattened image batch with encoding
-                ``CHW`` is expected.
+        Parameters:
+        -----------
+        x : torch.Tensor
+            The input tensor of shape (batch_size, 3, input_size).
+        upper_weights : list of torch.Tensor
+            The upper weights of the network.
+        middle_weights : list of torch.Tensor
+            The middle weights of the network.
+        lower_weights : list of torch.Tensor
+            The lower weights of the network.
+        distilled_params: torch.Tensor
+            Will be passed as ``running_mean`` and
+                    ``running_var`` arguments of method
+                    :meth:`utils.batchnorm_layer.BatchNormLayer.forward` if
+                    batch normalization is used.
+        condition : int, optional
+            Needed for application of BatchNorm statistics to test set.
 
         Returns:
-            (torch.Tensor): The output of the network.
+        --------
+        tuple
+            A tuple containing the output tensor of shape (batch_size, 3, output_size).
         """
 
         assert lower_weights is not None and \

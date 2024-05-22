@@ -254,27 +254,15 @@ class IntervalMLP(MLP, MainNetInterface):
         Parameters:
         -----------
         x : torch.Tensor
-            The input tensor of shape (batch_size, input_size).
-        upper_weights : list of torch.Tensor or dict
+            The input tensor of shape (batch_size, 3, input_size).
+        upper_weights : list of torch.Tensor
             The upper weights of the network.
-            If a list, each tensor corresponds to the upper weights of a layer.
-            If a dictionary, it can have the following keys:
-                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
-                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
-        middle_weights : list of torch.Tensor or dict
+        middle_weights : list of torch.Tensor
             The middle weights of the network.
-            If a list, each tensor corresponds to the middle weights of a layer.
-            If a dictionary, it can have the following keys:
-                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
-                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
-        lower_weights : list of torch.Tensor or dict
+        lower_weights : list of torch.Tensor
             The lower weights of the network.
-            If a list, each tensor corresponds to the lower weights of a layer.
-            If a dictionary, it can have the following keys:
-                - 'internal_weights': A list of tensors representing the internal (non-context modulation) weights of the network.
-                - 'mod_weights': Deprecated. Previously used for context-modulation weights.
         condition : int, optional
-            Needed for application of BatchNorm statistics to test set
+            Needed for application of BatchNorm statistics to test set.
 
         Returns:
         --------
