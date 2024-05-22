@@ -1,7 +1,6 @@
 import os
 import random
 import torch
-import torch.nn as nn
 from typing import Tuple
 import torch.nn.functional as F
 from IntervalNets.interval_MLP import IntervalMLP
@@ -192,29 +191,6 @@ def calculate_number_of_iterations(number_of_samples,
     )
     total_no_of_iterations = int(no_of_iterations_per_epoch * number_of_epochs)
     return no_of_iterations_per_epoch, total_no_of_iterations
-
-
-def get_number_of_batch_normalization_layer(target_network):
-    """
-    Get a number of batch normalization layer in a given target network.
-    Each normalization layer consists of two vectors.
-
-    Arguments:
-    ----------
-      *target_network* (hypnettorch.mnets instance) a target network
-      *target_network* (hypnettorch.mnets instance) a target network
-    """
-    if "batchnorm_layers" in dir(target_network):
-        if target_network.batchnorm_layers is None:
-            num_of_batch_norm_layers = 0
-        else:
-            # Each layer contains a vector of means and a vector of
-            # standard deviations
-            num_of_batch_norm_layers = 2 * len(target_network.batchnorm_layers)
-    else:
-        num_of_batch_norm_layers = 0
-    return num_of_batch_norm_layers
-
 
 def calculate_accuracy(data,
                        target_network,
@@ -1039,7 +1015,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         )
 
         if no_of_task == (parameters["number_of_tasks"] - 1):
-        # Save current state of networks
+            # Save current state of networks
             write_pickle_file(
                 f'{parameters["saving_folder"]}/'
                 f'hypernetwork_after_{no_of_task}_task',
@@ -1049,6 +1025,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 f'{parameters["saving_folder"]}/'
                 f'target_network_after_{no_of_task}_task',
                 target_network.weights
+            )
+            write_pickle_file(
+                f'{parameters["saving_folder"]}/'
+                f'perturbation_vectors_after_{no_of_task}_task',
+                hypernetwork._perturbated_eps_T
             )
         
         # Freeze the already learned embeddings and radii
@@ -1245,7 +1226,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "CIFAR10"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

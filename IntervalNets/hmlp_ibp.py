@@ -52,7 +52,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 data=F.softmax(torch.ones(self._cond_in_size), dim=-1),
                 requires_grad=True
             )).to(self._device)
-            
+        
         self._is_properly_setup()
     
     @property
@@ -114,7 +114,9 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         ### Normalize the learnable radii tensor
             
         # cond_id may be a list while a regularization process
-        if not isinstance(cond_id, list) and cond_id is not None:
+        if common_radii is not None:
+            eps = common_radii
+        elif not isinstance(cond_id, list) and cond_id is not None:
             eps = perturbated_eps * F.softmax(
                     self._perturbated_eps_T[cond_id],
                     dim=-1)
@@ -158,9 +160,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         
         if self.embd_dropout_rate != -1:
             h = self.embd_dropout(h)
-        
-        # Apply cos transformation
-        sigma = 0.5 * perturbated_eps / self._cond_in_size
 
         for i in range(len(fc_weights)):
             last_layer = i == (len(fc_weights) - 1)

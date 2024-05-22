@@ -141,7 +141,8 @@ def prepare_and_load_weights_for_models(
         "PermutedMNIST",
         "SplitMNIST",
         "CIFAR100_FeCAM_setup",
-        "SubsetImageNet"
+        "SubsetImageNet",
+        "CIFAR10"
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
     hyperparameters = set_hyperparameters(dataset, grid_search=False)
@@ -180,6 +181,14 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}target_network_after_"
         f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
+
+    perturbation_vectors = load_pickle_file(
+        f"{path_to_model}perturbation_vectors_after_"
+        f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
+    )
+
+    hypernetwork._perturbated_eps_T = perturbation_vectors
+
     # Check whether the number of target weights is exactly the same like
     # the loaded weights
     for prepared, loaded in zip(
@@ -229,6 +238,7 @@ def calculate_hypernetwork_output(
         # Also embedding from the 'no_of_task_for_loading' will be loaded
         # because embedding from the foregoing task is built randomly
         # (not from zeros!)
+
     hypernetwork_output = hypernetwork.forward(
         cond_id=no_of_task_for_evaluation, weights=hnet_weights
     )
@@ -553,7 +563,7 @@ def plot_histogram_of_intervals(path_to_stored_networks,
 
         universal_embedding = (universal_embedding_lower + universal_embedding_upper)/2.0
         universal_radii = (universal_embedding_upper - universal_embedding_lower)/2.0
-        
+
         W_lower, _, W_upper, _ = hypernetwork.forward(
             cond_input = universal_embedding.view(1, -1),
             return_extended_output = True,

@@ -1,21 +1,12 @@
-import os
 import torch
 import torch.nn.functional as F
 import numpy as np
-import pandas as pd
-from copy import deepcopy
 from main import reverse_predictions
 
-from numpy.testing import assert_array_equal, assert_array_almost_equal
+from numpy.testing import assert_array_equal
 
 
-##########################################################################
-# Functions from FeCAM, reformatted and with ensuring convergence of SVD
-# in _mahalanobis():
-# https://github.com/dipamgoswami/FeCAM/blob/main/FeCAM_vit_cifar100.py
-
-
-def translate_output_CIFAR_classes(labels, setup, task):
+def translate_output_CIFAR_classes(labels, setup, task, mode):
     """
     Translate labels of form {0, 1, ..., N-1} to the real labels
     of CIFAR100 dataset.
@@ -27,51 +18,68 @@ def translate_output_CIFAR_classes(labels, setup, task):
        *setup*: (int) defines how many tasks were created in this
                 training session
        *task*: (int) number of the currently calculated task
+       *mode*: (str) defines if dataset is CIFAR100 or CIFAR10, available values:
+            - CIFAR100,
+            - CIFAR10
     Returns:
     --------
        A numpy array of the same shape like *labels* but with proper
        class labels
     """
     assert setup in [5, 6, 11, 21]
+    assert mode in ["CIFAR100", "CIFAR10"]
     # 5 tasks: 20 classes in each task
     # 6 tasks: 50 initial classes + 5 incremental tasks per 10 classes
     # 11 tasks: 50 initial classes + 10 incremental tasks per 5 classes
     # 21 tasks: 40 initial classes + 20 incremental tasks per 3 classes
-    class_orders = [
-        87, 0, 52, 58, 44, 91, 68, 97, 51, 15,
-        94, 92, 10, 72, 49, 78, 61, 14, 8, 86,
-        84, 96, 18, 24, 32, 45, 88, 11, 4, 67,
-        69, 66, 77, 47, 79, 93, 29, 50, 57, 83,
-        17, 81, 41, 12, 37, 59, 25, 20, 80, 73,
-        1, 28, 6, 46, 62, 82, 53, 9, 31, 75,
-        38, 63, 33, 74, 27, 22, 36, 3, 16, 21,
-        60, 19, 70, 90, 89, 43, 5, 42, 65, 76,
-        40, 30, 23, 85, 2, 95, 56, 48, 71, 64,
-        98, 13, 99, 7, 34, 55, 54, 26, 35, 39
-    ]
-    if setup in [6, 11]:
-        no_of_initial_cls = 50
-    elif setup == 21:
-        no_of_initial_cls = 40
-    else:
-        no_of_initial_cls = 20
-    if task == 0:
-        currently_used_classes = class_orders[:no_of_initial_cls]
-    else:
-        if setup == 6:
-            no_of_incremental_cls = 10
-        elif setup == 11:
-            no_of_incremental_cls = 5
-        elif setup == 21:
-            no_of_incremental_cls = 3
-        else:
-            no_of_incremental_cls = 20
-        currently_used_classes = class_orders[
-            (no_of_initial_cls + no_of_incremental_cls * (task - 1)) : (
-                no_of_initial_cls + no_of_incremental_cls * task
-            )
+
+    if mode == "CIFAR100":
+        class_orders = [
+            87, 0, 52, 58, 44, 91, 68, 97, 51, 15,
+            94, 92, 10, 72, 49, 78, 61, 14, 8, 86,
+            84, 96, 18, 24, 32, 45, 88, 11, 4, 67,
+            69, 66, 77, 47, 79, 93, 29, 50, 57, 83,
+            17, 81, 41, 12, 37, 59, 25, 20, 80, 73,
+            1, 28, 6, 46, 62, 82, 53, 9, 31, 75,
+            38, 63, 33, 74, 27, 22, 36, 3, 16, 21,
+            60, 19, 70, 90, 89, 43, 5, 42, 65, 76,
+            40, 30, 23, 85, 2, 95, 56, 48, 71, 64,
+            98, 13, 99, 7, 34, 55, 54, 26, 35, 39
         ]
-    y_translated = np.array([currently_used_classes[i] for i in labels])
+        if setup in [6, 11]:
+            no_of_initial_cls = 50
+        elif setup == 21:
+            no_of_initial_cls = 40
+        else:
+            no_of_initial_cls = 20
+        if task == 0:
+            currently_used_classes = class_orders[:no_of_initial_cls]
+        else:
+            if setup == 6:
+                no_of_incremental_cls = 10
+            elif setup == 11:
+                no_of_incremental_cls = 5
+            elif setup == 21:
+                no_of_incremental_cls = 3
+            else:
+                no_of_incremental_cls = 20
+            currently_used_classes = class_orders[
+                (no_of_initial_cls + no_of_incremental_cls * (task - 1)) : (
+                    no_of_initial_cls + no_of_incremental_cls * task
+                )
+            ]
+    else:
+        total_no_of_classes = 10
+        no_of_classes_per_task = 2
+
+        class_orders = [i for i in range(total_no_of_classes)]
+        currently_used_classes = class_orders[
+            (no_of_classes_per_task * task) : (no_of_classes_per_task * (task + 1))
+        ]
+
+    y_translated = np.array(
+        [currently_used_classes[i] for i in labels]
+    )
     return y_translated
 
 
@@ -314,11 +322,7 @@ def extract_test_set_from_single_task(
             gt_classes, task=no_of_task, mode=mode
         )
     elif dataset == "SubsetImageNet":
-        # TODO Dokończyć!
         raise NotImplementedError
-        gt_classes = translate_output_SubsetImageNet_classes(
-            gt_classes, task=no_of_task, mode=mode
-        )
     else:
         raise ValueError("Wrong name of the dataset!")
     gt_tasks = [no_of_task for _ in range(output_data.shape[0])]
