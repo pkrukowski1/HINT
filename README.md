@@ -1,5 +1,12 @@
 # HyperInterval: Hypernetwork approach to training weight interval regions in continual learning
 
+## Abstract
+Recently, a new Continual Learning (CL) paradigm was presented to control catastrophic forgetting, called  Interval Continual Learning (InterContiNet), which relies on enforcing interval constraints on the neural network parameter space. 
+Unfortunately, InterContiNet training is challenging due to the high dimensionality of the weight space, making intervals difficult to manage. 
+To address this issue, we introduce HyperInterval, a technique that employs interval arithmetic within the embedding space and utilizes a hypernetwork to map these intervals to the target network parameter space. We train interval embeddings for consecutive tasks and train a hypernetwork to transform these embeddings into weights of the target network. An embedding for a given task is trained along with the hypernetwork, preserving the response of the target network for the previous task embeddings. Interval arithmetic works with a more manageable, lower-dimensional embedding space rather than directly preparing intervals in a high-dimensional weight space. Our model allows faster and more efficient training. Furthermore, HyperInterval maintains the guarantee of not forgetting. At the end of training, we can choose one universal embedding to produce a single network dedicated to all tasks. In such a framework, hypernetwork is used only for training and can be seen as a meta-trainer.
+HyperInterval obtains significantly better results than InterContiNet and gives SOTA results on several benchmarks. 
+
+## Teaser
 Train interval embeddings for consecutive tasks and train a hypernetwork to transform these embeddings into weights of the target network.
 
 ![Scheme of HyperInterval training method](HyperInterval.png)
