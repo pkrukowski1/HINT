@@ -27,8 +27,14 @@ For the experiments and ablation study, we use 6 publicly available datasets:
 The datasets may be downloaded when the algorithm runs. For each dataset, the CL task division setup follows the corresponding papers and is specified in our article, supplementary materials.
 
 ## Usage
+Folder <code>AblationResults</code> contains results of our ablation studies, whereas <code>DatasetHandlers</code> contains handlers for datasets used in the experiments, to apply specific data augmentation policies and task division.
+Moreover, folder <code>IntervalNets</code> contains interval implementation of the network architectures used in experiments and <code>VanillaNets</code> contains the basic convolutional network architectures, which are used when applying the interval relaxation technique to the training.
 
-*TO DO*
+To train HyperInterval in the task incremetal learning (TIL) scenraio, use the command <code>python train_non_forced_scenario.py</code>.
+To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_non_forced_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_non_forced_scenario_params.py</code> file.
+
+To train in the class incremetal learning (CIL) scenraio, use the command <code>python train_nested_scenario.py</code>.
+To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_nested_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_nested_scenario_params.py</code> file.
 
 ## Citation
 
