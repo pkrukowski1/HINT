@@ -14,23 +14,28 @@ from train_non_forced_scenario import reverse_predictions
 
 def translate_output_CIFAR_classes(labels, setup, task, mode):
     """
-    Translate labels of form {0, 1, ..., N-1} to the real labels
-    of CIFAR100 dataset.
+    Translate labels of the form {0, 1, ..., N-1} to the real labels
+    of the CIFAR100 dataset.
 
-    Arguments:
-    ----------
-       *labels*: (Numpy array | list) contains labels of the form {0, 1, ..., N-1}
-                 where N is the the number of classes in a single task
-       *setup*: (int) defines how many tasks were created in this
-                training session
-       *task*: (int) number of the currently calculated task
-       *mode*: (str) defines if dataset is CIFAR100 or CIFAR10, available values:
-            - CIFAR100,
-            - CIFAR10
+    Parameters:
+    -----
+    labels: Union[np.ndarray, List[int]]
+        Contains labels of the form {0, 1, ..., N-1} where N is the number
+        of classes in a single task.
+    setup: int
+        Defines how many tasks were created in this training session.
+    task: int
+        Number of the currently calculated task.
+    mode: str
+        Defines if the dataset is CIFAR100 or CIFAR10. Available values:
+        - "CIFAR100"
+        - "CIFAR10"
+
     Returns:
     --------
-       A numpy array of the same shape like *labels* but with proper
-       class labels
+    np.ndarray
+        A numpy array of the same shape as `labels` but with proper
+        class labels.
     """
     assert setup in [5, 6, 11, 21]
     assert mode in ["CIFAR100", "CIFAR10"]
@@ -91,16 +96,25 @@ def translate_output_CIFAR_classes(labels, setup, task, mode):
 
 def translate_output_MNIST_classes(relative_labels, task, mode):
     """
-    Translate relative labels of form {0, 1} to the real labels
-    of Split MNIST dataset.
+    Translate relative labels of the form {0, 1} to the real labels
+    of the Split MNIST dataset.
 
-    Arguments:
-    ----------
-       *labels*: (Numpy array | list) contains labels of the form
-       *task*: (int) number of the currently calculated task,
-               starting from 0
-       *mode*: (str) "permuted" or "split", depending on the desired
-               dataset
+    Parameters:
+    -----------
+    relative_labels: Union[np.ndarray, List[int]]
+        Contains labels of the form {0, 1} where 0 represents the first class
+        and 1 represents the second class.
+    task: int
+        Number of the currently calculated task (starting from 0).
+    mode: str
+        Defines if the dataset is "permuted" or "split", depending on the desired
+        dataset.
+
+    Returns:
+    --------
+    np.ndarray
+        A numpy array of the same shape as `relative_labels` but with proper
+        class labels.
     """
     assert mode in ["permuted", "split"]
 
@@ -136,27 +150,34 @@ def get_target_network_representation(
 ):
     """
     Calculate the output classification layer of the target network,
-    having a hypernetwork with its weights, and a target network with
-    its weights, as well as the number of the considered task.
+    using a hypernetwork with its weights and a target network with
+    its weights, along with the number of the considered task.
 
-    Arguments:
-    ----------
-       *hypernetwork*: an instance of HMLP class
-       *hypernetwork_weights*: loaded weights for the hypernetwork
-       *target_network*: an instance of MLP or ResNet class
-       *target_weights*: loaded weights for the target network
-       *target_network_type*: str representing the target network architecture
-       *input_data*: torch.Tensor with input data for the network
-       *task*: int representing the considered task; the corresponding
-               embedding and batch normalization statistics will be used
-       *perturbated_eps*: float representing taken perturbated epsilon
-       *full_interval*: bool indicating whether we have a proper interval
-                        mechanism or not
+    Parameters:
+    -----------
+    hypernetwork: HMLP
+        An instance of the hypernetwork class.
+    hypernetwork_weights: torch.Tensor
+        Loaded weights for the hypernetwork.
+    target_network: MLP or ResNet
+        An instance of the target network class.
+    target_network_type: str
+        Represents the target network architecture ("MLP" or "ResNet").
+    input_data: torch.Tensor
+        Input data for the network.
+    task: int
+        The considered task; the corresponding embedding and batch normalization
+        statistics will be used (if applicable)
+    perturbated_eps: float
+        Represents the taken perturbated epsilon.
+    full_interval: bool
+        Indicates whether a proper interval mechanism is used or not.
 
     Returns:
     --------
-       A list containing torch.Tensor (or tensors) representing lower, 
-       middle and upper values from the output classification layer
+    torch.Tensor or list of torch.Tensor
+        A tensor (or list of tensors) representing lower, middle, and upper
+        values from the output classification layer.
     """
     hypernetwork.eval()
     target_network.eval()
@@ -214,22 +235,28 @@ def extract_test_set_from_single_task(
     dataset_CL_tasks, no_of_task, dataset, device
 ):
     """
-    Extract test samples dedicated for a selected task
-    and change relative output classes into absolute classes.
+    Extract test samples dedicated for a selected task and change relative
+    output classes into absolute classes.
 
-    Arguments:
-    ----------
-       *dataset_CL_tasks*: list of objects containing consecutive tasks
-       *no_of_task*: (int) represents number of the currently analyzed task
-       *dataset*: (str) defines name of the dataset used: 'PermutedMNIST',
-                  'SplitMNIST' or 'CIFAR100_FeCAM_setup'
-       *device*: (str) defines whether CPU or GPU will be used
+    Parameters:
+    -----------
+    dataset_CL_tasks: List[object]
+        List of objects containing consecutive tasks.
+    no_of_task: int
+        Represents the number of the currently analyzed task.
+    dataset: str
+        Defines the name of the dataset used: 'PermutedMNIST', 'SplitMNIST',
+        or 'CIFAR100_FeCAM_setup'.
+    device: str
+        Defines whether CPU or GPU will be used.
 
     Returns:
     --------
-       *X_test*: (torch.Tensor) represents input samples
-       *gt_classes*: (Numpy array) represents absolute classes for *X_test*
-       *gt_tasks*: (list) represents number of task for corresponding samples
+    Tuple[torch.Tensor, np.ndarray, List[int]]
+        A tuple containing:
+        - X_test: torch.Tensor representing input samples.
+        - gt_classes: Numpy array representing absolute classes for X_test.
+        - gt_tasks: List representing the number of the task for corresponding samples.
     """
     tested_task = dataset_CL_tasks[no_of_task]
     input_data = tested_task.get_test_inputs()
@@ -266,29 +293,28 @@ def extract_test_set_from_all_tasks(
 ):
     """
     Create a test set containing samples from all the considered tasks
-    with corresponding labels (without forward propagation through network)
-    and information about task.
+    with corresponding labels (without forward propagation through the network)
+    and information about the task.
 
-    Arguments:
-    ----------
-       *dataset_CL_tasks* (list of datasets) list of objects storing training
-                           and test samples from consecutive tasks
-       *number_of_incremental_tasks* (int) the number of consecutive tasks
-                                      from which the test sets will be
-                                      extracted
-       *total_number_of_tasks* (int) the number of all tasks in a given
-                               experiment
-       *device*: (str) 'cpu' or 'cuda', defines the equipment for computations
+    Parameters:
+    -----------
+    dataset_CL_tasks: List[object]
+        List of objects storing training and test samples from consecutive tasks.
+    number_of_incremental_tasks: int
+        The number of consecutive tasks from which the test sets will be extracted.
+    total_number_of_tasks: int
+        The total number of all tasks in a given experiment.
+    device: str
+        Defines whether CPU or GPU will be used.
 
     Returns:
     --------
-       *X_test* (torch Tensor) contains samples from the test set,
-                shape: (number of samples, number of image features [e.g. 3072
-                for CIFAR-100])
-       *y_test* (Numpy array) contains labels for corresponding samples
-                from *X_test* (number of samples, )
-       *tasks_test* (Numpy array) contains information about task for
-                    corresponding samples from *X_test* (number of samples, )
+    Tuple[torch.Tensor, np.ndarray, np.ndarray]
+        A tuple containing:
+        - X_test: torch.Tensor containing samples from the test set
+          (shape: number of samples, number of image features [e.g., 3072 for CIFAR-100]).
+        - y_test: Numpy array containing labels for corresponding samples from X_test (shape: number of samples).
+        - tasks_test: Numpy array containing information about the task for corresponding samples from X_test (shape: number of samples).
     """
 
     test_input_data, test_output_data, test_ID_tasks = [], [], []
@@ -321,24 +347,27 @@ def get_task_and_class_prediction_based_on_logits(
     inferenced_logits_of_all_tasks, setup, dataset, vanilla_entropy = False
 ):
     """
-    Get task prediction for consecutive samples based on interval 
-    entropy values of the output classification layer of the target network.
+    Get task predictions for consecutive samples based on interval entropy values
+    of the output classification layer of the target network.
 
-    Arguments:
-    ----------
-       *inferenced_logits_of_all_tasks*: shape: (number of tasks,
-                            number of samples, number of output heads)
-       *setup*: (int) defines how many tasks were performed in this
-                experiment (in total)
-       *dataset*: (str) name of the dataset for proper class translation
+    Parameters:
+    -----------
+    inferenced_logits_of_all_tasks: torch.Tensor
+        Shape: (number of tasks, number of samples, 3, number of output heads).
+    setup: int
+        Defines how many tasks were performed in this experiment (in total).
+    dataset: str
+        Name of the dataset for proper class translation.
+    vanilla_entropy: bool, optional
+        Indicates whether vanilla entropy calculation should be used (default: False).
 
     Returns:
     --------
-       *predicted_tasks*: torch.Tensor with the prediction of tasks for
-                          consecutive samples
-       *predicted_classes*: torch.Tensor with the prediction of classes for
-                            consecutive samples.
-       Positions of samples in the two above Tensors are the same.
+    Tuple[torch.Tensor, torch.Tensor]
+        A tuple containing:
+        - predicted_tasks: torch.Tensor with the prediction of tasks for consecutive samples.
+        - predicted_classes: torch.Tensor with the prediction of classes for consecutive samples.
+          Positions of samples in the two tensors are the same.
     """
     predicted_classes, predicted_tasks = [], []
     number_of_samples = inferenced_logits_of_all_tasks.shape[1]
@@ -400,21 +429,25 @@ def get_task_and_class_prediction_based_on_logits(
 
 def calculate_entropy_and_predict_classes_separately(experiment_models):
     """
-    Select the target task automatically and calculate accuracy for
-    consecutive samples
+    Select the target task automatically and calculate accuracy for consecutive samples.
 
-    Arguments:
-    ----------
-    *experiment_models*: A dictionary with the following keys:
-       *hypernetwork*: an instance of HMLP class
-       *hypernetwork_weights*: loaded weights for the hypernetwork
-       *target_network*: an instance of MLP or ResNet class
-       *target_network_weights*: loaded weights for the target network
-       *hyperparameters*: a dictionary with experiment's hyperparameters
-       *dataset_CL_tasks*: list of objects containing consecutive tasks
+    Parameters:
+    -----------
+    experiment_models: dict
+        A dictionary with the following keys:
+        - "hypernetwork": An instance of the HMLP class.
+        - "hypernetwork_weights": Loaded weights for the hypernetwork.
+        - "target_network": An instance of the target network
+        - "target_network_weights": Loaded weights for the target network.
+        - "hyperparameters": A dictionary with experiment's hyperparameters.
+        - "dataset_CL_tasks": List of objects containing consecutive tasks.
 
-    Returns Pandas Dataframe with results for the selected model.
+    Returns:
+    --------
+    pd.DataFrame
+        A Pandas DataFrame with results for the selected model.
     """
+
     hypernetwork = experiment_models["hypernetwork"]
     hypernetwork_weights = experiment_models["hypernetwork_weights"]
     target_network = experiment_models["target_network"]
@@ -493,10 +526,6 @@ def calculate_entropy_and_predict_classes_separately(experiment_models):
 
 
 if __name__ == "__main__":
-    # The results are varying depending on the batch sizes due to the fact
-    # that batch normalization is turned on in ResNet. We selected 2000 as
-    # the test set size to ensure that it is derived to the network
-    # in one piece.
     
     # alphas = np.linspace(0.01, 1.0, 5)
     alphas = [0.5]

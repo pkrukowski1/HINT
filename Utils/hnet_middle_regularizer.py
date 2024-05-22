@@ -26,13 +26,13 @@ def get_current_targets(task_id, hnet, eps):
     Parameters:
     -----------
 
-        task_id (int):
+        task_id: int
             The ID of the current task.
         hnet:
             An instance of the hypernetwork before learning a new task (i.e.,
             the hypernetwork has the weights θ* necessary to compute the
             targets).
-        eps (float):
+        eps: float
             A perturbation value.
 
     Returns:

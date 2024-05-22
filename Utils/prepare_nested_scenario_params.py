@@ -11,16 +11,18 @@ def set_hyperparameters(dataset,
     Set hyperparameters of the experiments, both in the case of grid search
     optimization and a single network run.
 
-    Arguments:
-    ----------
-      *dataset*: "PermutedMNIST", "SplitMNIST" or "CIFAR100"
-      *grid_search*: (Boolean optional) defines whether a hyperparameter
-                     optimization should be performed or hyperparameters
-                     for just a single run have to be returned
-      *part* (only for SplitMNIST or CIFAR100!) selects a subset
-             of hyperparameters for optimization (by default 0)
+    Parameters:
+    -----------
+    dataset: str
+        Dataset name ("PermutedMNIST", "SplitMNIST", or "CIFAR100").
+    grid_search: bool, optional
+        Defines whether hyperparameter optimization should be performed
+        (default: False).
 
-    Returns a dictionary with necessary hyperparameters.
+    Returns:
+    --------
+    dict
+        A dictionary with necessary hyperparameters.
     """
 
     if dataset == "PermutedMNIST":

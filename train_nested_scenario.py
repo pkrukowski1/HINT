@@ -26,29 +26,28 @@ def train_single_task(hypernetwork,
                       dataset_list_of_tasks,
                       current_no_of_task):
     """
-    Train two neural networks: a hypernetwork will generate the weights of the target neural network.
+    Train a hypernetwork that generates the weights of the target neural network.
     This module operates on a single training task with a specific number.
 
-    Arguments:
-    ----------
-      *hypernetwork*: (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
-                      a hypernetwork that generates weights for the target
-                      network
-      *target_network*: (hypnettorch.mnets module, e.g. mlp.MLP)
-                        a target network that finally will perform
-                        classification
-      *criterion*: (torch.nn module) implements a loss function,
-                   e.g. CrossEntropyLoss
-      *parameters*: (dictionary) contains necessary hyperparameters
-                    describing an experiment
-      *dataset_list_of_tasks*: a module containing list of tasks for the CL
-                               scenario, e.g. permuted_mnist.PermutedMNISTList
-      *current_no_of_task*: (int) specifies the number of currently solving task
+    Parameters:
+    -----------
+    hypernetwork: hypnettorch.hnets module (e.g., mlp_hnet.MLP)
+        A hypernetwork that generates weights for the target network.
+    target_network: hypnettorch.mnets module (e.g., mlp.MLP)
+        A target network that finally performs classification.
+    criterion: torch.nn module
+        Implements a loss function (e.g., CrossEntropyLoss).
+    parameters: dictionary
+        Contains necessary hyperparameters describing an experiment.
+    dataset_list_of_tasks: module
+        Contains a list of tasks for the CL scenario (e.g., permuted_mnist.PermutedMNISTList).
+    current_no_of_task: int
+        Specifies the number of the currently solving task.
 
     Returns:
     --------
-      *hypernetwork*: a modified module of hypernetwork
-      *target_network*: a modified module of the target network
+    hypernetwork: modified module of the hypernetwork.
+    target_network: modified module of the target network.
     """
     # Optimizer cannot be located outside of this function because after
     # deep copy of the network it needs to be reinitialized
@@ -307,28 +306,24 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                    parameters,
                                    use_chunks=False):
     """
-    Create a continual learning experiment with multiple tasks
-    for a given dataset.
+    Create a continual learning experiment with multiple tasks for a given dataset.
 
-    Arguments:
-    ----------
-      *dataset_list_of_tasks*: a module containing list of tasks for the CL
-                               scenario, e.g. permuted_mnist.PermutedMNISTList
-      *parameters*: (dictionary) contains necessary hyperparameters
-                    describing an experiment
-      *use_chunks*: (Boolean value) optional argument, defines whether
-                    a hypernetwork should generate weights in chunks or not
+    Parameters:
+    -----------
+    dataset_list_of_tasks: module
+        Contains a list of tasks for the CL scenario (e.g., permuted_mnist.PermutedMNISTList).
+    parameters: dict
+        Contains necessary hyperparameters describing an experiment.
+    use_chunks: bool, optional
+        Defines whether a hypernetwork should generate weights in chunks or not (default: False).
 
     Returns:
     --------
-      *hypernetwork*: (hypnettorch.hnets module, e.g. mlp_hnet.MLP)
-                      a hypernetwork that generates weights for the target
-                      network
-      *target_network*: (hypnettorch.mnets module, e.g. mlp.MLP)
-                        a target network that finally will perform
-                        classification
-      *dataframe*: (Pandas Dataframe) contains results from consecutive
-                   evaluations for all previous tasks
+    Tuple[hypnettorch.hnets, hypnettorch.mnets, pd.DataFrame]
+        A tuple containing:
+        - hypernetwork: A hypernetwork that generates weights for the target network.
+        - target_network: A target network that finally performs classification.
+        - dataframe: A Pandas DataFrame containing results from consecutive evaluations for all previous tasks.
     """
 
     if parameters["dataset"] == "SubsetImageNet":
@@ -546,13 +541,20 @@ def main_running_experiments(path_to_datasets,
     """
     Perform a series of experiments based on the hyperparameters.
 
-    Arguments:
-    ----------
-      *path_to_datasets*: (str) path to files with datasets
-      *parameters*: (dict) contains multiple experiment hyperparameters
+    Parameters:
+    -----------
+    path_to_datasets: str
+        Path to files with datasets.
+    parameters: dict
+        Contains multiple experiment hyperparameters.
 
-    Returns learned hypernetwork, target network and a dataframe
-    with single results.
+    Returns:
+    --------
+    Tuple[hypnettorch.hnets, hypnettorch.mnets, pd.DataFrame]
+        A tuple containing:
+        - hypernetwork: A learned hypernetwork that generates weights for the target network.
+        - target_network: A learned target network that performs classification.
+        - dataframe: A Pandas DataFrame with single results from consecutive evaluations for all previous tasks.
     """
     if parameters["dataset"] == "PermutedMNIST":
         dataset_tasks_list = prepare_permuted_mnist_tasks(
