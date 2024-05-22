@@ -11,7 +11,7 @@ from main import (
     intersection_of_embeds
 )
 from IntervalNets.interval_MLP import IntervalMLP
-from IntervalNets.hmlp_ibp import HMLP_IBP
+from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from VanillaNets.ResNet18 import ResNetBasic
 from IntervalNets.interval_ZenkeNet64 import IntervalZenkeNet
 from copy import deepcopy
@@ -26,6 +26,24 @@ from scipy import stats
 from typing import Tuple
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
+    """""
+    Load and prepare a specific dataset based on the given parameters.
+
+    Parameters:
+    -----------
+        dataset: str
+            Name of the dataset (e.g., "PermutedMNIST", "CIFAR-100", etc.).
+
+        path_to_datasets: str
+            Path to the dataset files.
+
+        hyperparameters: dict
+            Dictionary containing hyperparameters for dataset preparation:
+
+    Returns:
+    --------
+        Tuple: A tuple containing the prepared dataset tasks.
+    """
     if dataset == "PermutedMNIST":
         return prepare_permuted_mnist_tasks(
             path_to_datasets,
@@ -61,6 +79,21 @@ def load_dataset(dataset, path_to_datasets, hyperparameters):
 
 
 def prepare_target_network(hyperparameters, output_shape):
+    """
+    Prepare the target network based on specified hyperparameters.
+
+    Parameters:
+    -----------
+        hyperparameters: dict
+            Dictionary containing hyperparameters.
+
+        output_shape int
+            Number of output classes.
+
+    Returns:
+    --------
+        torch.nn.Module: The prepared target network.
+    """
     if hyperparameters["target_network"] == "MLP":
         target_network = IntervalMLP(
             n_in=hyperparameters["shape"],
@@ -117,32 +150,39 @@ def prepare_and_load_weights_for_models(
     seed,
 ):
     """
-    Prepare hypernetwork and target network and load stored weights
+    Prepare the hypernetwork and target network, and load stored weights
     for both models. Also, load experiment hyperparameters.
 
-    Arguments:
-    ----------
-       *path_to_stored_networks*: (string) path for all models
-                                  located in subfolders
-       *number_of_model*: (int) a number of the currently loaded model
-       *dataset*: (string) the name of the currently analyzed dataset,
-                           one of the followings: 'PermutedMNIST',
-                           'SplitMNIST', 'CIFAR-100' or 'CIFAR100_FeCAM_setup'
-       *seed*: (int) defines a seed value for deterministic calculations
-    
-    Returns a dictionary with the following keys:
-       *hypernetwork*: an instance of HMLP class
-       *hypernetwork_weights*: loaded weights for the hypernetwork
-       *target_network*: an instance of MLP or ResNet class
-       *target_network_weights*: loaded weights for the target network
-       *hyperparameters*: a dictionary with experiment's hyperparameters
+    Parameters:
+    -----------
+        path_to_stored_networks: str
+            Path for all models located in subfolders.
+
+        number_of_model: int
+            The number of the currently loaded model.
+        dataset: str
+            The name of the currently analyzed dataset, one of the following:
+            'PermutedMNIST', 'SplitMNIST', 'CIFAR-100', 'CIFAR100_FeCAM_setup',
+            'CIFAR-10', 'SubsetImageNet'
+        seed: int
+            Defines a seed value for deterministic calculations.
+
+    Returns:
+    --------
+        dict: A dictionary with the following keys:
+            - "list_of_CL_tasks": List of tasks from the dataset.
+            - "hypernetwork": An instance of the HMLP class.
+            - "hypernetwork_weights": Loaded weights for the hypernetwork.
+            - "target_network": An instance of the MLP or ResNet class.
+            - "target_network_weights": Loaded weights for the target network.
+            - "hyperparameters": A dictionary with experiment hyperparameters.
     """
+
     assert dataset in [
         "PermutedMNIST",
         "SplitMNIST",
         "CIFAR100_FeCAM_setup",
-        "SubsetImageNet",
-        "CIFAR10"
+        "SubsetImageNet"
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
     hyperparameters = set_hyperparameters(dataset, grid_search=False)
@@ -181,14 +221,6 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}target_network_after_"
         f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-
-    perturbation_vectors = load_pickle_file(
-        f"{path_to_model}perturbation_vectors_after_"
-        f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
-    )
-
-    hypernetwork._perturbated_eps_T = perturbation_vectors
-
     # Check whether the number of target weights is exactly the same like
     # the loaded weights
     for prepared, loaded in zip(
@@ -209,53 +241,32 @@ def prepare_and_load_weights_for_models(
     }
 
 
-def calculate_hypernetwork_output(
-    target_network,
-    hyperparameters,
-    path_to_stored_networks,
-    no_of_task_for_loading,
-    no_of_task_for_evaluation,
-    forward_transfer=False,
-):
-    
-    if not hyperparameters["use_chunks"]:
-        hypernetwork = HMLP_IBP(
-            target_network.param_shapes,
-            uncond_in_size=0,
-            cond_in_size=hyperparameters["embedding_sizes"][0],
-            activation_fn=hyperparameters["activation_function"],
-            layers=hyperparameters["hypernetworks_hidden_layers"][0],
-            num_cond_embs=hyperparameters["number_of_tasks"],
-        ).to(hyperparameters["device"])
-        random_hypernetwork = deepcopy(hypernetwork)
-    hnet_weights = load_pickle_file(
-        f"{path_to_stored_networks}hypernetwork_"
-        f"after_{no_of_task_for_loading}_task.pt"
-    )
-    if forward_transfer:
-        assert (no_of_task_for_loading + 1) == no_of_task_for_evaluation
-        no_of_task_for_evaluation = no_of_task_for_loading
-        # Also embedding from the 'no_of_task_for_loading' will be loaded
-        # because embedding from the foregoing task is built randomly
-        # (not from zeros!)
-
-    hypernetwork_output = hypernetwork.forward(
-        cond_id=no_of_task_for_evaluation, weights=hnet_weights
-    )
-    random_hypernetwork_output = random_hypernetwork.forward(
-        cond_id=no_of_task_for_evaluation
-    )
-    return random_hypernetwork_output, hypernetwork_output
-
-
 def evaluate_target_network(
     target_network, network_input, weights, target_network_type, condition=None
 ):
     """
-       *condition* (optional int) the number of the currently tested task
-                   for batch normalization
+    Evaluate the target network on a single batch of samples.
 
-    Returns logits
+    Parameters:
+    -----------
+        target_network: torch.nn.Module
+            The target network.
+
+        network_input: torch.Tensor
+            Input data.
+
+        weights: torch.Tensor
+            Weights for the target network.
+
+        target_network_type: str
+            Type of the target network (e.g., "ResNet").
+
+        condition: int, optional
+            The number of the currently tested task for batch normalization.
+
+    Returns:
+    --------
+        torch.Tensor: Logits from the target network.
     """
     if target_network_type == "ResNet":
         assert condition is not None
@@ -280,34 +291,42 @@ def plot_accuracy_curve(
         figsize = (6, 4)
 ):
     """
-        This function saves the accuracy curve for the specified mode
+    Saves the accuracy curve for the specified mode.
 
-        Arguments:
-        ---------
-            *list_of_folders_path*: (List[str]) a list with paths to stored results,
-                                    one path for one seed
-            *save_path*: (str) the path where plots will be stored
-            *filename*: (str) name of saved plot
-            *mode*: (int) an integer having the following meanings:
-                - 1: experiments for different perturbation size for the
-                     universal embedding setup
-                - 2: experiments for different beta parameters for the
-                     universal embedding setup
-                - 3: experiments for different perturbation size for the
-                     non-forced setup
-                - 4: experiments for different beta parameters for the
-                     non-forced setup
-            *perturbation_sizes*: (list) a list with gamma hyperparameters
-            *dataset_name*: (str) a dataset name
-            *beta_params*: (list) a list with beta hyperparameters,
-            *y_lim_max*: (float) an upper limit of y axis
-            *fontsize*: (int) font size of the titles and axes
-            *figsize*: (tuple[int]) a tuple with width and height of the
-                       figures
-        
-        Returns:
-        --------
-            None
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results, one path for each seed.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        mode: int
+            An integer having the following meanings:
+            - 1: Experiments for different perturbation sizes in the
+                 universal embedding setup.
+            - 2: Experiments for different beta parameters in the
+                 universal embedding setup.
+            - 3: Experiments for different perturbation sizes in the
+                 non-forced setup.
+            - 4: Experiments for different beta parameters in the
+                 non-forced setup.
+        perturbation_sizes: List[float]
+            A list with gamma hyperparameters.
+        dataset_name: str
+            A dataset name.
+        beta_params: List[float]
+            A list with beta hyperparameters.
+        y_lim_max: float
+            An upper limit for the Y-axis.
+        fontsize: int
+            Font size of titles and axes.
+        figsize: Tuple[int]
+            A tuple with width and height of the figures.
+
+    Returns:
+    --------
+        None
     """
 
     assert mode in [1, 2, 3, 4], "Please provide the correct mode!"
@@ -359,11 +378,11 @@ def plot_accuracy_curve(
         pd_results_1 = pd.read_csv(acc_path_1, sep=";")
         pd_results_2 = pd.read_csv(acc_path_2, sep=";")
 
-        acc_1 = pd_results_1.groupby(["after_learning_of_task"]).mean()
-        acc_2 = pd_results_2.groupby(["after_learning_of_task"]).mean()
 
-        acc_1 = acc_1["accuracy"]
-        acc_2 = acc_2["accuracy"]
+        acc_1 = pd_results_1.loc[
+                pd_results_1["after_learning_of_task"] == pd_results_1["after_learning_of_task"].max(), "accuracy"].values
+        acc_2 = pd_results_2.loc[
+                pd_results_2["after_learning_of_task"] == pd_results_2["after_learning_of_task"].max(), "accuracy"].values
 
         dataframe["accuracy"] = (acc_1 + acc_2)/2.0
 
@@ -391,28 +410,30 @@ def plot_accuracy_curve_for_diff_nesting_methods(
         filename,
         dataset_name = "PermutedMNIST-10",
         y_lim_max = 100.0,
-        figsize = (8, 4),
         fontsize = 10
 ):
     """
-        This function saves the accuracy curve for the different
-        nesting methods, such as tanh or cosine
+    Saves the accuracy curve for different nesting methods, such as tanh or cosine.
 
-        Arguments:
-        ---------
-            *list_of_folders_path*: (List[str]) a list with paths to stored results,
-                                    the first two paths are for the tanh nesting method and
-                                    the last two are for the cosine nesting method
-            *save_path*: (str) the path where plots will be stored
-            *filename*: (str) name of saved plot
-            *dataset_name*: (str) a dataset name
-            *y_lim_max*: (float) an upper limit of y axis
-            *figsize*: (tuple of ints), figure size
-            *fontsize*: (int)
-        
-        Returns:
-        --------
-            None
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results. The first two paths are for the tanh nesting method,
+            and the last two are for the cosine nesting method.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        dataset_name: str
+            A dataset name.
+        y_lim_max: float
+            An upper limit for the Y-axis.
+        fontsize: int
+            Font size for titles and axes.
+
+    Returns:
+    --------
+        None
     """
 
     assert dataset_name in [
@@ -451,17 +472,16 @@ def plot_accuracy_curve_for_diff_nesting_methods(
     cos_pd_results_1 = pd.read_csv(cos_acc_path_1, sep=";")
     cos_pd_results_2 = pd.read_csv(cos_acc_path_2, sep=";")
 
-    tanh_acc_1 = tanh_pd_results_1.groupby(["after_learning_of_task"]).mean()
-    tanh_acc_2 = tanh_pd_results_2.groupby(["after_learning_of_task"]).mean()
+    tanh_acc_1 = tanh_pd_results_1.loc[
+                tanh_pd_results_1["after_learning_of_task"] == tanh_pd_results_1["after_learning_of_task"].max(), "accuracy"].values
+    tanh_acc_2 = tanh_pd_results_2.loc[
+            tanh_pd_results_2["after_learning_of_task"] == tanh_pd_results_2["after_learning_of_task"].max(), "accuracy"].values
+    
+    cos_acc_1 = cos_pd_results_1.loc[
+                cos_pd_results_1["after_learning_of_task"] == cos_pd_results_1["after_learning_of_task"].max(), "accuracy"].values
+    cos_acc_2 = cos_pd_results_2.loc[
+            cos_pd_results_2["after_learning_of_task"] == cos_pd_results_2["after_learning_of_task"].max(), "accuracy"].values
 
-    cos_acc_1 = cos_pd_results_1.groupby(["after_learning_of_task"]).mean()
-    cos_acc_2 = cos_pd_results_2.groupby(["after_learning_of_task"]).mean()
-
-    tanh_acc_1 = tanh_acc_1["accuracy"]
-    tanh_acc_2 = tanh_acc_2["accuracy"]
-
-    cos_acc_1 = cos_acc_1["accuracy"]
-    cos_acc_2 = cos_acc_2["accuracy"]
 
     tanh_dataframe["accuracy"] = (tanh_acc_1 + tanh_acc_2)/2.0
     cos_dataframe["accuracy"] = (cos_acc_1 + cos_acc_2)/2.0
@@ -487,45 +507,44 @@ def plot_histogram_of_intervals(path_to_stored_networks,
                                 parameters,
                                 num_bins: int = 10,
                                 threshold_collapsed: float = 1e-8,
-                                density: bool = True,
                                 plot_vlines: bool = True,
                                 figsize: Tuple[int] = (7,5),
                                 rotation = False,
                                 fontsize = 10
                                 ):
     """
-    Arguments:
-    ----------
-        *path_to_stored_networks*: str, path to folder where the saved hypernetwork is stored
-        *save_path*: str, path to folder, where the histogram will be saved
-        *filename*: str, a name of the saved histogram plot
-        *parameters*: dict, a dictionary with the following hyperparameters:
-            - number_of_tasks - int, a number of CL tasks
-            - perturbated_epsilon - float, a perturbation value
-            - embedding_size - int, dimensionality of the embedding space
-            - activation_function - nn.Module, a non-linear non-decreasing activation function
-            - hypernetwork_hidden_layers - list of integers indicating a number of hidden layers
-                                           and neuron per each layer in the hypernetwork
-            - shape - integer indicating width (height)
-            - out_shape - number of neurons at the last layer of the neural network
-            - target_hidden_layers - list of integers indicating a number of hidden layers
-                                           and neuron per each layer in the target network
-            - use_bias - bool, True if biased is used, False otherwise
-            - use_batch_norm - bool, True if batch normalization layers are used, False
-                               otherwise, applicable only in the ResNet/ZenkeNet architecture
-            - target_network - str, a name of the target network, e.g. MLP, ResNet or ZenkeNet
-            - dataset - str, which dataset is used, it is essential to determine input shape
-                        to the target network
-            - device - str, `cuda` or `cpu`
-        *num_bins*: int, a number of histogram bins (a number of bars),
-        *threshold_collapsed*: float, a threshold for treating the interval as collapsed to a point,
-        *density*: bool, if True, draws and returns a probability density,
-        *plot_vlines*: bool, if True, vertical lines will be drawn to separate each bar,
-        *figsize*: a tuple, represents the size of a plot,
-        *path*: str, path to a saving directory,
-        *rotation*: bool, if True, then OX axis ticks will be rotated by 45 degrees to the right,
-        *fontsize*: int, size of font in title, OX and OY axes
+    Prepare a histogram plot based on specified parameters.
+
+    Parameters:
+    -----------
+        path_to_stored_networks: str
+            Path to the folder where the saved hypernetwork is stored.
+        save_path: str
+            Path to the folder where the histogram will be saved.
+        filename: str
+            Name of the saved histogram plot.
+        parameters: dict
+            A dictionary with experiment hyperparameters.
+        num_bins: int
+            Number of histogram bins (number of bars).
+        threshold_collapsed: float
+            Threshold for treating the interval as collapsed to a point.
+        plot_vlines: bool
+            If True, vertical lines will be drawn to separate each bar.
+        figsize: tuple
+            Represents the size of the plot.
+        path: str
+            Path to the saving directory.
+        rotation: bool
+            If True, OX axis ticks will be rotated by 45 degrees to the right.
+        fontsize: int
+            Size of font in title, OX, and OY axes.
+    
+    Returns:
+    --------
+        None
     """
+
     os.makedirs(save_path, exist_ok=True)
     target_network = prepare_target_network(parameters, parameters["out_shape"])
 
@@ -563,7 +582,7 @@ def plot_histogram_of_intervals(path_to_stored_networks,
 
         universal_embedding = (universal_embedding_lower + universal_embedding_upper)/2.0
         universal_radii = (universal_embedding_upper - universal_embedding_lower)/2.0
-
+        
         W_lower, _, W_upper, _ = hypernetwork.forward(
             cond_input = universal_embedding.view(1, -1),
             return_extended_output = True,
@@ -575,19 +594,26 @@ def plot_histogram_of_intervals(path_to_stored_networks,
         epsilon = [(upper - lower).view(-1) for upper, lower in zip(W_upper, W_lower)]
         outputs = torch.cat(epsilon)
         num_zero_outputs = torch.where(outputs < threshold_collapsed, 1, 0).sum().item()
-        ylabel = "Desity of intervals" if density else "Number of intervals"
+        ylabel = "Desity of intervals"
 
         outputs = outputs.detach().numpy()
 
         n, bins, patches = plt.hist(outputs,
                                     num_bins,
-                                    density = density,
+                                    density = False,
                                     color = "green",
                                     alpha = 0.5)
 
         plt.xlabel('Interval length', fontsize=fontsize)
         plt.ylabel(ylabel, fontsize=fontsize)
         ticks = np.linspace(start=outputs.min(), stop=outputs.max(), num=num_bins+1)
+        locs, _ = plt.yticks() 
+        ax = plt.gca()
+        precision_format = "{:.4f}"
+        yticks = ax.get_yticks()
+        ytick_labels = [precision_format.format(tick) for tick in locs/len(outputs)]
+        ax.set_yticks(yticks[:-1])
+        ax.set_yticklabels(ytick_labels[:-1])
         if plot_vlines:
             plt.vlines(x = ticks[:-1], ymin = 0, ymax = n, linestyle="--", color='black')
         plt.xticks(ticks)
@@ -605,38 +631,33 @@ def plot_intervals_around_embeddings_for_trained_models(path_to_stored_networks,
                                                         filename,
                                                         parameters,
                                                         figsize: Tuple[int] = (7,5),
-                                                        rotation = False,
                                                         fontsize = 10,
                                                         dims_to_plot = 5):
     """
-    Arguments:
-    ----------
-        *path_to_stored_networks*: str, path to folder where the saved hypernetwork is stored
-        *save_path*: str, path to folder, where the plot will be saved
-        *filename*: str, a filename of the saved plot
-        *parameters*: dict, a dictionary with the following hyperparameters:
-            - number_of_tasks - int, a number of CL tasks
-            - perturbated_epsilon - float, a perturbation value
-            - embedding_size - int, dimensionality of the embedding space
-            - activation_function - nn.Module, a non-linear non-decreasing activation function
-            - hypernetwork_hidden_layers - list of integers indicating a number of hidden layers
-                                           and neuron per each layer in the hypernetwork
-            - shape - integer indicating width (height)
-            - out_shape - number of neurons at the last layer of the neural network
-            - target_hidden_layers - list of integers indicating a number of hidden layers
-                                           and neuron per each layer in the target network
-            - use_bias - bool, True if biased is used, False otherwise
-            - use_batch_norm - bool, True if batch normalization layers are used, False
-                               otherwise, applicable only in the ResNet/ZenkeNet architecture
-            - target_network - str, a name of the target network, e.g. MLP, ResNet or ZenkeNet
-            - dataset - str, which dataset is used, it is essential to determine input shape
-                        to the target network
-            - device - str, `cuda` or `cpu`
-        *figsize*: a tuple, represents the size of a plot,
-        *path*: str, path to a saving directory,
-        *rotation*: bool, if True, then OX axis ticks will be rotated by 45 degrees to the right,
-        *fontsize*: int, size of font in title, OX and OY axes
-        *dims_to_plot*: int, number of the first dimensions to plots
+    Prepare a histogram plot based on specified parameters.
+
+    Parameters:
+    -----------
+        path_to_stored_networks: str
+            Path to the folder where the saved hypernetwork is stored.
+        save_path: str
+            Path to the folder where the plot will be saved.
+        filename: str
+            Name of the saved plot.
+        parameters: dict
+            A dictionary with experiment hyperparameters.
+        figsize: tuple
+            Represents the size of the plot.
+        path: str
+            Path to the saving directory.
+        fontsize: int
+            Size of font in title, OX, and OY axes.
+        dims_to_plot: int
+            Number of the first dimensions to plot.
+    
+    Returns:
+    --------
+        None
     """
 
     if not os.path.exists(save_path):
@@ -646,17 +667,6 @@ def plot_intervals_around_embeddings_for_trained_models(path_to_stored_networks,
     dim_emb  = parameters["embedding_size"]
     eps      = parameters["perturbated_epsilon"]
     sigma    = 0.5 * eps / dim_emb
-
-    target_network = prepare_target_network(parameters, parameters["out_shape"])
-
-    hypernetwork = HMLP_IBP(
-            perturbated_eps=parameters["perturbated_epsilon"],
-            target_shapes=target_network.param_shapes,
-            uncond_in_size=0,
-            cond_in_size=parameters["embedding_size"],
-            activation_fn=parameters["activation_function"],
-            layers=parameters["hypernetwork_hidden_layers"],
-            num_cond_embs=parameters["number_of_tasks"])
     
     hnet_weights = load_pickle_file(
         f"{path_to_stored_networks}hypernetwork_"
@@ -721,9 +731,17 @@ def plot_intervals_around_embeddings_for_trained_models(path_to_stored_networks,
         plt.xticks(x, range(1, dims_to_plot+1))
         plt.ylabel("Embedding's value", fontsize=fontsize)
         plt.title(f'Intervals around embeddings', fontsize=fontsize)
-        if rotation:
-            plt.xticks(x, rotation = 45, ha = "right")
-        plt.legend(loc="upper left", bbox_to_anchor=(1.05, 1.0), fontsize=fontsize)
+
+        # Update legend to be at the top and split into two lines
+        handles, _ = plt.gca().get_legend_handles_labels()
+        ncol = (no_tasks + 1) // 2 + (no_tasks + 1) % 2
+
+        labels = [f'{i+1}-th task' for i in range(no_tasks)]
+        labels.append("Intersection")
+
+        plt.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 1.132),
+                   ncol=ncol, fontsize=fontsize, handletextpad=0.5, columnspacing=1.0)
+        
         plt.grid()
         plt.tight_layout()
         plt.savefig(f'{save_path}/{filename}.png', dpi=300)
@@ -741,33 +759,39 @@ def plot_accuracy_curve_with_confidence_intervals(
         legend_loc = "upper right"
 ):
     """
-        This function saves the accuracy curve for the specified mode with 95% confidence intervals.
+    Saves the accuracy curve for the specified mode with 95% confidence intervals.
 
-        Arguments:
-        ---------
-            *list_of_folders_path*: (List[str]) a list with paths to stored results,
-                                    one path for one seed
-            *save_path*: (str) the path where plots will be stored
-            *filename*: (str) name of saved plot
-            *dataset_name*: (str) a dataset name
-            *mode*: (int):
-                - 1 - results will be obtained for the non forced intervals method
-                - 2 - results will be obtained for the universal embedding method
-            *y_lim_max*: (float) an upper limit of the OY axis
-            *fontsize*: (int) font size of the titles and axes
-            *figsize*: (tuple[int]) a tuple with width and height of the
-                       figures
-            *legend_loc*: (str), location of the legend
-        
-        Returns:
-        --------
-            None
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results, one path for each seed.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        dataset_name: str
+            A dataset name.
+        mode: int
+            - 1: Results for the non-forced intervals method.
+            - 2: Results for the universal embedding method.
+        y_lim_max: float
+            Upper limit of the Y-axis.
+        fontsize: int
+            Font size of titles and axes.
+        figsize: Tuple[int]
+            Tuple with width and height of the figures.
+        legend_loc: str
+            Location of the legend.
+
+    Returns:
+    --------
+        None
     """
 
-    assert len(list_of_folders_path) == 5, "Please provide results on 5 runs!"
     assert mode in [1, 2], "Please provide the correct mode!"
     assert dataset_name in [
         "PermutedMNIST-10",
+        "PermutedMNIST-100",
         "SplitMNIST",
         "CIFAR-100",
         "CIFAR100_FeCAM_setup",
@@ -777,14 +801,23 @@ def plot_accuracy_curve_with_confidence_intervals(
 
     os.makedirs(save_path, exist_ok=True)
 
-    title = f'Results for {dataset_name}'
-
     if dataset_name in ["PermutedMNIST-10", "CIFAR-100"]:
         tasks_list = [i + 1 for i in range(10)]
     elif dataset_name in ["SplitMNIST", "SubsetImageNet", "CIFAR100_FeCAM_setup"]:
         tasks_list = [i + 1 for i in range(5)]
     elif dataset_name == "TinyImageNet":
         tasks_list = [i + 1 for i in range(40)]
+    elif dataset_name == "PermutedMNIST-100":
+        tasks_list = [i+1 for i in range(100)]
+
+    if dataset_name == "CIFAR100_FeCAM_setup":
+        dataset_name = "CIFAR-100"
+
+    if mode == 1:
+        title = f'Results for {dataset_name} (task incremental learning)'
+    elif mode == 2:
+        
+        title = f'Results for {dataset_name} (class incremental learning)'
 
     if mode == 1:
         file_suffix = "results.csv"
@@ -828,7 +861,11 @@ def plot_accuracy_curve_with_confidence_intervals(
     ax.set_xlabel("Number of task", fontsize=fontsize)
     ax.set_ylabel("Accuracy [%]", fontsize=fontsize)
     ax.grid()
-    ax.set_xticks(range(1, tasks_list[-1] + 1))
+    
+    if dataset_name == "PermutedMNIST-100":
+        ax.set_xticks(range(1, tasks_list[-1] + 1, 5))
+    else:
+        ax.set_xticks(range(1, tasks_list[-1] + 1))
     ax.set_ylim(top=y_lim_max)
     ax.legend(loc=legend_loc, fontsize=fontsize)
     plt.tight_layout()
@@ -836,7 +873,7 @@ def plot_accuracy_curve_with_confidence_intervals(
     plt.close()
 
 def plot_accuracy_curve_with_barplot(
-        folder_path,
+        list_of_folders_path,
         save_path,
         filename,
         dataset_name="TinyImageNet",
@@ -847,32 +884,39 @@ def plot_accuracy_curve_with_barplot(
         bar_width = 0.35
 ):
     """
-        This function saves the accuracy curve as a bar plot for the specified mode.
+    Saves the accuracy curve as a bar plot for the specified mode.
 
-        Arguments:
-        ---------
-            *list_of_folders_path*: (List[str]) a list with paths to stored results,
-                                    one path for one seed
-            *save_path*: (str) the path where plots will be stored
-            *filename*: (str) name of saved plot
-            *dataset_name*: (str) a dataset name
-            *mode*: (int):
-                - 1 - results will be obtained for the non forced intervals method
-                - 2 - results will be obtained for the universal embedding method
-            *y_lim_max*: (float) an upper limit of the OY axis
-            *fontsize*: (int) font size of the titles and axes
-            *figsize*: (tuple[int]) a tuple with width and height of the
-                       figures
-            *bar_width*: (float)
-        
-        Returns:
-        --------
-            None
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results, one path for each seed.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        dataset_name: str
+            A dataset name.
+        mode: int
+            - 1: Results for the non-forced intervals method.
+            - 2: Results for the universal embedding method.
+        y_lim_max: float
+            Upper limit of the Y-axis.
+        fontsize: int
+            Font size of titles and axes.
+        figsize: Tuple[int]
+            Tuple with width and height of the figures.
+        bar_width: float
+            Width of the bars in the bar plot.
+
+    Returns:
+    --------
+        None
     """
 
     assert mode in [1, 2], "Please provide the correct mode!"
     assert dataset_name in [
         "PermutedMNIST-10",
+        "PermutedMNIST-100",
         "SplitMNIST",
         "CIFAR-100",
         "CIFAR100_FeCAM_setup",
@@ -890,6 +934,8 @@ def plot_accuracy_curve_with_barplot(
         tasks_list = [i + 1 for i in range(5)]
     elif dataset_name == "TinyImageNet":
         tasks_list = [i + 1 for i in range(40)]
+    elif dataset_name == "PermutedMNIST-100":
+        tasks_list = [i + 1 for i in range(100)]
 
     if mode == 1:
         file_suffix = "results.csv"
@@ -897,8 +943,9 @@ def plot_accuracy_curve_with_barplot(
         file_suffix = "results_intersection.csv"
 
     results_list = []
-    acc_path = os.path.join(folder_path, file_suffix)
-    results_list.append(pd.read_csv(acc_path, sep=";"))
+    for folder_path in list_of_folders_path:
+        acc_path = os.path.join(folder_path, file_suffix)
+        results_list.append(pd.read_csv(acc_path, sep=";"))
 
     acc_just_after_training = []
     acc_after_all_training_sessions = []
@@ -947,23 +994,27 @@ def plot_heatmap_for_n_runs(
         fontsize=10,
 ):
     """
-        This function saves the accuracy curve for the specified mode with 95% confidence intervals.
+    Saves the accuracy curve for the specified mode with 95% confidence intervals.
 
-        Arguments:
-        ---------
-            *list_of_folders_path*: (List[str]) a list with paths to stored results,
-                                    one path for one seed
-            *save_path*: (str) the path where plots will be stored
-            *filename*: (str) name of saved plot
-            *dataset_name*: (str) a dataset name
-            *mode*: (int):
-                - 1 - results will be obtained for the non forced intervals method
-                - 2 - results will be obtained for the universal embedding method
-            *fontsize*: (int) font size of the titles and axes
-        
-        Returns:
-        --------
-            None
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results, one path for each seed.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        dataset_name: str
+            A dataset name.
+        mode: int
+            - 1: Results for the non-forced intervals method.
+            - 2: Results for the universal embedding method.
+        fontsize: int
+            Font size of titles and axes.
+
+    Returns:
+    --------
+        None
     """
 
     assert len(list_of_folders_path) == 5, "Please provide results on 5 runs!"
@@ -980,6 +1031,13 @@ def plot_heatmap_for_n_runs(
     os.makedirs(save_path, exist_ok=True)
 
     title = f'Mean accuracy for 5 runs of HyperInterval for {dataset_name}'
+
+    if dataset_name in ["PermutedMNIST-10", "CIFAR-100"]:
+        tasks_list = [i+1 for i in range(10)]
+    elif dataset_name in ["SplitMNIST", "SubsetImageNet", "CIFAR100_FeCAM_setup"]:
+        tasks_list = [i+1 for i in range(5)]
+    elif dataset_name == "TinyImageNet":
+        tasks_list = [i+1 for i in range(40)]
     
     if mode == 1:
         file_suffix = "results.csv"
@@ -1007,533 +1065,16 @@ def plot_heatmap_for_n_runs(
     table = dataframe.pivot(
         "after_learning_of_task", "tested_task", "accuracy")
     sns.heatmap(table, annot=True, fmt=".1f")
-    plt.xlabel("Number of the tested task")
-    plt.ylabel("Number of the previously learned task")
-    plt.title(title)
+    plt.xlabel("Number of the tested task", fontsize=fontsize)
+    plt.ylabel("Number of the previously learned task", fontsize=fontsize)
+    plt.xticks(ticks=np.arange(len(tasks_list))+0.5, labels=np.arange(1, len(tasks_list)+1), fontsize=fontsize)
+    plt.yticks(ticks=np.arange(len(tasks_list))+0.5, labels=np.arange(1, len(tasks_list)+1), fontsize=fontsize)
+    plt.tight_layout()
+    plt.title(title, fontsize=fontsize)
     plt.tight_layout()
     plt.savefig(f"{save_path}/{filename}", dpi=300)
     plt.close()
 
 if __name__ == "__main__":
-    # ######################################################
-    # # Different interval sizes - universal embedding
-    # ######################################################
-    # list_of_folders_path = [
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_08-45-18/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_11-51-01/"
-    # ]
-
-    # plot_accuracy_curve(
-    #     list_of_folders_path,
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/interval_sizes/universal_embedding/",
-    #     filename = "universal_embedding_interval_sizes.png",
-    #     mode = 1,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )
-
-    # ######################################################
-    # # Different interval sizes - non forced intersections
-    # ######################################################
-    # list_of_folders_path = [
-    #     "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_08-47-30/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_11-55-46/"
-    # ]
-
-
-    # plot_accuracy_curve(
-    #     list_of_folders_path,
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/interval_sizes/non_forced/",
-    #     filename = "non_forced_interval_sizes.png",
-    #     mode = 3,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )
-
-    # ######################################################
-    # # Different regularization - universal embedding
-    # ######################################################
-    # list_of_folders_path = [
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_08-38-36/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_09-42-33/"
-    # ]
-
-    # plot_accuracy_curve(
-    #     list_of_folders_path,
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/regularization/universal_embedding/",
-    #     filename = "universal_embedding_regularization.png",
-    #     mode = 2,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )
-
-    # ######################################################
-    # # Different regularization - non forced intersections
-    # ######################################################
-    # list_of_folders_path = [
-    #    "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_22-13-42/",
-    #    "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_22-16-15/"
-    # ]
-
-    # plot_accuracy_curve(
-    #     list_of_folders_path,
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/regularization/non_forced/",
-    #     filename = "non_forced_regularization.png",
-    #     mode = 4,
-    #     figsize = (8, 4),
-    #     fontsize = 12,
-    #     y_lim_max = 98
-    # )
-
-
-    # #####################################################
-    # # Histograms - CIFAR100 (20 classes per 5 tasks) - nesting method
-    # #####################################################
-    
-    # parameters = {
-    #     "number_of_tasks": 5,
-    #     "perturbated_epsilon": 30,
-    #     "embedding_size": 48,
-    #     "activation_function": torch.nn.ReLU(),
-    #     "hypernetwork_hidden_layers": [100],
-    #     "target_network": "ResNet",
-    #     "shape": 32,
-    #     "out_shape": 20,
-    #     "use_bias": True,
-    #     "use_batch_norm": True,
-    #     "dataset": "CIFAR100_FeCAM_setup",
-    #     "device": "cuda" if torch.cuda.is_available() else "cpu"
-    # }  
-
    
-    # plot_histogram_of_intervals(
-    #     path_to_stored_networks = "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/CIFAR100_FeCAM_setup/val_loss/2024-05-06_10-34-20/0/",
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/histogram_results/",
-    #     filename = "CIFAR100_FeCAM_weights_histogram.png",
-    #     parameters = parameters,
-    #     num_bins = 10,
-    #     threshold_collapsed = 1e-8,
-    #     rotation=True,
-    #     density = True,
-    #     plot_vlines = True,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )
-
-    # ######################################################
-    # # Histograms - SplitMNIST (2 classes per 5 tasks) - nesting method
-    # ######################################################
-    # parameters = {
-    #     "number_of_tasks": 5,
-    #     "perturbated_epsilon": 15,
-    #     "embedding_size": 24,
-    #     "activation_function": torch.nn.ReLU(),
-    #     "hypernetwork_hidden_layers": [75, 75],
-    #     "target_network": "MLP",
-    #     "target_hidden_layers": [400, 400],
-    #     "shape": 784,
-    #     "out_shape": 2,
-    #     "use_bias": True,
-    #     "use_batch_norm": False,
-    #     "dataset": "SplitMNIST",
-    #     "device": "cuda" if torch.cuda.is_available() else "cpu"
-    # }  
-
-   
-    # plot_histogram_of_intervals(
-    #     path_to_stored_networks = "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/0/",
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/histogram_results/",
-    #     filename = "SplitMNIST_weights_histogram.png",
-    #     parameters = parameters,
-    #     num_bins = 10,
-    #     rotation = True,
-    #     threshold_collapsed = 1e-8,
-    #     density = True,
-    #     plot_vlines = True,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )
-
-    # ######################################################
-    # # Histograms - PermutedMNIST (10 classes per 10 tasks) - nesting method
-    # ######################################################
-    # parameters = {
-    #     "number_of_tasks": 10,
-    #     "perturbated_epsilon": 5,
-    #     "embedding_size": 24,
-    #     "activation_function": torch.nn.ReLU(),
-    #     "hypernetwork_hidden_layers": [100, 100],
-    #     "target_network": "MLP",
-    #     "target_hidden_layers": [1000, 1000],
-    #     "shape": 784,
-    #     "out_shape": 10,
-    #     "use_bias": True,
-    #     "use_batch_norm": False,
-    #     "dataset": "PermutedMNIST",
-    #     "device": "cuda" if torch.cuda.is_available() else "cpu"
-    # }  
-
-   
-    # plot_histogram_of_intervals(
-    #     path_to_stored_networks = "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/0/",
-    #     save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/histogram_results/",
-    #     filename = "PermutedMNIST_weights_histogram.png",
-    #     parameters = parameters,
-    #     num_bins = 50,
-    #     rotation = True,
-    #     threshold_collapsed = 1e-8,
-    #     density = True,
-    #     plot_vlines = True,
-    #     figsize = (8, 4),
-    #     fontsize = 12
-    # )             
-             
-
-    # ######################################################
-    # # Different nesting methods
-    # ######################################################
-
-    # list_of_folders_path = [
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_08-39-40/0/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-12_11-32-44/0/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/0/",
-    #     "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/1/"
-    # ]
-    # plot_accuracy_curve_for_diff_nesting_methods(
-    #    list_of_folders_path=list_of_folders_path,
-    #    save_path="/home/gmkrukow/non_forced_intersections/AblationResults/nesting/",
-    #    filename="tanh_cos_nesting.png",
-    #    figsize = (8, 4),
-    #     fontsize = 12,
-    #    y_lim_max=98.0
-    # )
-
-    # ######################################################
-    # # Intervals around embeddings - CIFAR100_FeCAM_setup
-    # ######################################################
-
-    # parameters = {
-    #     "number_of_tasks": 5,
-    #     "perturbated_epsilon": 30,
-    #     "embedding_size": 48,
-    #     "activation_function": torch.nn.ReLU(),
-    #     "hypernetwork_hidden_layers": [100],
-    #     "target_network": "ResNet",
-    #     "target_hidden_layers": None,
-    #     "shape": 32,
-    #     "out_shape": 20,
-    #     "use_bias": True,
-    #     "use_batch_norm": True,
-    #     "dataset": "CIFAR100_FeCAM_setup",
-    #     "device": "cuda" if torch.cuda.is_available() else "cpu"
-    # }  
-
-    # save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/intervals_around_embeddings"
-
-    # plot_intervals_around_embeddings_for_trained_models(path_to_stored_networks = "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/CIFAR100_FeCAM_setup/val_loss/2024-05-06_10-34-20/0/",
-    #                                                     save_path = save_path,
-    #                                                     filename = "intervals_around_embeddings_CIFAR100_FeCAM_setup",
-    #                                                     parameters = parameters,
-    #                                                     rotation = False,
-    #                                                     figsize = (8, 4),
-    #                                                     fontsize = 12,
-    #                                                     dims_to_plot = 10)
-
-
-    #  ######################################################
-    # # Intervals around embeddings - SplitMNIST
-    # ######################################################
-
-    # parameters = {
-    #     "number_of_tasks": 5,
-    #     "perturbated_epsilon": 15,
-    #     "embedding_size": 24,
-    #     "activation_function": torch.nn.ReLU(),
-    #     "hypernetwork_hidden_layers": [75, 75],
-    #     "target_network": "MLP",
-    #     "target_hidden_layers": [400, 400],
-    #     "shape": 784,
-    #     "out_shape": 2,
-    #     "use_bias": True,
-    #     "use_batch_norm": False,
-    #     "dataset": "SplitMNIST",
-    #     "device": "cuda" if torch.cuda.is_available() else "cpu"
-    # }  
-
-    # save_path = "/home/gmkrukow/non_forced_intersections/AblationResults/intervals_around_embeddings"
-
-    # plot_intervals_around_embeddings_for_trained_models(path_to_stored_networks = "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/0/",
-    #                                                     save_path = save_path,
-    #                                                     filename = "intervals_around_embeddings_SplitMNIST",
-    #                                                     parameters = parameters,
-    #                                                     rotation = False,
-    #                                                     figsize = (8, 4),
-    #                                                     fontsize = 12,
-    #                                                     dims_to_plot = 10)
-    ######################################################
-    # MAIN EXPERIMENTS SECTION
-    ######################################################
-
-    ######################################################
-    # Accuracy curves with confidence intervals - PermutedMNIST-10 non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/0/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/1/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/2/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/3/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/4/"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_accuracy_curve_with_confidence_intervals(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_PermutedMNIST10_non_forced.png",
-        dataset_name = "PermutedMNIST-10",
-        mode = 1,
-        y_lim_max = 98.5,
-        figsize = (8, 4),
-        fontsize = 12
-)
-
-    ######################################################
-    # Accuracy curves with confidence intervals - PermutedMNIST-10 universal embedding
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/1",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/2",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/3",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/4"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_accuracy_curve_with_confidence_intervals(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_PermutedMNIST10_universal_embedding.png",
-        dataset_name = "PermutedMNIST-10",
-        mode = 2,
-        y_lim_max = 100,
-        figsize = (8, 4),
-        fontsize = 12,
-        legend_loc = "lower right"
-)
-
-    ######################################################
-    # Accuracy curves with confidence intervals - SplitMNIST non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/0/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/1/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/2/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/3/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/4/"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_accuracy_curve_with_confidence_intervals(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_SplitMNIST_non_forced.png",
-        dataset_name = "SplitMNIST",
-        mode = 1,
-        # y_lim_max = 98.5,
-        figsize = (8, 4),
-        fontsize = 12,
-        legend_loc = "lower right"
-)
-
-    ######################################################
-    # Accuracy curves with confidence intervals - SplitMNIST universal embedding
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/1",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/2",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/3",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/4"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_accuracy_curve_with_confidence_intervals(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_SplitMNIST_universal_embedding.png",
-        dataset_name = "SplitMNIST",
-        mode = 2,
-        y_lim_max = 100,
-        figsize = (8, 4),
-        fontsize = 12,
-        legend_loc = "lower right"
-)
-
-    ######################################################
-    # Accuracy curves with confidence intervals - CIFAR100 (10 classes per 10 tasks) non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_14-23-22/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-55-57/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-56-30/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-57-53/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-58-11/0"
-
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_accuracy_curve_with_confidence_intervals(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_CIFAR100_non_forced.png",
-        dataset_name = "CIFAR-100",
-        mode = 1,
-        y_lim_max = 90,
-        figsize = (8, 4),
-        fontsize = 12
-    )
-
-    ######################################################
-    # Accuracy barplot - TinyImageNet non forced
-    ######################################################
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-    folder_path = "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/TinyImageNet/ResNet/2024-05-06_19-07-26/0/"
-
-    plot_accuracy_curve_with_barplot(
-        folder_path = folder_path,
-        save_path = save_path,
-        filename = "acc_TinyImageNet_non_forced.png",
-        dataset_name="TinyImageNet",
-        mode=1,
-        y_lim_max=100.0,
-        fontsize=12,
-        figsize=(8, 4),
-        bar_width = 0.35
-    )
-
-    ######################################################
-    # Heatmap - PermutedMNIST non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/1",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/2",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/3",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_10-32-40/4",
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_heatmap_for_n_runs(
-        list_of_folders_path = list_of_folders_path,
-        save_path = save_path,
-        filename = "heatmap_PermutedMNIST_non_forced.pdf",
-        dataset_name="PermutedMNIST-10",
-        mode=1,
-        fontsize=12,
-    )
-
-    ######################################################
-    # Heatmap - PermutedMNIST universal embedding
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/0/",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/1/",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/2/",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/3/",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/permuted_mnist_final_grid_experiments/val_loss/2024-05-04_15-15-20/4/",
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_heatmap_for_n_runs(
-        list_of_folders_path = list_of_folders_path,
-        save_path = save_path,
-        filename = "heatmap_PermutedMNIST_universal_embedding.pdf",
-        dataset_name="PermutedMNIST-10",
-        mode=2,
-        fontsize=12,
-    )
-
-    ######################################################
-    # Heatmap - SplitMNIST non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/0/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/1/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/2/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/3/",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/split_mnist/augmented/2024-05-04_09-52-11/4/"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_heatmap_for_n_runs(
-        list_of_folders_path = list_of_folders_path,
-        save_path = save_path,
-        filename = "heatmap_SplitMNIST_non_forced.pdf",
-        dataset_name="SplitMNIST",
-        mode=1,
-        fontsize=12,
-    )
-
-    ######################################################
-    # Heatmap - SplitMNIST universal embedding
-    ######################################################
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/1",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/2",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/3",
-        "/shared/results/pkrukowski/HyperIntervalResults/common_embedding/grid_search_relu/split_mnist/augmented/2024-05-05_10-37-59/4"
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_heatmap_for_n_runs(
-        list_of_folders_path = list_of_folders_path,
-        save_path = save_path,
-        filename = "heatmap_SplitMNIST_universal_embedding.pdf",
-        dataset_name="SplitMNIST",
-        mode=2,
-        fontsize=12,
-    )
-
-     ######################################################
-    # Heatmap - CIFAR100 non forced
-    ######################################################
-
-    list_of_folders_path = [
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_14-23-22/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-55-57/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-56-30/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-57-53/0",
-        "/shared/results/pkrukowski/HyperIntervalResults/intersections_non_forced/grid_search_relu/CIFAR-100_single_seed/ResNet/2024-05-05_23-58-11/0"
-
-    ]
-
-    save_path = "/home/gmkrukow/non_forced_intersections/MainExperiments/accuracy_curves/"
-
-    plot_heatmap_for_n_runs(
-        list_of_folders_path = list_of_folders_path,
-        save_path = save_path,
-        filename = "heatmap_CIFAR100_non_forced.pdf",
-        dataset_name="CIFAR-100",
-        mode=1,
-        fontsize=12,
-    )
-
+   pass
