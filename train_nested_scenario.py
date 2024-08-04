@@ -18,6 +18,7 @@ from IntervalNets.hmlp_ibp_with_nesting import HMLP_IBP
 from Utils.prepare_nested_scenario_params import set_hyperparameters
 from Utils.handy_functions import *
 from Utils.dataset_utils import *
+import time
 
 def train_single_task(hypernetwork,
                       target_network,
@@ -612,11 +613,16 @@ def main_running_experiments(path_to_datasets,
     else:
         raise ValueError("Wrong name of the dataset!")
 
+    start_time = time.time()
+
     hypernetwork, target_network, dataframe = build_multiple_task_experiment(
         dataset_tasks_list,
         parameters,
         use_chunks=parameters["use_chunks"]
     )
+    elapsed_time = time.time() - start_time
+    print(f"Elapsed time: {elapsed_time}")
+
     # Calculate statistics of grid search results
     no_of_last_task = parameters["number_of_tasks"] - 1
     accuracies = dataframe.loc[
@@ -641,6 +647,7 @@ def main_running_experiments(path_to_datasets,
         f'{parameters["perturbated_epsilon"]};'
         f'{parameters["kappa"]};'
         f"{np.mean(accuracies)};{np.std(accuracies)}"
+        f"{elapsed_time}"
     )
     append_row_to_file(
         f'{parameters["grid_search_folder"]}'
@@ -681,7 +688,8 @@ if __name__ == "__main__":
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "use_chunks;target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
-        "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy"
+        "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy;"
+        "elapsed_time"
     )
 
     append_row_to_file(
