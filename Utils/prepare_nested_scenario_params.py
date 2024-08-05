@@ -211,7 +211,7 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
         hyperparams["target_hidden_layers"] = [400, 400]
-        hyperparams["shape"] = 32
+        hyperparams["shape"] = 227
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False

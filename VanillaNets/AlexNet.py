@@ -39,7 +39,7 @@ class AlexNet(Classifier):
 
     def __init__(
         self,
-        in_shape=(32, 32, 3),
+        in_shape=(227, 227, 3),
         num_classes=10,
         verbose=True,
         arch="cifar",
@@ -70,7 +70,7 @@ class AlexNet(Classifier):
         }
 
         if arch == "cifar":
-            assert in_shape[0] == 32 and in_shape[1] == 32
+            assert in_shape[0] == 227 and in_shape[1] == 227
         else:
             raise ValueError(
                 "Dataset other than CIFAR are " "not handled!"
