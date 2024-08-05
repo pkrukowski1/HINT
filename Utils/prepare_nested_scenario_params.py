@@ -395,11 +395,11 @@ def set_hyperparameters(dataset,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
-                "use_batch_norm": True,
-                "target_network": "ResNet",
+                "use_batch_norm": False,
+                "target_network": "AlexNet",
                 "use_chunks": False,
                 "number_of_epochs": 1,
-                "augmentation": True
+                "augmentation": False
             }
             # FeCAM considered three incremental scenarios: with 6, 11 and 21 tasks
             # ResNet - parts 0, 1 and 2
@@ -413,9 +413,9 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples_per_class"] = 50
         hyperparams["no_of_validation_samples"] = 2000
-        hyperparams["number_of_tasks"] = 5
+        hyperparams["number_of_tasks"] = 20
 
-        if hyperparams["target_network"] in ["ResNet", "ZenkeNet"]:
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
             hyperparams["shape"] = 32
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":

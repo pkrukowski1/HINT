@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import torch.optim as optim
 from VanillaNets.ResNet18 import ResNetBasic
+from VanillaNets.AlexNet import AlexNet
 from IntervalNets.interval_ResNet import IntervalResNetBasic
 from copy import deepcopy
 import Utils.hnet_interval_regularizer as hreg
@@ -400,6 +401,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
         raise ValueError("ZenkeNet is not supported right now!")
     
+    elif parameters["target_network"] == "AlexNet":
+        target_network = AlexNet(
+            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            num_classes=output_shape
+        )
+    
     if not use_chunks:
         hypernetwork = HMLP_IBP(
             perturbated_eps=parameters["perturbated_epsilon"],
@@ -670,7 +677,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "CIFAR100_FeCAM_setup"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
