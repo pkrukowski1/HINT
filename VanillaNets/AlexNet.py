@@ -160,6 +160,7 @@ class AlexNet(Classifier):
         Returns:
             y: The output of the network.
         """
+        # TODO: Add batch norm layers in formward computations
         if distilled_params is not None:
             raise ValueError(
                 'Parameter "distilled_params" has no '
