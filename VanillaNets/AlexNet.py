@@ -39,28 +39,31 @@ class AlexNet(Classifier):
 
     def __init__(
         self,
-        in_shape=(227, 227, 3),
+        in_shape=(32, 32, 3),
         num_classes=10,
         verbose=True,
         arch="cifar",
         no_weights=False,
+        use_batch_norm=True,
+        bn_track_stats=True,
+        distill_bn_stats=False,
         init_weights=None,
     ):
         super(AlexNet, self).__init__(num_classes, verbose)
 
         _architectures = {
         "cifar": [
-            [96, 3, 11, 11],
-            [96],
-            [256, 96, 5, 5],
-            [256],
-            [384, 256, 3, 3],
-            [384],
-            [384, 384, 3, 3],
+            [64, 3, 3, 3],
+            [64],
+            [192, 64, 3, 3],
+            [192],
+            [384, 192, 3, 3],
             [384],
             [256, 384, 3, 3],
             [256],
-            [4096, 9216],
+            [256, 256, 3, 3],
+            [256],
+            [4096, 256*2*2],
             [4096],
             [4096, 4096],
             [4096],
@@ -70,12 +73,19 @@ class AlexNet(Classifier):
         }
 
         if arch == "cifar":
-            assert in_shape[0] == 227 and in_shape[1] == 227
+            assert in_shape[0] == 32 and in_shape[1] == 32
         else:
             raise ValueError(
                 "Dataset other than CIFAR are " "not handled!"
             )
         self._in_shape = in_shape
+
+        self._hyper_shapes_learned = (
+            None if not no_weights and not self._context_mod_no_weights else []
+        )
+        self._hyper_shapes_learned_ref = (
+            None if self._hyper_shapes_learned is None else []
+        )
 
         self.architecture = arch
         assert self.architecture in _architectures.keys()
@@ -94,6 +104,25 @@ class AlexNet(Classifier):
         # We don't use any output non-linearity.
         self._has_linear_out = True
 
+        # Add BatchNorm layers at the end
+        if use_batch_norm:
+            
+            start_idx = len(_architectures[self.architecture])
+
+            bn_sizes = [
+                64, 192, 384, 256, 256, 4096, 4096
+            ]
+
+            bn_layers = list(range(start_idx, start_idx + len(bn_sizes)))
+
+            self._add_batchnorm_layers(
+                bn_sizes,
+                no_weights,
+                bn_layers=bn_layers,
+                distill_bn_stats=distill_bn_stats,
+                bn_track_stats=bn_track_stats,
+            )
+
         self._num_weights = MainNetInterface.shapes_to_num_weights(
             self._param_shapes
         )
@@ -102,48 +131,14 @@ class AlexNet(Classifier):
                 "Creating an AlexNet with %d weights" % (self._num_weights)
             )
 
+        self._weights = None
+        self._hyper_shapes_learned = self._param_shapes
+        self._hyper_shapes_learned_ref = list(
+            range(len(self._param_shapes))
+        )
+
         self._layer_weight_tensors = nn.ParameterList()
         self._layer_bias_vectors = nn.ParameterList()
-
-        if no_weights:
-            self._weights = None
-            self._hyper_shapes_learned = self._param_shapes
-            self._hyper_shapes_learned_ref = list(
-                range(len(self._param_shapes))
-            )
-            self._is_properly_setup()
-            return
-
-        ### Define and initialize network weights.
-        # Each odd entry of this list will contain a weight Tensor and each
-        # even entry a bias vector.
-        self._weights = nn.ParameterList()
-        for i, dims in enumerate(self._param_shapes):
-            self._weights.append(
-                nn.Parameter(torch.Tensor(*dims), requires_grad=True)
-            )
-
-            if i % 2 == 0:
-                self._layer_weight_tensors.append(self._weights[i])
-            else:
-                assert len(dims) == 1
-                self._layer_bias_vectors.append(self._weights[i])
-
-        if init_weights is not None:
-            assert len(init_weights) == len(self._param_shapes)
-            for i in range(len(init_weights)):
-                assert np.all(
-                    np.equal(
-                        list(init_weights[i].shape),
-                        list(self._weights[i].shape),
-                    )
-                )
-                self._weights[i].data = init_weights[i]
-        else:
-            for i in range(len(self._layer_weight_tensors)):
-                init_params(
-                    self._layer_weight_tensors[i], self._layer_bias_vectors[i]
-                )
 
         self._is_properly_setup()
 
@@ -196,32 +191,33 @@ class AlexNet(Classifier):
 
         ### Convolutional layers
 
+        print(weights)
+
         # First convolutional block
-        h = F.conv2d(x, weights[0], bias=weights[1], stride=4)
-        h = F.max_pool2d(h, kernel_size=3, stride=2)
+        h = F.conv2d(x, weights[0], bias=weights[1], stride=2, padding=1)
+        h = F.max_pool2d(h, kernel_size=2)
         h = F.relu(h)
 
         # Second convolutional block
-        h = F.conv2d(h, weights[2], bias=weights[3], stride=1)
-        h = F.max_pool2d(h, kernel_size=3, stride=2)
+        h = F.conv2d(h, weights[2], bias=weights[3], padding=1)
+        h = F.max_pool2d(h, kernel_size=2)
         h = F.relu(h)
 
         # Third convolutional block
-        h = F.conv2d(h, weights[4], bias=weights[5], stride=1)
+        h = F.conv2d(h, weights[4], bias=weights[5], padding=1)
         h = F.relu(h)
 
         # Fourth convolutional block
-        h = F.conv2d(h, weights[6], bias=weights[7], stride=1)
+        h = F.conv2d(h, weights[6], bias=weights[7], padding=1)
         h = F.relu(h)
 
         # Fifth convolutional block
-        h = F.conv2d(h, weights[8], bias=weights[9], stride=1)
-        h = F.max_pool2d(h, kernel_size=3, stride=2)
+        h = F.conv2d(h, weights[8], bias=weights[9], padding=1)
+        h = F.max_pool2d(h, kernel_size=2)
         h = F.relu(h)
 
         ### Fully-connected layers
-        
-        h = h.reshape(-1, weights[8].size()[1])
+        h = h.reshape(-1, weights[10].size()[1])
         
         # First fully-connected layer
         h = F.linear(h, weights[10], bias=weights[11])
