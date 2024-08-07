@@ -677,7 +677,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CIFAR10"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "SplitMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False

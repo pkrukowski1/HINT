@@ -169,7 +169,7 @@ def set_hyperparameters(dataset,
                 "betas": [0.01, 0.1],
                 "hypernetworks_hidden_layers": [[100], [100, 100]],
                 "dropout_rate": [-1],
-                "use_batch_norm": False,
+                "use_batch_norm": True,
                 "target_network": "AlexNet",
                 "perturbated_epsilon": [5.0, 10.0, 15.0],
                 # seed is not for optimization but for ensuring multiple results
@@ -211,7 +211,7 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
         hyperparams["target_hidden_layers"] = [400, 400]
-        hyperparams["shape"] = 227
+        hyperparams["shape"] = 32
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False

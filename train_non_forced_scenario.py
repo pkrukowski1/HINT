@@ -394,7 +394,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     elif parameters["target_network"] == "AlexNet":
         target_network = AlexNet(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            num_classes=output_shape
+            num_classes=output_shape,
+            no_weights=True,
+            use_batch_norm=parameters["use_batch_norm"],
+            bn_track_stats=False,
+            distill_bn_stats=False
         )
     
     if not use_chunks:
@@ -613,7 +617,7 @@ def main_running_experiments(path_to_datasets,
 if __name__ == "__main__":
     # path_to_datasets = "/shared/sets/datasets/"
     path_to_datasets = "./Data"
-    dataset = "CIFAR100_FeCAM_setup"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "CIFAR10"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
