@@ -404,7 +404,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     elif parameters["target_network"] == "AlexNet":
         target_network = AlexNet(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            num_classes=output_shape
+            num_classes=output_shape,
+            no_weights=True,
+            use_batch_norm=parameters["use_batch_norm"],
+            bn_track_stats=False,
+            distill_bn_stats=False
         )
     
     if not use_chunks:
