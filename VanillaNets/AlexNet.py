@@ -35,6 +35,17 @@ class AlexNet(Classifier):
             initialize the network weights. As such, it provides a
             convinient way of initializing a network with a weight draw
             produced by the hypernetwork.
+        bn_track_stats (bool): if is set to False, this layer then does not keep running estimates
+            and batch statistics are instead used during evaluation time as well. For more information
+            please see docs https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html
+        distill_bn_stats (bool):  distill_bn_stats: If ``True``, then the shapes of the batchnorm
+            statistics will be added to the attribute
+            :attr:`mnets.mnet_interface.MainNetInterface.hyper_shapes_distilled` and the current statistics 
+            will be returned by the method :meth:`distillation_targets`. Currently it is not used.
+
+    Returns:
+    --------
+        torch.Tensor
     """
 
     def __init__(
