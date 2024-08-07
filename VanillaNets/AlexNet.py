@@ -250,14 +250,15 @@ class AlexNet(Classifier):
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[0].forward(
-                    h,
-                    running_mean=running_means[0],
-                    running_var=running_vars[0],
-                    weight=weights[bn_params_start_idx],
-                    bias=weights[bn_params_start_idx],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[0].forward(
+                        h,
+                        running_mean=running_means[0],
+                        running_var=running_vars[0],
+                        weight=weights[bn_params_start_idx],
+                        bias=weights[bn_params_start_idx],
+                        stats_id=bn_cond,
+                    )
         
         # Second convolutional block
         h = F.conv2d(h, weights[2], bias=weights[3], padding=1)
@@ -265,42 +266,45 @@ class AlexNet(Classifier):
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[1].forward(
-                    h,
-                    running_mean=running_means[1],
-                    running_var=running_vars[1],
-                    weight=weights[bn_params_start_idx+1],
-                    bias=weights[bn_params_start_idx+1],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[1].forward(
+                        h,
+                        running_mean=running_means[1],
+                        running_var=running_vars[1],
+                        weight=weights[bn_params_start_idx+1],
+                        bias=weights[bn_params_start_idx+1],
+                        stats_id=bn_cond,
+                    )
 
         # Third convolutional block
         h = F.conv2d(h, weights[4], bias=weights[5], padding=1)
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[2].forward(
-                    h,
-                    running_mean=running_means[2],
-                    running_var=running_vars[2],
-                    weight=weights[bn_params_start_idx+2],
-                    bias=weights[bn_params_start_idx+2],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[2].forward(
+                        h,
+                        running_mean=running_means[2],
+                        running_var=running_vars[2],
+                        weight=weights[bn_params_start_idx+2],
+                        bias=weights[bn_params_start_idx+2],
+                        stats_id=bn_cond,
+                    )
 
         # Fourth convolutional block
         h = F.conv2d(h, weights[6], bias=weights[7], padding=1)
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[3].forward(
-                    h,
-                    running_mean=running_means[3],
-                    running_var=running_vars[3],
-                    weight=weights[bn_params_start_idx+3],
-                    bias=weights[bn_params_start_idx+3],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[3].forward(
+                        h,
+                        running_mean=running_means[3],
+                        running_var=running_vars[3],
+                        weight=weights[bn_params_start_idx+3],
+                        bias=weights[bn_params_start_idx+3],
+                        stats_id=bn_cond,
+                    )
 
         # Fifth convolutional block
         h = F.conv2d(h, weights[8], bias=weights[9], padding=1)
@@ -308,14 +312,15 @@ class AlexNet(Classifier):
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[4].forward(
-                    h,
-                    running_mean=running_means[4],
-                    running_var=running_vars[4],
-                    weight=weights[bn_params_start_idx+4],
-                    bias=weights[bn_params_start_idx+4],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[4].forward(
+                        h,
+                        running_mean=running_means[4],
+                        running_var=running_vars[4],
+                        weight=weights[bn_params_start_idx+4],
+                        bias=weights[bn_params_start_idx+4],
+                        stats_id=bn_cond,
+                    )
 
         ### Fully-connected layers
         h = h.reshape(-1, weights[10].size()[1])
@@ -325,28 +330,30 @@ class AlexNet(Classifier):
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[5].forward(
-                    h,
-                    running_mean=running_means[5],
-                    running_var=running_vars[5],
-                    weight=weights[bn_params_start_idx+5],
-                    bias=weights[bn_params_start_idx+5],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[5].forward(
+                        h,
+                        running_mean=running_means[5],
+                        running_var=running_vars[5],
+                        weight=weights[bn_params_start_idx+5],
+                        bias=weights[bn_params_start_idx+5],
+                        stats_id=bn_cond,
+                    )
 
         # Second fully-connected layer
         h = F.linear(h, weights[12], bias=weights[13])
         h = F.relu(h)
 
         # Batch normalization
-        h = self._batchnorm_layers[6].forward(
-                    h,
-                    running_mean=running_means[6],
-                    running_var=running_vars[6],
-                    weight=weights[bn_params_start_idx+6],
-                    bias=weights[bn_params_start_idx+6],
-                    stats_id=bn_cond,
-                )
+        if self._use_batch_norm:
+            h = self._batchnorm_layers[6].forward(
+                        h,
+                        running_mean=running_means[6],
+                        running_var=running_vars[6],
+                        weight=weights[bn_params_start_idx+6],
+                        bias=weights[bn_params_start_idx+6],
+                        stats_id=bn_cond,
+                    )
 
         # Third fully-connected layer (output layer)
         h = F.linear(h, weights[14], bias=weights[15])
