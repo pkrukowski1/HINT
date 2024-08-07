@@ -113,8 +113,6 @@ def set_hyperparameters(dataset,
                 f"CIFAR-100_single_seed/"
                 f"ResNet/"
             )
-        
-    
 
         else:
             # single run experiment
@@ -154,67 +152,6 @@ def set_hyperparameters(dataset,
             hyperparams["shape"] = 3072
             hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["number_of_tasks"] = 10
-        hyperparams["padding"] = None
-        hyperparams["best_model_selection_method"] = "val_loss"
-
-        # Full-interval model or simpler one
-        hyperparams["full_interval"] = False
-
-    elif dataset == "CIFAR10":
-        if grid_search:
-            hyperparams = {
-                "custom_init": [True],
-                "learning_rates": [0.001],
-                "batch_sizes": [128],
-                "betas": [0.01, 0.1],
-                "hypernetworks_hidden_layers": [[100], [100, 100]],
-                "dropout_rate": [-1],
-                "use_batch_norm": True,
-                "target_network": "AlexNet",
-                "perturbated_epsilon": [5.0, 10.0, 15.0],
-                # seed is not for optimization but for ensuring multiple results
-                "seed": [1],
-                "best_model_selection_method": "val_loss",
-                "embedding_sizes": [24, 48, 72],
-                "augmentation": False
-            }
-
-
-            hyperparams["saving_folder"] = (
-                "/raid/NFS_SHARE/results/patryk.krukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"CIFAR10"
-            )
-
-        else:
-            # single run experiment
-            hyperparams = {
-                "custom_init": [True],
-                "seed": [1],
-                "embedding_sizes": [72],
-                "learning_rates": [0.001],
-                "use_batch_norm": [False],
-                "target_network": "AlexNet",
-                "batch_sizes": [128],
-                "betas": [0.01],
-                "perturbated_epsilon": [1.0],
-                "dropout_rate": [-1],
-                "hypernetworks_hidden_layers": [[75, 75]],
-                "augmentation": [False],
-                "best_model_selection_method": "val_loss",
-                "saving_folder": "./Results/CIFAR10/"
-            }
-        hyperparams["lr_scheduler"] = True
-        hyperparams["resnet_number_of_layer_groups"] = None
-        hyperparams["resnet_widening_factor"] = None
-        hyperparams["optimizer"] = "adam"
-        hyperparams["number_of_iterations"] = 2000
-        hyperparams["number_of_epochs"] = None
-        hyperparams["no_of_validation_samples"] = 1000
-        hyperparams["target_hidden_layers"] = [400, 400]
-        hyperparams["shape"] = 32
-        hyperparams["number_of_tasks"] = 5
-        hyperparams["use_chunks"] = False
-        hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
@@ -408,6 +345,68 @@ def set_hyperparameters(dataset,
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 12288
             hyperparams["target_hidden_layers"] = [1000, 1000]
+        hyperparams["padding"] = None
+        hyperparams["best_model_selection_method"] = "val_loss"
+
+        # Full-interval model or simpler one
+        hyperparams["full_interval"] = False
+
+    elif dataset == "CIFAR10":
+        if grid_search:
+            hyperparams = {
+                "custom_init": [True],
+                "learning_rates": [0.001],
+                "batch_sizes": [128],
+                "betas": [0.01, 0.1],
+                "hypernetworks_hidden_layers": [[100], [100, 100]],
+                "dropout_rate": [-1],
+                "use_batch_norm": True,
+                "target_network": "AlexNet",
+                "perturbated_epsilon": [5.0, 10.0, 15.0],
+                # seed is not for optimization but for ensuring multiple results
+                "seed": [1],
+                "best_model_selection_method": "val_loss",
+                "embedding_sizes": [24, 48, 72],
+                "augmentation": False
+            }
+
+
+            hyperparams["saving_folder"] = (
+                "/raid/NFS_SHARE/results/patryk.krukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
+                f"CIFAR10"
+            )
+
+        else:
+            # single run experiment
+            hyperparams = {
+                "seed": [1],
+                "embedding_sizes": [72],
+                "learning_rates": [0.001],
+                "use_batch_norm": False,
+                "target_network": "AlexNet",
+                "batch_sizes": [128],
+                "betas": [0.01],
+                "perturbated_epsilon": [1.0],
+                "dropout_rate": [-1],
+                "hypernetworks_hidden_layers": [[75, 75]],
+                "augmentation": False,
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/CIFAR10/"
+            }
+        hyperparams["lr_scheduler"] = True
+        hyperparams["resnet_number_of_layer_groups"] = None
+        hyperparams["resnet_widening_factor"] = None
+        hyperparams["optimizer"] = "adam"
+        hyperparams["number_of_iterations"] = 2000
+        hyperparams["number_of_epochs"] = None
+        hyperparams["no_of_validation_samples"] = 1000
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
+            hyperparams["target_hidden_layers"] = None
+        else:
+            hyperparams["target_hidden_layers"] = [400, 400]
+        hyperparams["shape"] = 32
+        hyperparams["number_of_tasks"] = 5
+        hyperparams["use_chunks"] = False
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
