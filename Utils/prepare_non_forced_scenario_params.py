@@ -472,26 +472,25 @@ def set_hyperparameters(dataset,
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/CIFAR10/"
             }
-        hyperparams["lr_scheduler"] = False
+        hyperparams["lr_scheduler"] = True
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
         hyperparams["number_of_iterations"] = 2000
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
-        hyperparams["target_hidden_layers"] = [400, 400]
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
+            hyperparams["target_hidden_layers"] = None
+        else:
+            hyperparams["target_hidden_layers"] = [400, 400]
         hyperparams["shape"] = 32
         hyperparams["number_of_tasks"] = 5
         hyperparams["use_chunks"] = False
-        hyperparams["use_batch_norm"] = False
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
         # Full-interval model or simpler one
         hyperparams["full_interval"] = False
-
-    else:
-        raise ValueError("This dataset is not implemented!")
 
     # General hyperparameters
     hyperparams["activation_function"] = torch.nn.ReLU()
