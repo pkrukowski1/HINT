@@ -5,7 +5,6 @@ import numpy as np
 
 from hypnettorch.mnets.classifier_interface import Classifier
 from hypnettorch.mnets.mnet_interface import MainNetInterface
-from hypnettorch.utils.misc import init_params
 
 
 class AlexNet(Classifier):
