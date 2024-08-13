@@ -25,12 +25,17 @@ from hypnettorch.data.special.split_cifar import _transform_split_outputs
 class CIFAR100Data(Dataset):
     """An instance of the class shall represent the CIFAR-100 dataset.
 
-    Args:
-        data_path (str): Where should the dataset be read from? If not
+    Parameters:
+    -----------
+
+        data_path: str
+            Where should the dataset be read from? If not
             existing, the dataset will be downloaded into this folder.
-        use_one_hot (bool): Whether the class labels should be represented in a
+        use_one_hot: bool
+             Whether the class labels should be represented in a
             one-hot encoding.
-        use_data_augmentation (bool): Note, this option currently only applies
+        use_data_augmentation: bool
+            Note, this option currently only applies
             to input batches that are transformed using the class member
             :meth:`input_to_torch_tensor` (hence, **only available for
             PyTorch**, so far).
@@ -39,10 +44,11 @@ class CIFAR100Data(Dataset):
                 If activated, the statistics of test samples are changed as
                 a normalization is applied (identical to the of class
                 :class:`data.cifar10_data.CIFAR10Data`).
-        validation_size (int): The number of validation samples. Validation
-            samples will be taking from the training set (the first :math:`n`
-            samples).
-        use_cutout (bool): Whether option ``apply_cutout`` should be set of
+        validation_size: int
+            The number of validation samples. Validation samples will be taking
+            from the training set (the first :math:`n` samples).
+        use_cutout: bool
+            Whether option ``apply_cutout`` should be set of
             method :meth:`torch_input_transforms`. We use cutouts of size
             ``8 x 8`` as recommended
             `here <https://arxiv.org/pdf/1708.04552.pdf>`__.
@@ -142,8 +148,11 @@ class CIFAR100Data(Dataset):
             * "coarse_label_names": The names of the 20 coarse labels that are
                 associated to each sample.
 
-        Args:
-            filename: The path to the meta data file.
+        Parameters:
+        -----------
+
+            filename: str
+                The path to the meta data file.
         """
         with open(filename, "rb") as f:
             meta_data = pickle.load(f, encoding="UTF-8")
@@ -167,10 +176,15 @@ class CIFAR100Data(Dataset):
         scaled to have values between 0 and 1. For labels, the correct encoding
         is enforced.
 
-        Args:
-            train_fn: Filepath of the train batch.
-            test_fn: Filepath of the test batch.
-            validation_size: Number of validation samples.
+        Parameters:
+        -----------
+
+            train_fn: str
+                Filepath of the train batch.
+            test_fn: str
+                Filepath of the test batch.
+            validation_size: int
+                Number of validation samples.
         """
         # Read test batch.
         with open(test_fn, "rb") as f:
@@ -251,11 +265,13 @@ class CIFAR100Data(Dataset):
         Preprocessing involves normalization and (for training mode) random
         perturbations.
 
-        Args:
+        Parameters:
+        -----------
             (....): See docstring of method
                 :meth:`data.dataset.Dataset.input_to_torch_tensor`.
 
         Returns:
+        --------
             (torch.Tensor): The given input ``x`` as PyTorch tensor.
         """
         if self._augment_inputs and not force_no_preprocessing:
@@ -386,24 +402,29 @@ class CIFAR100Data(Dataset):
 class SplitCIFAR100Data_FeCAM(CIFAR100Data):
     """An instance of the class shall represent a single SplitCIFAR-100 task.
 
-    Args:
-        data_path: Where should the dataset be read from? If not existing,
+    Parameters:
+    ------------
+
+        data_path: str
+            Where should the dataset be read from? If not existing,
             the dataset will be downloaded into this folder.
-        use_one_hot (bool): Whether the class labels should be
-            represented in a one-hot encoding.
-        validation_size: The number of validation samples. Validation
-            samples will be taking from the training set (the first :math:`n`
-            samples).
-        use_data_augmentation (optional): Note, this option currently only
-            applies to input batches that are transformed using the class
-            member :meth:`data.dataset.Dataset.input_to_torch_tensor`
+        use_one_hot: bool
+            Whether the class labels should be represented in a one-hot encoding.
+        validation_size: int
+            The number of validation samples. Validation samples will be taking
+            from the training set (the first :math:`n` samples).
+        use_data_augmentation: bool, Optional
+            Note, this option currently only applies to input batches that are transformed
+            using the class member :meth:`data.dataset.Dataset.input_to_torch_tensor`
             (hence, **only available for PyTorch**).
             Note, we are using the same data augmentation pipeline as for
             CIFAR-10.
-        use_cutout (bool): See docstring of class
-            :class:`data.cifar10_data.CIFAR10Data`.
-        labels: The labels that should be part of this task.
-        full_out_dim: Choose the original CIFAR instead of the the new
+        use_cutout: bool
+            See docstring of class :class:`data.cifar10_data.CIFAR10Data`.
+        labels: Iterable
+            The labels that should be part of this task.
+        full_out_dim: bool
+            Choose the original CIFAR instead of the the new
             task output dimension. This option will affect the attributes
             :attr:`data.dataset.Dataset.num_classes` and
             :attr:`data.dataset.Dataset.out_shape`.
@@ -445,10 +466,15 @@ class SplitCIFAR100Data_FeCAM(CIFAR100Data):
         See :meth:`data.special.split_mnist.SplitMNIST.transform_outputs` for
         more information.
 
-        Args:
-            outputs: 2D numpy array of outputs.
+        Parameters:
+        -----------
+
+            outputs: np.ndarray
+                2D numpy array of outputs.
 
         Returns:
+        --------
+
             2D numpy array of transformed outputs.
         """
         return _transform_split_outputs(self, outputs)
@@ -473,7 +499,9 @@ def _split_cifar_100_fecam_object(
     :class:`SplitCIFAR100Data_FeCAM` are essentially identical. Therefore, the code
     is realized in this function.
 
-    Args:
+    Parameters:
+    -----------
+
         data: The data handler (which is a full CIFAR-100 dataset,
             which will be modified).
         (....): See docstring of class :class:`SplitCIFAR10Data`.

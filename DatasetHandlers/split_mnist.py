@@ -19,12 +19,15 @@ def _transform_split_outputs(data, outputs):
     """Actual implementation of method ``transform_outputs`` for split dataset
     handlers.
 
-    Args:
-        data: Data handler.
-        outputs (numpy.ndarray): See docstring of method
-            :meth:`data.special.split_mnist.SplitMNIST.transform_outputs`
+    Paramaters:
+    -----------
+        data: Iterable[np.ndarray]
+            Data handler.
+        outputs: np.ndarray
+            See docstring of method :meth:`data.special.split_mnist.SplitMNIST.transform_outputs`
     
     Returns:
+    ---------
         (numpy.ndarray)
     """
     if not data._full_out_dim:
@@ -57,24 +60,30 @@ def get_split_mnist_handlers(data_path, use_one_hot=True, validation_size=0,
     The SplitMNIST task consists of 5 tasks corresponding to the images with
     labels [0,1], [2,3], [4,5], [6,7], [8,9].
 
-    Args:
-        data_path: Where should the MNIST dataset be read from? If not existing,
+    Paramaters:
+    ------------
+        data_path: str
+            Where should the MNIST dataset be read from? If not existing,
             the dataset will be downloaded into this folder.
-        use_one_hot: Whether the class labels should be represented in a one-hot
+        use_one_hot: bool
+            Whether the class labels should be represented in a one-hot
             encoding.
-        validation_size: The size of the validation set of each individual
+        validation_size: int
+            The size of the validation set of each individual
             data handler.
-        use_torch_augmentation (bool): See docstring of class
-            :class:`data.mnist_data.MNISTData`.
-        num_classes_per_task (int): Number of classes to put into one data
-            handler. If ``2``, then every data handler will include 2 digits.
-        num_tasks (int, optional): The number of data handlers that should be
-            returned by this function.
-        trgt_padding (int, optional): See docstring of class
-            :class:`SplitMNIST`.
+        use_torch_augmentation: bool
+            See docstring of class :class:`data.mnist_data.MNISTData`.
+        num_classes_per_task: int
+            Number of classes to put into one data handler. 
+            If ``2``, then every data handler will include 2 digits.
+        num_tasks: int, optional
+            The number of data handlers that should be returned by this function.
+        trgt_padding: int, optional
+            See docstring of class :class:`SplitMNIST`.
 
     Returns:
-        (list): A list of data handlers, each corresponding to a
+    ---------  
+        A list of data handlers, each corresponding to a
         :class:`SplitMNIST` object.
     """
     assert num_tasks is None or num_tasks > 0
@@ -112,15 +121,17 @@ class PositiveMNISTData(MNISTData):
     def torch_input_transforms(use_random_hflips=False):
         """Get data augmentation pipelines for MNIST inputs.
 
-        Args:
-            use_random_hflips (bool): Also use random horizontal flips during
-                training.
+        Paramaters:
+        ------------
+            use_random_hflips: bool
+                Also use random horizontal flips during training.
 
                 Note:
                     That should not be ``True`` for MNIST, since digits loose
                     there meaning when flipped.
 
         Returns:
+        --------
             (tuple): Tuple containing:
 
                 - **train_transform**: A transforms pipeline that applies random
@@ -147,22 +158,26 @@ class PositiveMNISTData(MNISTData):
 class SplitMNIST(PositiveMNISTData):
     """An instance of the class shall represent a SplitMNIST task.
 
-    Args:
-        data_path (str): Where should the dataset be read from? If not existing,
+    Paramaters:
+    ------------
+        data_path: str
+            Where should the dataset be read from? If not existing,
             the dataset will be downloaded into this folder.
-        use_one_hot (bool): Whether the class labels should be represented in a
-            one-hot encoding.
-        validation_size (int): The number of validation samples. Validation
-            samples will be taking from the training set (the first :math:`n`
-            samples).
-        use_torch_augmentation (bool): See docstring of class
-            :class:`data.mnist_data.MNISTData`.
-        labels (list): The labels that should be part of this task.
-        full_out_dim (bool): Choose the original MNIST instead of the new
-            task output dimension. This option will affect the attributes
-            :attr:`data.dataset.Dataset.num_classes` and
+        use_one_hot: bool
+            Whether the class labels should be represented in a one-hot encoding.
+        validation_size: int
+            The number of validation samples. Validation samples will be taking from
+            the training set (the first :math:`n` samples).
+        use_torch_augmentation: bool
+            See docstring of class :class:`data.mnist_data.MNISTData`.
+        labels: List
+            The labels that should be part of this task.
+        full_out_dim: bool
+            Choose the original MNIST instead of the new task output dimension. 
+            This option will affect the attributes :attr:`data.dataset.Dataset.num_classes` and
             :attr:`data.dataset.Dataset.out_shape`.
-        trgt_padding (int, optional): If provided, ``trgt_padding`` fake classes
+        trgt_padding: int, optional:
+            If provided, ``trgt_padding`` fake classes
             will be added, such that in total the returned dataset has
             ``len(labels) + trgt_padding`` classes. However, all padded classes
             have no input instances. Note, that 1-hot encodings are padded to
@@ -296,10 +311,13 @@ class SplitMNIST(PositiveMNISTData):
 
             labels: 3 -> 1
 
-        Args:
-            outputs: 2D numpy array of outputs.
+        Paramaters:
+        -----------
+            outputs: np.ndarray
+                2D numpy array of outputs.
 
         Returns:
+        --------
             2D numpy array of transformed outputs.
         """
         return _transform_split_outputs(self, outputs)

@@ -186,12 +186,13 @@ class TinyImageNet(Dataset):
         This method overwrites the method from the base class.
         The input data are preprocessed (data standarization).
 
-        Arguments:
+        Parameters:
         ----------
             (....): See docstring of method
                 :meth:`data.dataset.Dataset.input_to_torch_tensor`.
 
         Returns:
+        ---------
             (torch.Tensor): The given input ``x`` as PyTorch tensor.
         """
         if not force_no_preprocessing:
@@ -221,12 +222,14 @@ class TinyImageNet(Dataset):
         Prepare preprocessing of TinyImageNet images with a selected
         PyTorch transformation.
 
-        Arguments:
+        Parameters:
         ----------
-            x (Numpy array): 2D array containing TinyImageNet images.
-            device (torch.device or int): PyTorch device on which a final
-                                          tensor will be moved
-            transform: (torchvision.transforms): a method of data modification
+            x: np.ndarray)
+                2D array containing TinyImageNet images.
+            device: torch.device or int: 
+                PyTorch device on which a final tensor will be moved.
+            transform: torchvision.transforms
+                A method of data modification.
 
         Returns:
         --------
@@ -249,10 +252,10 @@ class TinyImageNet(Dataset):
         Function implemented on the basis of:
         https://github.com/pytorch/vision/issues/6127#issuecomment-1555049003
 
-        Arguments:
+        Parameters:
         ----------
-           *mode* (optional string) 'train' for the training set or 'test'
-                  for the validation set
+           mode: optional string
+            'train' for the training set or 'test' for the validation set
         """
         assert mode in ["train", "test"]
         data, labels = [], []
@@ -372,15 +375,17 @@ class TinyImageNet(Dataset):
         TinyImageNet is a large dataset, therefore solutions need to be
         memory-efficient.
 
-        Args:
-        -----
-          *no_of_classes*: (int) number of classes in the dataset
+        Paramaters:
+        -----------
+            no_of_classes: int
+                A number of classes in the dataset.
 
         Returns:
         --------
-          *train_indices*: (list) contains indices of elements in the training
-                           set
-          *test_indices*: (list) contains indices of elements in the test set
+          train_indices: list
+            Contains indices of elements in the training set.
+          test_indices: list
+            Contains indices of elements in the test set.
         """
         # 40 is the number of tasks
         self._no_of_val_samples_per_class = int(
