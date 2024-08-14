@@ -46,7 +46,6 @@ To train in the CIL scenario with entropy, set the variable <code>dataset</code>
 @inproceedings{krukowski2024hyperinterval,
   title={HyperInterval: Hypernetwork approach to training weight interval regions in continual learning}, 
   author={Patryk Krukowski and Anna Bielawska and Kamil Książek and Paweł Wawrzyński and Paweł Batorski and Przemysław Spurek},
-  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
   year={2024}
 }
 ```
