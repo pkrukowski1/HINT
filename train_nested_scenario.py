@@ -55,12 +55,12 @@ def train_single_task(hypernetwork,
     # deep copy of the network it needs to be reinitialized
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     elif parameters["optimizer"] == "rmsprop":
         optimizer = torch.optim.RMSprop(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     else:
