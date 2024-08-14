@@ -39,13 +39,10 @@ def set_hyperparameters(dataset,
                 "dropout_rate": [-1, 0.1],
                 "embd_dropout_rate": [-1],
                 # not for optimization
-                "seed": [1]
+                "seed": [1],
+                "saving_folder": "./Results/"
+                f"permuted_mnist_final_grid_experiments/last_model/"
             }
-            
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f'permuted_mnist_final_grid_experiments/{hyperparams["best_model_selection_method"]}/'
-            )
 
         else:
             # single run experiment
@@ -107,12 +104,6 @@ def set_hyperparameters(dataset,
                 "number_of_epochs": 200,
                 "augmentation": False
             }
-        
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"CIFAR-100_single_seed/"
-                f"ResNet/"
-            )
 
         else:
             # single run experiment
@@ -137,11 +128,11 @@ def set_hyperparameters(dataset,
                 "augmentation": True
             }
            
-            hyperparams["saving_folder"] = (
-                "./Results/grid_search_relu/"
-                f"CIFAR-100_single_seed/"
-                f"final_run/"
-            )
+        hyperparams["saving_folder"] = (
+            "./Results/grid_search_relu/"
+            f"CIFAR-100_single_seed/"
+            f"final_run/"
+        )
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 500
@@ -173,13 +164,9 @@ def set_hyperparameters(dataset,
                 "seed": [1],
                 "best_model_selection_method": "val_loss",
                 "embedding_sizes": [24, 72, 96, 128],
-                "augmentation": True
+                "augmentation": True,
+                "saving_folder": "./Results/SplitMNIST/"
             }
-
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"split_mnist/augmented/"
-            )
 
         else:
             # single run experiment
@@ -237,14 +224,10 @@ def set_hyperparameters(dataset,
                 "target_network": "ZenkeNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
-                "augmentation": True
+                "augmentation": True,
+                "saving_folder": "./Results/TinyImageNet/best_hyperparams/"
             }
 
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"TinyImageNet/"
-                f"ResNet/"
-            )
         else:
             hyperparams = {
                "seed": [1],
@@ -303,14 +286,10 @@ def set_hyperparameters(dataset,
                 "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
-                "augmentation": True
+                "augmentation": True,
+                "saving_folder": "./Results/SubsetImageNet/best_hyperparams/"
             }
 
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"SubsetImageNet/"
-                f"ResNet/"
-            )
         else:
             hyperparams = {
                "seed": [1],
@@ -367,14 +346,9 @@ def set_hyperparameters(dataset,
                 "seed": [1],
                 "best_model_selection_method": "val_loss",
                 "embedding_sizes": [24, 48, 72],
-                "augmentation": False
+                "augmentation": False,
+                "saving_folder": "./Results/CIFAR10/"
             }
-
-
-            hyperparams["saving_folder"] = (
-                "/raid/NFS_SHARE/results/patryk.krukowski/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f"CIFAR10"
-            )
 
         else:
             # single run experiment
@@ -437,10 +411,6 @@ def set_hyperparameters(dataset,
                 "best_model_selection_method": "val_loss"
             }
 
-            hyperparams["saving_folder"] = (
-                "/shared/results/HyperIntervalResults/common_embedding/grid_search_relu/"
-                f'CIFAR100_FeCAM_setup/{hyperparams["best_model_selection_method"]}/'
-            )
         else:
             # Single experiment
             hyperparams = {
@@ -467,9 +437,9 @@ def set_hyperparameters(dataset,
             # ResNet - parts 0, 1 and 2
             # ZenkeNet - parts 3, 4 and 5
             # Also, one scenario with equal number of classes: ResNet - part 6
-            hyperparams[
-                "saving_folder"
-            ] = f"./Results/CIFAR_100_FeCAM/"
+        hyperparams[
+            "saving_folder"
+        ] = f"./Results/CIFAR_100_FeCAM/"
 
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
