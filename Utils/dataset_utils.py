@@ -166,7 +166,7 @@ def prepare_split_cifar100_tasks_aka_FeCAM(
         numbers_of_classes_per_tasks.extend([3 for i in range(20)])
     # Tasks with the equal number of elements, Table V, FeCAM
     elif number_of_tasks == 5:
-        numbers_of_classes_per_tasks = [20 for i in range(20)]
+        numbers_of_classes_per_tasks = [20 for i in range(5)]
     elif number_of_tasks == 20:
         numbers_of_classes_per_tasks = [5 for _ in range(20)]
 

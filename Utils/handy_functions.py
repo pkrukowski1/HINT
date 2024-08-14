@@ -86,7 +86,7 @@ def get_shapes_of_network(model):
 
     Arguments:
     ----------
-    model: object
+    model: torch.nn.Module
         An instance of a hypnettorch model, e.g., MLP from mnets.
 
     Returns:
@@ -100,7 +100,8 @@ def get_shapes_of_network(model):
         shapes_of_model.append(list(layer.shape))
     return shapes_of_model
 
-def reverse_predictions(target_network, tensor_input, lower_weights, middle_weights, upper_weights, condition=None):
+def reverse_predictions(target_network, tensor_input, lower_weights, middle_weights, 
+                        upper_weights, condition=None):
     """
     Reverse predictions for lower, middle, and upper output of the
     target network
