@@ -65,7 +65,7 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         -----------
             idx: int
                 Index of the embedding and corresponding perturbation
-                vector which will be frozen
+                vector which will be frozen.
         """
         self.conditional_params[idx].requires_grad_(False)
 
@@ -79,10 +79,11 @@ class HMLP_IBP(HMLP, HyperNetInterface):
         -----------
             return_extended_output: bool
                 If true, then the function returns lower, middle, upper target weights and
-                calculated radii of intervals after passing via the hypernetwork
+                calculated radii of intervals after passing via the hypernetwork. Otherwise,
+                returns only the middle target weights.
 
             perturbated_eps: float
-                Perturbation value which will be multiplied by perturbation vector
+                Perturbation value which will be multiplied by perturbation vector.
 
             The rest of arguments is described in
                 https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/hnets/hnet_interface.html#HyperNetInterface

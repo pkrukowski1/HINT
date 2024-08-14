@@ -439,6 +439,7 @@ class IntervalMLP(MLP, MainNetInterface):
                 Whether the FC layers should have biases.
 
         Returns:
+        --------
             A list of list of integers, denoting the shapes of the individual
             parameter tensors.
         """

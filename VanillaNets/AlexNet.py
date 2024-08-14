@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -15,30 +14,35 @@ class AlexNet(Classifier):
 
     Parameters:
     -----------
-        in_shape (tuple or list): The shape of an input sample.
-
+        in_shape: tuple or list
+            The shape of an input sample.
             .. note::
                 We assume the Tensorflow format, where the last entry
                 denotes the number of channels.
-        num_classes (int): The number of output neurons. The chosen architecture
-            (see ``arch``) will be adopted accordingly.
-        arch (str): A neural network architecture. Only CIFAR-10/100 is supported
-            right now.
-        verbose (bool): Allow printing of general information about the
+        num_classes: int
+            The number of output neurons.
+        arch: str
+            A neural network architecture. Only CIFAR-10/100 is supported
+            right now. The only possible default value is 'cifar'.
+        verbose: bool
+            Allow printing of general information about the
             generated network (such as number of weights).
-        no_weights (bool): If set to ``True``, no trainable parameters will be
+        no_weights: bool
+            If set to ``True``, no trainable parameters will be
             constructed, i.e., weights are assumed to be produced ad-hoc
             by a hypernetwork and passed to the :meth:`forward` method.
-        init_weights (optional): This option is for convinience reasons.
+        init_weights: optional
+            This option is for convinience reasons.
             The option expects a list of parameter values that are used to
             initialize the network weights. As such, it provides a
             convinient way of initializing a network with a weight draw
             produced by the hypernetwork.
-        bn_track_stats (bool): if is set to False, this layer then does not keep running estimates
+        bn_track_stats: bool
+            If is set to False, this layer then does not keep running estimates
             and batch statistics are instead used during evaluation time as well. For more information
             please see docs https://pytorch.org/docs/stable/generated/torch.nn.BatchNorm1d.html
-        distill_bn_stats (bool):  distill_bn_stats: If ``True``, then the shapes of the batchnorm
-            statistics will be added to the attribute
+        distill_bn_stats: bool
+        If ``True``, then the shapes of the batchnorm statistics will be added to the attribute
             :attr:`mnets.mnet_interface.MainNetInterface.hyper_shapes_distilled` and the current statistics 
             will be returned by the method :meth:`distillation_targets`. Currently it is not used.
 
@@ -53,7 +57,7 @@ class AlexNet(Classifier):
         num_classes=10,
         verbose=True,
         arch="cifar",
-        no_weights=False,
+        no_weights=True,
         use_batch_norm=True,
         bn_track_stats=True,
         distill_bn_stats=False,
@@ -79,22 +83,6 @@ class AlexNet(Classifier):
             [4096],
             [num_classes, 4096],
             [num_classes]
-            # [10, 3, 3, 3],
-            # [10],
-            # [10, 10, 3, 3],
-            # [10],
-            # [10, 10, 3, 3],
-            # [10],
-            # [10, 10, 3, 3],
-            # [10],
-            # [10, 10, 3, 3],
-            # [10],
-            # [10, 10*2*2],
-            # [10],
-            # [10, 10],
-            # [10],
-            # [num_classes, 10],
-            # [num_classes]
             ]
         }
 
@@ -140,9 +128,6 @@ class AlexNet(Classifier):
             bn_sizes = [
                 64, 192, 384, 256, 256, 4096, 4096
             ]
-            # bn_sizes = [
-            #     10, 10, 10, 10, 10, 10, 10
-            # ]
 
             bn_layers = list(range(start_idx, start_idx + len(bn_sizes)))
             self._bn_params_start_idx = start_idx
@@ -179,18 +164,22 @@ class AlexNet(Classifier):
         :math:`x`.
 
 
-        Args:
+        Parameters:
+        -----------
             (....): See docstring of method
                 :meth:`mnets.mnet_interface.MainNetInterface.forward`. We
                 provide some more specific information below.
-            x: Input image.
+            x: torch.Tensor
+                Input image.
 
                 .. note::
                     We assume the Tensorflow format, where the last entry
                     denotes the number of channels.
 
         Returns:
-            y: The output of the network.
+        ---------
+            y: torch.Tensor
+                The output of the network.
         """
 
         if distilled_params is not None:
@@ -266,10 +255,10 @@ class AlexNet(Classifier):
                         running_mean=running_means[0],
                         running_var=running_vars[0],
                         weight=weights[bn_params_start_idx],
-                        bias=weights[bn_params_start_idx],
+                        bias=weights[bn_params_start_idx+1],
                         stats_id=bn_cond,
                     )
-        
+
         # Second convolutional block
         h = F.conv2d(h, weights[2], bias=weights[3], padding=1)
         h = F.max_pool2d(h, kernel_size=2)
@@ -281,8 +270,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[1],
                         running_var=running_vars[1],
-                        weight=weights[bn_params_start_idx+1],
-                        bias=weights[bn_params_start_idx+1],
+                        weight=weights[bn_params_start_idx+2],
+                        bias=weights[bn_params_start_idx+3],
                         stats_id=bn_cond,
                     )
 
@@ -296,8 +285,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[2],
                         running_var=running_vars[2],
-                        weight=weights[bn_params_start_idx+2],
-                        bias=weights[bn_params_start_idx+2],
+                        weight=weights[bn_params_start_idx+4],
+                        bias=weights[bn_params_start_idx+5],
                         stats_id=bn_cond,
                     )
 
@@ -311,8 +300,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[3],
                         running_var=running_vars[3],
-                        weight=weights[bn_params_start_idx+3],
-                        bias=weights[bn_params_start_idx+3],
+                        weight=weights[bn_params_start_idx+6],
+                        bias=weights[bn_params_start_idx+7],
                         stats_id=bn_cond,
                     )
 
@@ -327,8 +316,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[4],
                         running_var=running_vars[4],
-                        weight=weights[bn_params_start_idx+4],
-                        bias=weights[bn_params_start_idx+4],
+                        weight=weights[bn_params_start_idx+8],
+                        bias=weights[bn_params_start_idx+9],
                         stats_id=bn_cond,
                     )
 
@@ -345,8 +334,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[5],
                         running_var=running_vars[5],
-                        weight=weights[bn_params_start_idx+5],
-                        bias=weights[bn_params_start_idx+5],
+                        weight=weights[bn_params_start_idx+10],
+                        bias=weights[bn_params_start_idx+11],
                         stats_id=bn_cond,
                     )
 
@@ -360,8 +349,8 @@ class AlexNet(Classifier):
                         h,
                         running_mean=running_means[6],
                         running_var=running_vars[6],
-                        weight=weights[bn_params_start_idx+6],
-                        bias=weights[bn_params_start_idx+6],
+                        weight=weights[bn_params_start_idx+12],
+                        bias=weights[bn_params_start_idx+13],
                         stats_id=bn_cond,
                     )
 

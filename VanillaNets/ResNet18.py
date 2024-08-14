@@ -55,7 +55,8 @@ class ResNetBasic(Classifier):
       - `Resnet-101`: ``blocks_per_group=(3,4,23,3), bottleneck_blocks=True``
       - `Resnet-152`: ``blocks_per_group=(3,4,36,3), bottleneck_blocks=True``
 
-    Args:
+    Parameters:
+    ------------
         (....): See arguments of class:`mnets.wrn.WRN`.
         num_feature_maps (tuple):  A list of 5 integers, each denoting the
             number of feature maps in a group of convolutional layers.
@@ -64,21 +65,23 @@ class ResNetBasic(Classifier):
                 If ``bottleneck_blocks=True``, then the last 1x1 conv layer in
                 each block has 4 times as many feature maps as specified by this
                 argument.
-        blocks_per_group (tuple): A list of 4 integers, each denoting the
-            number of convolutional blocks for the groups of convolutional
-            layers.
-        projection_shortcut (bool): If ``True``, skip connections that otherwise
-            would require zero-padding or subsampling will be realized via 1x1
-            conv layers followed by batchnorm. All other skip connections will
-            be realized via identity mappings.
-        bottleneck_blocks (bool): Whether normal blocks or bottleneck blocks
-            should be used (cf. Fig. 5 in
+        blocks_per_group: Tuple
+            A list of 4 integers, each denoting the number of convolutional blocks
+            for the groups of convolutional layers.
+        projection_shortcut: bool
+            If ``True``, skip connections that otherwise would require zero-padding or
+            subsampling will be realized via 1x1 conv layers followed by batchnorm. 
+            All other skip connections will be realized via identity mappings.
+        bottleneck_blocks: bool
+            Whether normal blocks or bottleneck blocks should be used (cf. Fig. 5 in
             `He et al. <https://arxiv.org/abs/1512.03385>`__)
-        mode (string): Depending on the dataset, a different number of neurons
+        mode: string
+            Depending on the dataset, a different number of neurons
             in the linear layer will be present. If mode='default', the number of
             channels from the previous layer will be set. If mode='tiny', 2048
             neurons will be set while if mode='cifar', 512 neurons will be set.
-        cutout_mod (bool): Sometimes, networks from this family are used for
+        cutout_mod: bool
+            Sometimes, networks from this family are used for
             smaller (CIFAR-like) images. In this case, one has to either
             upscale the images or adapt the architecture slightly (otherwise,
             small images are too agressively downscaled at the very beginning).
@@ -481,12 +484,13 @@ class ResNetBasic(Classifier):
         """Compute the output :math:`y` of this network given the input
         :math:`x`.
 
-        Args:
+        Parameters:
+        -----------
             (....): See docstring of method
                 :meth:`mnets.resnet.ResNet.forward`. We provide some more
                 specific information below.
-            x (torch.Tensor): Based on the constructor argument
-                ``chw_input_format``, either a flattened image batch with
+            x: torch.Tensor
+                Based on the constructor argument ``chw_input_format``, either a flattened image batch with
                 encoding ``HWC`` or an unflattened image batch with encoding
                 ``CHW`` is expected.
 
@@ -857,6 +861,7 @@ class ResNetBasic(Classifier):
         were set to ``True`` in the constructor.
 
         Returns:
+        --------
             The target tensors corresponding to the shapes specified in
             attribute :attr:`hyper_shapes_distilled`.
         """
@@ -878,6 +883,7 @@ class ResNetBasic(Classifier):
         classes.
 
         Returns:
+        ---------
             (list): A list of shapes (lists of integers). The first entry will
             correspond to the shape of the output of the first convolutional
             layer. The last entry will correspond to the output shape.
