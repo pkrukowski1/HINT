@@ -88,7 +88,7 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
             the upper targets. Each list entry must have the output shape as
             returned by the :meth:`hnets.hnet_interface.HyperNetInterface.forward`
             method of the ``hnet``.
-        mnet: 
+        mnet: torch.nn.Module
             Instance of the main network. Has to be provided if
             ``inds_of_out_heads`` are specified.
         prev_theta: list, optional,
