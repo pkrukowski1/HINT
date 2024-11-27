@@ -1089,6 +1089,9 @@ def calculate_backward_transfer(dataframe):
     on the j-th task.
 
     Returns a float with backward transfer result.
+
+    Reference: https://github.com/gmum/HyperMask/blob/main/evaluation.py
+
     """
     backward_transfer = 0
     number_of_last_task = int(dataframe.max()["loaded_task"])
@@ -1120,6 +1123,9 @@ def calculate_forward_transfer(dataframe):
     network evaluated on the i-th task.
 
     Returns a float with forward transfer result.
+
+    Reference: https://github.com/gmum/HyperMask/blob/main/evaluation.py
+
     """
     forward_transfer = 0
     number_of_tasks = int(dataframe.max()["loaded_task"] + 1)
@@ -1140,18 +1146,23 @@ def calculate_forward_transfer(dataframe):
 def calculate_FWT_BWT_different_files(paths, forward=True):
     """
     Calculate mean forward and (or) backward transfer with corresponding
-    sample standard deviations based on results saved in .csv files
+    sample standard deviations based on results saved in .csv files.
+    
+    Reference: https://github.com/gmum/HyperMask/blob/main/evaluation.py
 
-    Argument:
+    Parameters :
     ---------
-      *paths* (list) contains path to the results files
-      *forward* (optional Boolean) defines whether forward transfer will
-                be calculated
+      paths: List
+        Contains path to the results files.
+      forward: Optional, Boolean
+        Defines whether forward transfer will be calculated.
+
     Returns:
     --------
-      *FWTs* (list of floats) contains consecutive forward transfer values
-             or an empty list (if forward is False)
-      *BWTs* (list of floats) contains consecutive backward transfer values
+      FWTs: List[float]
+        Contains consecutive forward transfer values or an empty list (if forward is False).
+      BWTs: List[float]
+        Contains consecutive backward transfer values.
     """
     FWTs, BWTs = [], []
     for path in paths:
