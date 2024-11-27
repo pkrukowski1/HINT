@@ -5,7 +5,7 @@ from DatasetHandlers.split_mnist import get_split_mnist_handlers
 from DatasetHandlers.subset_image_net import SubsetImageNet
 from DatasetHandlers.tiny_image_net import TinyImageNet
 from DatasetHandlers.cifar100_FeCAM import SplitCIFAR100Data_FeCAM
-
+from DatasetHandlers.split_cub200 import SplitCUB200Data
 
 def generate_random_permutations(shape_of_data_instance,
                                  number_of_permutations):
@@ -101,6 +101,39 @@ def prepare_split_cifar100_tasks(datasets_folder,
             validation_size=validation_size,
             use_data_augmentation=use_augmentation,
             use_cutout=use_cutout,
+            labels=range(i, i + 10)
+        ))
+    return handlers
+
+
+def prepare_CUB200_tasks(datasets_folder,
+                        validation_size,
+                        use_augmentation):
+    """
+    Prepare a list of 20 tasks, each with 10 classes. The i-th task, where i
+    is in {0, 1, ..., 19}, will store samples from classes {10*i, 10*i+9}.
+
+    Parameters:
+    ----------
+    datasets_folder: str
+        Defines the path where CIFAR-10 is stored or will be downloaded.
+    validation_size: int
+        The number of validation samples.
+    use_augmentation: bool
+        Potentially applies a data augmentation method from hypnettorch.
+
+    Returns:
+    --------
+    handlers: List[SplitCUB200Data]
+        A list of SplitCUB200Data instances, each representing a task.
+    """
+    handlers = []
+    for i in range(0, 200, 10):
+        handlers.append(SplitCUB200Data(
+            datasets_folder,
+            use_one_hot=True,
+            validation_size=validation_size,
+            use_torch_augmentation=use_augmentation,
             labels=range(i, i + 10)
         ))
     return handlers

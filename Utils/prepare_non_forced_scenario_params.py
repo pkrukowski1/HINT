@@ -435,6 +435,70 @@ def set_hyperparameters(dataset,
         # Full-interval model or simpler one
         hyperparams["full_interval"] = False
 
+
+    elif dataset == "CUB200":
+        if grid_search:
+            hyperparams = {
+                "seed": [1],
+                "embedding_sizes": [48],
+                "betas": [0.01],
+                "learning_rates": [0.001],
+                "batch_sizes": [32],
+                "hypernetworks_hidden_layers": [[100]],
+                "perturbated_epsilon": [5.0],
+                "dropout_rate": [-1],
+                "resnet_number_of_layer_groups": 3,
+                "resnet_widening_factor": 2,
+                "optimizer": "adam",
+                "use_batch_norm": True,
+                "target_network": "ResNet",
+                "use_chunks": False,
+                "number_of_epochs": 200,
+                "augmentation": True
+            }
+
+        else:
+            # single run experiment
+            hyperparams = {
+                "seed": [1],
+                "embedding_sizes": [48],
+                "betas": [0.01],
+                "batch_sizes": [16],
+                "learning_rates": [0.001],
+                "perturbated_epsilon": [1.0],
+                "hypernetworks_hidden_layers": [[100]],
+                "dropout_rate": [-1],
+                "use_batch_norm": True,
+                "use_chunks": False,
+                "resnet_number_of_layer_groups": 3,
+                "resnet_widening_factor": 2,
+                "number_of_epochs": 200,
+                "target_network": "ResNet",
+                "optimizer": "adam",
+                "augmentation": True
+            }
+           
+        hyperparams["saving_folder"] = (
+            "./Results/grid_search_relu/"
+            f"CUB200/"
+            f"final_run/"
+        )
+        hyperparams["lr_scheduler"] = True
+        hyperparams["number_of_iterations"] = None
+        hyperparams["no_of_validation_samples"] = 50
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
+            hyperparams["shape"] = 32
+            hyperparams["target_hidden_layers"] = None
+        elif hyperparams["target_network"] == "MLP":
+            hyperparams["shape"] = 3072
+            hyperparams["target_hidden_layers"] = [1000, 1000]
+        hyperparams["number_of_tasks"] = 20
+        hyperparams["padding"] = None
+        hyperparams["best_model_selection_method"] = "val_loss"
+
+        # Full-interval model or simpler one
+        hyperparams["full_interval"] = False
+
     # General hyperparameters
     hyperparams["activation_function"] = torch.nn.ReLU()
     hyperparams["use_bias"] = True

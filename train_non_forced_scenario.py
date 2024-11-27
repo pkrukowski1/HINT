@@ -561,6 +561,13 @@ def main_running_experiments(path_to_datasets,
             use_augmentation=parameters["augmentation"],
             batch_size=parameters["batch_size"]
         )
+
+    elif parameters["dataset"] == "CUB200":
+        dataset_tasks_list = prepare_CUB200_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+        )
     else:
         raise ValueError("Wrong name of the dataset!")
 
@@ -615,10 +622,11 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "CUB200"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
+                                # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
