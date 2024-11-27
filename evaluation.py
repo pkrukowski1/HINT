@@ -1077,6 +1077,99 @@ def plot_heatmap_for_n_runs(
     plt.savefig(f"{save_path}/{filename}", dpi=300)
     plt.close()
 
+def calculate_backward_transfer(dataframe):
+    """
+    Calculate backward transfer based on dataframe with results
+    containing columns: 'loaded_task', 'evaluated_task',
+    'loaded_accuracy' and 'random_net_accuracy'.
+    ---
+    BWT = 1/(N-1) * sum_{i=1}^{N-1} A_{N,i} - A_{i,i}
+    where N is the number of tasks, A_{i,j} is the result
+    for the network trained on the i-th task and tested
+    on the j-th task.
+
+    Returns a float with backward transfer result.
+    """
+    backward_transfer = 0
+    number_of_last_task = int(dataframe.max()["loaded_task"])
+    # Indeed, number_of_last_task represents the number of tasks - 1
+    # due to the numeration starting from 0
+    for i in range(number_of_last_task + 1):
+        trained_on_last_task = dataframe.loc[
+            (dataframe["loaded_task"] == number_of_last_task)
+            & (dataframe["evaluated_task"] == i)
+        ]["loaded_accuracy"].values[0]
+        trained_on_the_same_task = dataframe.loc[
+            (dataframe["loaded_task"] == i) & (dataframe["evaluated_task"] == i)
+        ]["loaded_accuracy"].values[0]
+        backward_transfer += trained_on_last_task - trained_on_the_same_task
+    backward_transfer /= number_of_last_task
+    return backward_transfer
+
+
+def calculate_forward_transfer(dataframe):
+    """
+    Calculate forward transfer based on dataframe with results
+    containing columns: 'loaded_task', 'evaluated_task',
+    'loaded_accuracy' and 'random_net_accuracy'.
+    ---
+    FWT = 1/(N-1) * sum_{i=1}^{N-1} A_{i-1,i} - R_{i}
+    where N is the number of tasks, A_{i,j} is the result
+    for the network trained on the i-th task and tested
+    on the j-th task and R_{i} is the result for a random
+    network evaluated on the i-th task.
+
+    Returns a float with forward transfer result.
+    """
+    forward_transfer = 0
+    number_of_tasks = int(dataframe.max()["loaded_task"] + 1)
+    for i in range(1, number_of_tasks):
+        extracted_result = dataframe.loc[
+            (dataframe["loaded_task"] == (i - 1))
+            & (dataframe["evaluated_task"] == i)
+        ]
+        trained_on_previous_task = extracted_result["loaded_accuracy"].values[0]
+        random_network_result = extracted_result["random_net_accuracy"].values[
+            0
+        ]
+        forward_transfer += trained_on_previous_task - random_network_result
+    forward_transfer /= number_of_tasks - 1
+    return forward_transfer
+
+
+def calculate_FWT_BWT_different_files(paths, forward=True):
+    """
+    Calculate mean forward and (or) backward transfer with corresponding
+    sample standard deviations based on results saved in .csv files
+
+    Argument:
+    ---------
+      *paths* (list) contains path to the results files
+      *forward* (optional Boolean) defines whether forward transfer will
+                be calculated
+    Returns:
+    --------
+      *FWTs* (list of floats) contains consecutive forward transfer values
+             or an empty list (if forward is False)
+      *BWTs* (list of floats) contains consecutive backward transfer values
+    """
+    FWTs, BWTs = [], []
+    for path in paths:
+        dataframe = pd.read_csv(path, sep=";", index_col=0)
+        if forward:
+            FWTs.append(calculate_forward_transfer(dataframe))
+        BWTs.append(calculate_backward_transfer(dataframe))
+    if forward:
+        print(
+            f"Mean forward transfer: {np.mean(FWTs)}, "
+            f"population standard deviation: {np.std(FWTs)}"
+        )
+    print(
+        f"Mean backward transfer: {np.mean(BWTs)}, "
+        f"population standard deviation: {np.std(BWTs)}"
+    )
+    return FWTs, BWTs
+
 if __name__ == "__main__":
    
    pass
