@@ -444,7 +444,25 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             no_of_task
         )
 
-        if no_of_task == (parameters["number_of_tasks"] - 1):
+        if no_of_task <= (parameters["number_of_tasks"] - 1):
+            
+            if no_of_task > 0:
+                # Remove previous parameters
+                os.remove(
+                    path=f'{parameters["saving_folder"]}/'
+                        f'hypernetwork_after_{no_of_task-1}_task.pt'
+                )
+
+                os.remove(
+                    path=f'{parameters["saving_folder"]}/'
+                        f'target_network_after_{no_of_task-1}_task.pt'
+                )
+
+                os.remove(
+                    path=f'{parameters["saving_folder"]}/'
+                        f'perturbation_vectors_after_{no_of_task-1}_task.pt'
+                )
+
             # Save current state of networks
             write_pickle_file(
                 f'{parameters["saving_folder"]}/'

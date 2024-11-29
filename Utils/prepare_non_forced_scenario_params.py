@@ -479,7 +479,7 @@ def set_hyperparameters(dataset,
             }
            
         hyperparams["saving_folder"] = (
-            "./Results/grid_search_relu/"
+            "./Results/"
             f"CUB200/"
             f"final_run/"
         )
