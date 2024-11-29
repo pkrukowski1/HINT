@@ -405,7 +405,7 @@ def set_hyperparameters(dataset,
                 "embedding_sizes": [72],
                 "learning_rates": [0.001],
                 "use_batch_norm": True,
-                "target_network": "AlexNet",
+                "target_network": "ResNet",
                 "batch_sizes": [128],
                 "betas": [0.01],
                 "perturbated_epsilon": [1.0],
@@ -465,14 +465,14 @@ def set_hyperparameters(dataset,
                 "betas": [0.01],
                 "batch_sizes": [16],
                 "learning_rates": [0.001],
-                "perturbated_epsilon": [1.0],
+                "perturbated_epsilon": [0.1],
                 "hypernetworks_hidden_layers": [[100]],
                 "dropout_rate": [-1],
                 "use_batch_norm": True,
                 "use_chunks": False,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
-                "number_of_epochs": 200,
+                "number_of_epochs": 1,
                 "target_network": "ResNet",
                 "optimizer": "adam",
                 "augmentation": True
@@ -485,14 +485,14 @@ def set_hyperparameters(dataset,
         )
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
-        hyperparams["no_of_validation_samples"] = 50
+        hyperparams["no_of_validation_samples"] = 5
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
             hyperparams["shape"] = 32
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 3072
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 20
+        hyperparams["number_of_tasks"] = 5
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 

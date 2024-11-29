@@ -132,6 +132,7 @@ def train_single_task(hypernetwork,
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
         )
+
         tensor_input = current_dataset_instance.input_to_torch_tensor(
             current_batch[0], parameters["device"], mode="train"
         )
@@ -338,8 +339,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     elif parameters["target_network"] == "ResNet":
         if parameters["dataset"] == "TinyImageNet" or parameters["dataset"] == "SubsetImageNet":
             mode = "tiny"
-        elif parameters["dataset"] == "CIFAR100" or parameters["dataset"] == "CIFAR100_FeCAM_setup" \
-            or parameters["dataset"] == "CIFAR10":
+        elif parameters["dataset"] in [
+            "CIFAR100",
+            "CIFAR100_FeCAM_setup",
+            "CIFAR10",
+            "CUB200"
+        ]:
             mode = "cifar"
         else:
             mode = "default"
@@ -561,12 +566,11 @@ def main_running_experiments(path_to_datasets,
             use_augmentation=parameters["augmentation"],
             batch_size=parameters["batch_size"]
         )
-
     elif parameters["dataset"] == "CUB200":
         dataset_tasks_list = prepare_CUB200_tasks(
             path_to_datasets,
-            validation_size=parameters["no_of_validation_samples"],
-            use_augmentation=parameters["augmentation"],
+            validation_size_per_class=parameters["no_of_validation_samples"],
+            number_of_tasks=parameters["number_of_tasks"]
         )
     else:
         raise ValueError("Wrong name of the dataset!")

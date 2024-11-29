@@ -308,9 +308,8 @@ def calculate_accuracy(data,
         # Currently results will be calculated on the validation or test set
         if evaluation_dataset == "validation":
             input_data = data.get_val_inputs()
-
             output_data = data.get_val_outputs()
-
+            
         elif evaluation_dataset == "test":
             input_data = data.get_test_inputs()
             output_data = data.get_test_outputs()
@@ -321,8 +320,8 @@ def calculate_accuracy(data,
         test_output = data.output_to_torch_tensor(
             output_data, parameters["device"], mode="inference"
         )
-        gt_classes = test_output.max(dim=1)[1]
 
+        gt_classes = test_output.max(dim=1)[1]
         if parameters["use_batch_norm_memory"]:
             condition = parameters["number_of_task"]
         else:
@@ -341,16 +340,14 @@ def calculate_accuracy(data,
             _, logits, _ = parse_logits(logits)
         
         else:
-
             _, logits, _ = reverse_predictions(target_network, 
                                                test_input, 
                                                lower_weights,
                                                middle_weights,
                                                upper_weights,
                                                condition)
-       
+        
         predictions = logits.max(dim=1)[1]
-
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
                     gt_classes.numel()) * 100.
     return accuracy

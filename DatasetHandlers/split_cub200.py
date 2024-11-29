@@ -8,6 +8,7 @@ The module contains a wrapper for data handlers for the SplitCUB200 task.
 from torchvision import transforms
 import torchvision.datasets as datasets
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 
 import os
 import time
@@ -19,6 +20,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+from sklearn.preprocessing import OneHotEncoder
+import numpy.matlib as npm
 
 from hypnettorch.data.large_img_dataset import LargeImgDataset
 from hypnettorch.data.ilsvrc2012_data import ILSVRC2012Data
@@ -44,7 +47,8 @@ def _transform_split_outputs(data, outputs):
         raise NotImplementedError('This method is currently only ' +
             'implemented if constructor argument "full_out_dim" was set.')
 
-    labels = data._labels
+    labels = [label % data._data['num_classes'] for label in data._labels]
+
     if data.is_one_hot:
         assert(outputs.shape[1] == data._data['num_classes'])
         mask = np.zeros(data._data['num_classes'], dtype=np.bool)
@@ -61,7 +65,7 @@ def _transform_split_outputs(data, outputs):
 
 def get_split_cub200_handlers(data_path, use_one_hot=True, validation_size=0,
                              use_torch_augmentation=False,
-                             num_classes_per_task=10, num_tasks=None,
+                             num_classes_per_task=40, num_tasks=None,
                              trgt_padding=None):
     """This function instantiates 20 objects of the class :class:`SplitCUB200`
     which will contain a disjoint set of labels.
@@ -84,7 +88,6 @@ def get_split_cub200_handlers(data_path, use_one_hot=True, validation_size=0,
             Flag to indicate whether data augmentation should be used or not.
         num_classes_per_task: int
             Number of classes to put into one data handler. 
-            If ``2``, then every data handler will include 2 digits.
         num_tasks: int, optional
             The number of data handlers that should be returned by this function.
         trgt_padding: int, optional
@@ -134,26 +137,6 @@ class CUB2002011(LargeImgDataset):
     Note:
         The original category labels range from 1-200. We modify them to
         range from 0 - 199.
-
-    Args:
-        data_path (str): Where should the dataset be read from? If not existing,
-            the dataset will be downloaded into this folder.
-        use_one_hot (bool): Whether the class labels should be represented in a
-            one-hot encoding.
-
-            .. note::
-                This option does not influence the internal PyTorch
-                Dataset classes (e.g., cmp.
-                :attr:`data.large_img_dataset.LargeImgDataset.torch_train`),
-                that can be used in conjunction with PyTorch data loaders.
-        num_val_per_class (int): The number of validation samples per class.
-            For instance: If value 10 is given, a validation set of size
-            5 * 200 = 1,000 is constructed (these samples will be removed
-            from the training set).
-
-            .. note::
-                Validation samples use the same data augmentation pipeline
-                as test samples.
     """
     _DOWNLOAD_PATH = 'https://data.caltech.edu/records/65de6-vp158/files/CUB_200_2011.tgz?download=1'
     _IMG_ANNO_FILE = 'CUB_200_2011.tgz'
@@ -170,27 +153,22 @@ class CUB2002011(LargeImgDataset):
     _TRAIN_TEST_SPLIT_FILE = 'train_test_split.txt' # Realitve to _REL_BASE
 
 
-    def __init__(self, data_path, use_one_hot=False, num_val_per_class=0):
-        # We keep the full path to each image in memory, so we don't need to
-        # tell the super class the root path to each image (i.e., samples
-        # contain absolute not relative paths).
+    def __init__(self,
+        data_path,
+        use_one_hot=True,
+        validation_size_per_class=50,
+        seed=1,
+        labels=[i for i in range(40)]):
 
 
         super().__init__('')
-
-        self.test_transform = transforms.Compose(
-            [
-                transforms.Resize((32,32))
-            ]
-        )
-
-        self.train_transform = transforms.Compose(
-            [
-                transforms.Resize((32,32))
-            ]
-        )
-
         start = time.time()
+
+        self._labels = labels
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.train_dataloder = None
+
+        np.random.seed(seed)
 
         print('Reading CUB-200-2011 dataset ...')
 
@@ -253,6 +231,7 @@ class CUB2002011(LargeImgDataset):
         # Image ID to label.
         img_lbl_csv = pandas.read_csv(img_class_fn, sep=' ',
                                       names=['img_id', 'label'])
+        
         id2lbl = dict(zip(list(img_lbl_csv['img_id']),
                           list(img_lbl_csv['label'])))
         # Note, categories go from 1-200. We change them to go from 0 - 199.
@@ -286,41 +265,48 @@ class CUB2002011(LargeImgDataset):
         ################################
         ### Train / val / test split ###
         ################################
+
+        # We take from orig_samples only those labels which are required for
+        # the current task
         orig_samples = ds_train.samples
+        orig_samples = [sample for sample in orig_samples if sample[1] in labels]
         ds_train.samples = []
         ds_train.imgs = ds_train.samples
         ds_train.targets = []
 
         ds_test = deepcopy(ds_train)
         ds_test.transform = test_transform
-        assert(ds_test.target_transform is None)
-        if num_val_per_class > 0:
+        num_classes = len(labels)
+
+        assert(ds_test.target_transform is None)        
+
+        if validation_size_per_class > 0:
             ds_val = deepcopy(ds_train)
             # NOTE we use test input transforms for the validation set.
             ds_val.transform = test_transform
         else:
             ds_val = None
 
-        num_classes = len(lbl2lbl_name_tmp.keys())
-        assert(num_classes == 200)
         val_counts = np.zeros(num_classes, dtype=np.int)
 
         for img_path, img_lbl in orig_samples:
             iid = img2id[img_path]
             if id2train[iid] == 1: # In train split.
-                if val_counts[img_lbl] >= num_val_per_class: # train sample
+                if val_counts[img_lbl % num_classes] >= validation_size_per_class: # train sample
                     ds_train.samples.append((img_path, img_lbl))
                 else: # validation sample
-                    val_counts[img_lbl] += 1
+                    val_counts[img_lbl % num_classes] += 1
                     ds_val.samples.append((img_path, img_lbl))
             else: # In test split.
                 ds_test.samples.append((img_path, img_lbl))
-
         for ds_obj in [ds_train, ds_test] + \
-                ([ds_val] if num_val_per_class > 0 else []):
+                ([ds_val] if validation_size_per_class > 0 else []):
             ds_obj.targets = [s[1] for s in ds_obj.samples]
             assert(len(ds_obj.samples) == len(ds_obj.imgs) and \
                    len(ds_obj.samples) == len(ds_obj.targets))
+                        
+        assert(len(ds_train.samples) >= validation_size_per_class*num_classes), \
+            "The number of training samples should not be lower than the number of validation samples"
 
         self._torch_ds_train = ds_train
         self._torch_ds_test = ds_test
@@ -339,11 +325,11 @@ class CUB2002011(LargeImgDataset):
 
         self._data['classification'] = True
         self._data['sequence'] = False
-        self._data['num_classes'] = 200
+        self._data['num_classes'] = len(labels)
         self._data['is_one_hot'] = use_one_hot
 
         self._data['in_shape'] = [32, 32, 3]
-        self._data['out_shape'] = [200 if use_one_hot else 1]
+        self._data['out_shape'] = [len(labels) if use_one_hot else 1]
 
         self._data['in_data'] = np.chararray([num_samples, 1],
             itemsize=max_path_len, unicode=True)
@@ -355,6 +341,7 @@ class CUB2002011(LargeImgDataset):
         labels = np.array(ds_train.targets +
                           ([] if num_val == 0 else ds_val.targets) +
                           ds_test.targets).reshape(-1, 1)
+
         if use_one_hot:
             labels = self._to_one_hot(labels)
         self._data['out_data'] = labels
@@ -371,6 +358,67 @@ class CUB2002011(LargeImgDataset):
 
         end = time.time()
         print('Elapsed time to read dataset: %f sec' % (end-start))
+
+        self.train_transform = transforms.Compose([
+            transforms.Resize(32),
+        ])
+
+        self.test_transform = transforms.Compose([
+            transforms.Resize(32),
+        ])
+
+    def _to_one_hot(self, labels, reverse=False):
+        """ Transform a list of labels into a 1-hot encoding.
+
+        Parameters:
+        -----------
+            labels: List[np.ndarray[int]] | List[int]
+                A list of class labels.
+            reverse: bool
+                If ``True``, then one-hot encoded samples are transformed
+                back to categorical labels.
+
+        Returns:
+        --------
+        np.ndarray
+            The 1-hot encoded labels.
+        """
+        if not self.classification:
+            raise RuntimeError('This method can only be called for ' +
+                                   'classification datasets.')
+
+        # Initialize encoder.
+        if self._one_hot_encoder is None:
+            categories = [range(self._labels[0], self._labels[-1]+1)]
+            self._one_hot_encoder = OneHotEncoder( \
+                categories=categories)
+            self._one_hot_encoder.fit(npm.repmat(
+                    np.arange(self._labels[0], self._labels[-1]+1), 1, 1).T)
+
+        if reverse:
+            # Unfortunately, there is no inverse function in the OneHotEncoder
+            # class. Therefore, we take the one-hot-encoded "labels" samples
+            # and take the indices of all 1 entries. Note, that these indices
+            # are returned as tuples, where the second column contains the
+            # original column indices. These column indices from "labels"
+            # mudolo the number of classes results in the original labels.
+            tmp = np.reshape(np.argwhere(labels)[:,1] % self.num_classes, 
+                              (labels.shape[0], -1))
+            return tmp + self._labels[0]
+        else:
+            if self.sequence:
+                assert len(self.out_shape) == 1
+                num_time_steps = labels.shape[1] # // 1
+                n_samples, _ = labels.shape
+                labels = labels.reshape(n_samples * num_time_steps, 1)
+                labels = self._one_hot_encoder.transform(labels).toarray()
+                labels = labels.reshape(n_samples,
+                                        num_time_steps * self.num_classes)
+
+                return labels
+            else:
+                return self._one_hot_encoder.transform(labels).toarray()
+
 
     def get_identifier(self):
         """Returns the name of the dataset."""
@@ -422,7 +470,6 @@ class CUB2002011(LargeImgDataset):
     def input_to_torch_tensor(
         self,
         x,
-        device,
         mode="inference",
         force_no_preprocessing=False,
         sample_ids=None,
@@ -441,6 +488,10 @@ class CUB2002011(LargeImgDataset):
         ---------
             (torch.Tensor): The given input ``x`` as PyTorch tensor.
         """
+
+        if isinstance(x, torch.Tensor):
+            return x
+
         if not force_no_preprocessing:
             if mode == "inference":
                 transform = self.test_transform
@@ -450,32 +501,35 @@ class CUB2002011(LargeImgDataset):
                 raise ValueError(
                     f"{mode} is not a valid value for the" "argument 'mode'."
                 )
-            return CUB2002011.torch_preprocess_images(x, device, transform)
+            return CUB2002011.torch_preprocess_images(x, self.device, transform)
 
         else:
             return Dataset.input_to_torch_tensor(
                 self,
                 x,
-                device,
+                self.device,
                 mode=mode,
                 force_no_preprocessing=force_no_preprocessing,
                 sample_ids=sample_ids,
             )
 
     @staticmethod
-    def torch_preprocess_images(x, device, transform, img_shape=[32, 32, 3]):
+    def torch_preprocess_images(x, device, transform, img_shape=[32,32,3]):
         """
-        Prepare preprocessing of TinyImageNet images with a selected
+        Prepare preprocessing of CUB-200 images with a selected
         PyTorch transformation.
 
         Parameters:
         ----------
-            x: np.ndarray)
-                2D array containing TinyImageNet images.
+            x: List[List[str]]
+                List of lists with paths to CUB200 images.
             device: torch.device or int: 
                 PyTorch device on which a final tensor will be moved.
             transform: torchvision.transforms
                 A method of data modification.
+            img_shape: Tuple[int]
+                Tuple with integers indicating shape of the loaded
+                CUB-200 images.
 
         Returns:
         --------
@@ -484,15 +538,10 @@ class CUB2002011(LargeImgDataset):
         assert len(x.shape) == 2
         # First dimension is related to batch size and second is related
         # to the flattened image.
-
         x = CUB2002011.load_images_to_tensor(x)
-        x = torch.tensor(x * 255.0, dtype=torch.uint8)
-        x = x.reshape(-1, *img_shape)
-        x = torch.stack([transform(x[i, ...]) for i in range(x.shape[0])]).to(
-            device
-        )
+        x = transform(x).to(device)
         x = x.permute(0, 2, 3, 1)
-        x = x.contiguous().view(-1, np.prod((3,32,32)))
+        x = x.contiguous().view(-1, np.prod(img_shape))
         return x
     
     # Function to load a batch of image paths and convert to tensors
@@ -512,14 +561,141 @@ class CUB2002011(LargeImgDataset):
         # Stack tensors into a single batch
         batch_tensor = torch.stack(tensors)
         return batch_tensor
+    
+    def get_val_inputs(self, dtype="torch"):
+        """
+        Returns validation inputs.
+        """
+        assert dtype in ["torch", "numpy"]
 
+        inputs = [sample[0] for sample in self._torch_ds_val.samples]
+        inputs = np.array(inputs).reshape(-1,1)
+
+        if dtype == "torch":
+            inputs = self.input_to_torch_tensor(
+                inputs,
+                self.device,
+                mode="inference"
+            )
+        return inputs
+    
+    def get_val_outputs(self, dtype="torch"):
+        """
+        Returns validation outputs.
+        """
+        assert dtype in ["torch", "numpy"]
+
+        outputs = [sample[1] for sample in self._torch_ds_val.samples]
+        outputs = self._to_one_hot(np.array(outputs).reshape(-1,1))
+
+        if dtype == "torch":
+            outputs = super().output_to_torch_tensor(
+                outputs,
+                self.device,
+                mode="inference"
+            )
+        return outputs
+    
+    def get_train_inputs(self, dtype="torch"):
+        """
+        Returns training inputs.
+        """
+        assert dtype in ["torch", "numpy"]
+
+        inputs = [sample[0] for sample in self._torch_ds_train.samples]
+        inputs = np.array(inputs).reshape(-1,1)
+
+        if dtype == "torch":
+            inputs = self.input_to_torch_tensor(
+                inputs,
+                self.device,
+                mode="train"
+            )
+        return inputs
+    
+    def get_train_outputs(self, dtype="torch"):
+        """
+        Returns training outputs.
+        """
+        assert dtype in ["torch", "numpy"]
+
+        outputs = [sample[1] for sample in self._torch_ds_train.samples]
+        outputs = self._to_one_hot(np.array(outputs).reshape(-1,1))
+
+        if dtype == "torch":
+            outputs = super().output_to_torch_tensor(
+                outputs,
+                self.device,
+                mode="train"
+            )
+        return outputs
+    
+    def get_test_inputs(self, dtype="torch"):
+        """
+        Returns test inputs.
+        """
+        assert dtype in ["torch", "numpy"]
+
+        inputs = [sample[0] for sample in self._torch_ds_test.samples]
+        inputs = np.array(inputs).reshape(-1,1)
+
+        if dtype == "torch":
+            inputs = self.input_to_torch_tensor(
+                inputs,
+                self.device,
+                mode="inference"
+            )
+        return inputs
+    
+    def get_test_outputs(self, dtype="torch"):
+        """
+        Returns test outputs.
+        """
+        assert dtype in ["torch", "numpy"]
+        
+        outputs = [sample[1] for sample in self._torch_ds_test.samples]
+        outputs = self._to_one_hot(np.array(outputs).reshape(-1,1))
+
+        if dtype == "torch":
+            outputs = super().output_to_torch_tensor(
+                outputs,
+                self.device,
+                mode="train"
+            )
+        return outputs
+    
+    def output_to_torch_tensor(self, y, device, mode='inference', 
+                               force_no_preprocessing=False, sample_ids=None):
+        """
+        For the description of arguments please see docstring of method :meth:`input_to_torch_tensor`.
+        Generally, the function is required to be comaptible with the rest of
+        CL dataset handlers.
+        """
+        return y
+    
+    def next_train_batch(self, batch_size, use_one_hot=None,
+                         return_ids=False):
+        """
+        Return the next random training batch.
+        """
+
+        if self.train_dataloder is None:
+            # Create train dataloader
+            train_tensors = TensorDataset(
+                self.get_train_inputs(),
+                self.get_train_outputs()
+            )
+            self.train_dataloder = DataLoader(train_tensors, batch_size=batch_size, shuffle=True)
+
+        return next(iter(self.train_dataloder))
+        
 
 class SplitCUB200Data(CUB2002011):
     """An instance of the class shall represent a SplitCUB200 task.
 
     Paramaters:
     ------------
-        data_path: str
+        dataset_folder: str
             Where should the dataset be read from? If not existing,
             the dataset will be downloaded into this folder.
         use_one_hot: bool
@@ -542,29 +718,28 @@ class SplitCUB200Data(CUB2002011):
             have no input instances. Note, that 1-hot encodings are padded to
             fit the new number of classes.
     """
-    def __init__(self, data_path, use_one_hot=False, validation_size=1000,
-                 use_torch_augmentation=False, labels=range(0,10),
-                 full_out_dim=False, trgt_padding=None):
+    def __init__(self, dataset_folder, use_one_hot=False, validation_size_per_class=100,
+                 labels=range(0,40), full_out_dim=False, trgt_padding=None):
         # Note, we build the validation set below!
-        super().__init__(data_path, use_one_hot=use_one_hot, num_val_per_class=int(validation_size // len(labels)))
-
+        super().__init__(dataset_folder, 
+                         use_one_hot=use_one_hot, 
+                         validation_size_per_class=validation_size_per_class,
+                         labels=labels)
 
         self._full_out_dim = full_out_dim
-
         if isinstance(labels, range):
             labels = list(labels)
         assert np.all(np.array(labels) >= 0) and \
-               np.all(np.array(labels) < self.num_classes) and \
                len(labels) == len(np.unique(labels))
         K = len(labels)
 
         self._labels = labels
 
-        train_ins = self.get_train_inputs()
-        test_ins = self.get_test_inputs()
+        train_ins = self.get_train_inputs(dtype="numpy")
+        test_ins = self.get_test_inputs(dtype="numpy")
 
-        train_outs = self.get_train_outputs()
-        test_outs = self.get_test_outputs()
+        train_outs = self.get_train_outputs(dtype="numpy")
+        test_outs = self.get_test_outputs(dtype="numpy")
 
         # Get labels.
         if self.is_one_hot:
@@ -579,6 +754,7 @@ class SplitCUB200Data(CUB2002011):
 
         train_mask = train_labels == labels[0]
         test_mask = test_labels == labels[0]
+
         for k in range(1, K):
             train_mask = np.logical_or(train_mask, train_labels == labels[k])
             test_mask = np.logical_or(test_mask, test_labels == labels[k])
@@ -589,12 +765,12 @@ class SplitCUB200Data(CUB2002011):
         train_outs = train_outs[train_mask, :]
         test_outs = test_outs[test_mask, :]
 
-        if validation_size > 0:
-            if validation_size >= train_outs.shape[0]:
+        if validation_size_per_class > 0:
+            if validation_size_per_class >= train_outs.shape[0]:
                 raise ValueError('Validation set size must be smaller than ' +
                                  '%d.' % train_outs.shape[0])
-            val_inds = np.arange(validation_size)
-            train_inds = np.arange(validation_size, train_outs.shape[0])
+            val_inds = np.arange(int(validation_size_per_class*len(labels)))
+            train_inds = np.arange(int(validation_size_per_class*len(labels)), train_outs.shape[0])
 
         else:
             train_inds = np.arange(train_outs.shape[0])
@@ -628,16 +804,16 @@ class SplitCUB200Data(CUB2002011):
         if not full_out_dim:
             self._data['num_classes'] = len(labels)
         else:
-            self._data['num_classes'] = 10
+            self._data['num_classes'] = len(labels)
         self._data['in_data'] = images
         self._data['out_data'] = outputs
         self._data['train_inds'] = train_inds
         self._data['test_inds'] = test_inds
-        if validation_size > 0:
+        if validation_size_per_class > 0:
             self._data['val_inds'] = val_inds
 
         n_val = 0
-        if validation_size > 0:
+        if validation_size_per_class > 0:
             n_val = val_inds.size
 
         if trgt_padding is not None and trgt_padding > 0:

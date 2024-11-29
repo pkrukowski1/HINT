@@ -107,20 +107,21 @@ def prepare_split_cifar100_tasks(datasets_folder,
 
 
 def prepare_CUB200_tasks(datasets_folder,
-                        validation_size,
-                        use_augmentation):
+                        validation_size_per_class,
+                        number_of_tasks=5):
     """
-    Prepare a list of 20 tasks, each with 10 classes. The i-th task, where i
-    is in {0, 1, ..., 19}, will store samples from classes {10*i, 10*i+9}.
+    Prepare a list of 'number_of_tasks' sequential tasks, each with equally distributed number of classes. 
+    The i-th task, where i is in {0, 1, ..., 'number_of_tasks'-1}, will store samples from classes
+    {K*i, K*(i+1)-1}, K := 200 // number_of_tasks.
 
     Parameters:
     ----------
     datasets_folder: str
-        Defines the path where CIFAR-10 is stored or will be downloaded.
-    validation_size: int
-        The number of validation samples.
-    use_augmentation: bool
-        Potentially applies a data augmentation method from hypnettorch.
+        Defines the path where CUB-200 is stored or will be downloaded.
+    validation_size_per_class: int
+        The number of validation samples per class.
+    number_of_tasks: int
+        The number of sequential tasks.
 
     Returns:
     --------
@@ -128,13 +129,13 @@ def prepare_CUB200_tasks(datasets_folder,
         A list of SplitCUB200Data instances, each representing a task.
     """
     handlers = []
-    for i in range(0, 200, 10):
+    no_classes = 200 // number_of_tasks
+    for i in range(0, 200, no_classes):
         handlers.append(SplitCUB200Data(
             datasets_folder,
             use_one_hot=True,
-            validation_size=validation_size,
-            use_torch_augmentation=use_augmentation,
-            labels=range(i, i + 10)
+            validation_size_per_class=validation_size_per_class,
+            labels=range(i, i + no_classes)
         ))
     return handlers
 
