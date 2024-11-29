@@ -470,6 +470,7 @@ class CUB2002011(LargeImgDataset):
     def input_to_torch_tensor(
         self,
         x,
+        device,
         mode="inference",
         force_no_preprocessing=False,
         sample_ids=None,
@@ -501,13 +502,13 @@ class CUB2002011(LargeImgDataset):
                 raise ValueError(
                     f"{mode} is not a valid value for the" "argument 'mode'."
                 )
-            return CUB2002011.torch_preprocess_images(x, self.device, transform)
+            return CUB2002011.torch_preprocess_images(x, device, transform)
 
         else:
             return Dataset.input_to_torch_tensor(
                 self,
                 x,
-                self.device,
+                device,
                 mode=mode,
                 force_no_preprocessing=force_no_preprocessing,
                 sample_ids=sample_ids,
