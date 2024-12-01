@@ -138,7 +138,6 @@ def train_single_task(hypernetwork,
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
         )
-
         tensor_input = current_dataset_instance.input_to_torch_tensor(
             current_batch[0], parameters["device"], mode="train"
         )
@@ -164,7 +163,6 @@ def train_single_task(hypernetwork,
                                                                                 perturbated_eps=eps)
 
         if parameters["full_interval"]:
-
             predictions = target_network.forward(x=tensor_input,
                                                 upper_weights=upper_weights,
                                                 middle_weights=target_weights,
@@ -395,17 +393,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 cutout_mod=True,
                 mode=mode,
             ).to(parameters["device"])
-
-
     elif parameters["target_network"] == "ZenkeNet":
-        if parameters["dataset"] in ["CIFAR100", "CIFAR100_FeCAM_setup"]:
-            architecture = "cifar"
-        elif parameters["dataset"] == "TinyImageNet":
-            architecture = "tiny"
-        else:
-            raise ValueError("This dataset is currently not implemented!")
         raise ValueError("ZenkeNet is not supported right now!")
-    elif parameters["target_network"] == "AlexNet":
+    elif parameters["target_network"] == "AlexNet" \
+        and not parameters["full_interval"]:
         target_network = AlexNet(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
             num_classes=output_shape,
@@ -414,12 +405,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             bn_track_stats=False,
             distill_bn_stats=False
         )
-    elif parameters["target_network"] == "LeNet":
+    elif parameters["target_network"] == "LeNet" \
+        and not parameters["full_interval"]:
         target_network = LeNet(
-            in_shape=(parameters["input_shape"], parameters["input_shape"], 1),
+            in_shape=(28, 28, 1),
             num_classes=output_shape
         )
-    
     if not use_chunks:
         hypernetwork = HMLP_IBP(
             perturbated_eps=parameters["perturbated_epsilon"],

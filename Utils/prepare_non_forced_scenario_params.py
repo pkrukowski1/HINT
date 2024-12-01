@@ -50,7 +50,7 @@ def set_hyperparameters(dataset,
                 "learning_rates": [0.0001],
                 "batch_sizes": [128],
                 "betas": [0.01],
-                "perturbated_epsilon": [0.5],
+                "perturbated_epsilon": [0.01],
                 "hypernetworks_hidden_layers": [[100, 100]],
                 "dropout_rate": [-1],
                 "best_model_selection_method": "val_loss",
@@ -63,7 +63,7 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_iterations"] = 1000
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 500
-        hyperparams["target_network"] = "MLP"
+        hyperparams["target_network"] = "LeNet"
         hyperparams["target_hidden_layers"] = [1000, 1000] if hyperparams["target_network"] == "MLP" else None
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
@@ -72,9 +72,8 @@ def set_hyperparameters(dataset,
         hyperparams["use_batch_norm"] = False
 
         # Directly related to the MNIST dataset
-        hyperparams["padding"] = 2
+        hyperparams["padding"] = 0
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"])**2
-        # hyperparams["shape"] = 28
         hyperparams["number_of_tasks"] = 1000
         hyperparams["augmentation"] = False
 
