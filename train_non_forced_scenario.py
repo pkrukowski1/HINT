@@ -1,20 +1,26 @@
-import os
-import time
 import torch
+import torch.optim as optim
+
 from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.interval_modules import parse_logits
+from IntervalNets.interval_ResNet import IntervalResNetBasic
+from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
+
+import os
+import time
 import numpy as np
 import pandas as pd
-import torch.optim as optim
-from VanillaNets.ResNet18 import ResNetBasic
-from VanillaNets.AlexNet import AlexNet
-from IntervalNets.interval_ResNet import IntervalResNetBasic
 from copy import deepcopy
-import Utils.hnet_middle_regularizer as hreg
 from datetime import datetime
 from itertools import product
+
+from VanillaNets.ResNet18 import ResNetBasic
+from VanillaNets.AlexNet import AlexNet
+from VanillaNets.LeNet_300_100 import LeNet
+from hypnettorch.mnets.mlp import MLP
+
+import Utils.hnet_middle_regularizer as hreg
 from loss_functions import IBP_Loss
-from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from Utils.prepare_non_forced_scenario_params import set_hyperparameters
 from Utils.dataset_utils import *
 from Utils.handy_functions import *
@@ -177,7 +183,6 @@ def train_single_task(hypernetwork,
         # and the upper weights isn"t collapsed into "one point" (short interval)
         loss_weights = 0.0
         for W_u, W_l in zip(upper_weights, lower_weights):
-
             loss_weights += (W_u - W_l).abs().mean()
 
         loss_current_task = criterion(
@@ -324,17 +329,26 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         output_shape = list(
             dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
 
-    # Create a target network which will be multilayer perceptron
-    # or ResNet/ZenkeNet with internal weights
+    # Create a target network
     if parameters["target_network"] == "MLP":
-        target_network = IntervalMLP(n_in=parameters["input_shape"],
-                             n_out=output_shape,
-                             hidden_layers=parameters["target_hidden_layers"],
-                             use_bias=parameters["use_bias"],
-                             no_weights=True,
-                             use_batch_norm=parameters["use_batch_norm"],
-                             bn_track_stats=False,
-                             dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
+        if parameters["full_interval"]:
+            target_network = IntervalMLP(n_in=parameters["input_shape"],
+                                n_out=output_shape,
+                                hidden_layers=parameters["target_hidden_layers"],
+                                use_bias=parameters["use_bias"],
+                                no_weights=True,
+                                use_batch_norm=parameters["use_batch_norm"],
+                                bn_track_stats=False,
+                                dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
+        else:
+            target_network = MLP(n_in=parameters["input_shape"],
+                                n_out=output_shape,
+                                hidden_layers=parameters["target_hidden_layers"],
+                                use_bias=parameters["use_bias"],
+                                no_weights=True,
+                                use_batch_norm=parameters["use_batch_norm"],
+                                bn_track_stats=False,
+                                dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
         
     elif parameters["target_network"] == "ResNet":
         if parameters["dataset"] == "TinyImageNet" or parameters["dataset"] == "SubsetImageNet":
@@ -350,7 +364,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             mode = "default"
         
         if parameters["full_interval"]:
-
             target_network = IntervalResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -367,7 +380,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 mode=mode,
             ).to(parameters["device"])
         else:
-
             target_network = ResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -392,9 +404,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             architecture = "tiny"
         else:
             raise ValueError("This dataset is currently not implemented!")
-
         raise ValueError("ZenkeNet is not supported right now!")
-    
     elif parameters["target_network"] == "AlexNet":
         target_network = AlexNet(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
@@ -403,6 +413,11 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             use_batch_norm=parameters["use_batch_norm"],
             bn_track_stats=False,
             distill_bn_stats=False
+        )
+    elif parameters["target_network"] == "LeNet":
+        target_network = LeNet(
+            in_shape=(parameters["input_shape"], parameters["input_shape"], 1),
+            num_classes=output_shape
         )
     
     if not use_chunks:
@@ -523,13 +538,19 @@ def main_running_experiments(path_to_datasets,
     """
     Perform a series of experiments based on the hyperparameters.
 
-    Arguments:
+    Parameters:
     ----------
-      *path_to_datasets*: (str) path to files with datasets
-      *parameters*: (dict) contains multiple experiment hyperparameters
+      path_to_datasets: str
+      ----------------
+        Path to files with datasets
+      parameters: Dict
+      ----------
+        Contains multiple experiment hyperparameters
 
-    Returns learned hypernetwork, target network and a dataframe
-    with single results.
+    Returns:
+    --------
+        Returns learned hypernetwork, target network and a dataframe
+        with single results.
     """
     if parameters["dataset"] == "PermutedMNIST":
         dataset_tasks_list = prepare_permuted_mnist_tasks(
@@ -644,7 +665,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CUB200"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
+    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
                                 # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp

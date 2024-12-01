@@ -28,8 +28,8 @@ def set_hyperparameters(dataset,
     if dataset == "PermutedMNIST":
         if grid_search:
             hyperparams = {
-                "embedding_sizes": [24],
-                "learning_rates": [0.001],
+                "embedding_sizes": [48],
+                "learning_rates": [0.0001],
                 "batch_sizes": [128],
                 "betas": [0.01],
                 "hypernetworks_hidden_layers": [[100, 100]],
@@ -37,17 +37,17 @@ def set_hyperparameters(dataset,
                 "best_model_selection_method": "val_loss",
                 "dropout_rate": [-1],
                 # not for optimization
-                "seed": [1, 2, 3, 4, 5],
+                "seed": [1],
                 "saving_folder": "./Results/"
-                f"permuted_mnist_final_grid_experiments/last_model/"
+                f"permuted_mnist/"
             }
 
         else:
             # single run experiment
             hyperparams = {
-                "seed": [3],
-                "embedding_sizes": [24],
-                "learning_rates": [0.001],
+                "seed": [1],
+                "embedding_sizes": [48],
+                "learning_rates": [0.0001],
                 "batch_sizes": [128],
                 "betas": [0.01],
                 "perturbated_epsilon": [0.5],
@@ -55,29 +55,31 @@ def set_hyperparameters(dataset,
                 "dropout_rate": [-1],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/"
-                f"permuted_mnist_final_grid_experiments/last_model/"
+                f"permuted_mnist/"
             }
 
         # Both in the grid search and individual runs
         hyperparams["lr_scheduler"] = False
-        hyperparams["number_of_iterations"] = 5000
+        hyperparams["number_of_iterations"] = 1000
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 500
-        hyperparams["target_hidden_layers"] = [1000, 1000]
         hyperparams["target_network"] = "MLP"
+        hyperparams["target_hidden_layers"] = [1000, 1000] if hyperparams["target_network"] == "MLP" else None
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
-        hyperparams["optimizer"] = "adam"
+        hyperparams["optimizer"] = "rmsprop"
         hyperparams["use_chunks"] = False
         hyperparams["use_batch_norm"] = False
+
         # Directly related to the MNIST dataset
         hyperparams["padding"] = 2
         hyperparams["shape"] = (28 + 2 * hyperparams["padding"])**2
-        hyperparams["number_of_tasks"] = 10
+        # hyperparams["shape"] = 28
+        hyperparams["number_of_tasks"] = 1000
         hyperparams["augmentation"] = False
 
         # Full-interval model or simpler one
-        hyperparams["full_interval"] = True
+        hyperparams["full_interval"] = False
 
     elif dataset == "CIFAR100":
         if grid_search:
