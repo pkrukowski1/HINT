@@ -18,7 +18,7 @@ from IntervalNets.hmlp_ibp_with_nesting import HMLP_IBP
 from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.interval_modules import parse_logits
 
-from loss_functions import IBP_Loss
+from LossFunctions.classification_loss_function import IBP_Loss
 import Utils.hnet_interval_regularizer as hreg
 from Utils.prepare_nested_scenario_params import set_hyperparameters
 from Utils.handy_functions import *

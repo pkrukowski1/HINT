@@ -21,7 +21,7 @@ from hypnettorch.mnets.mlp import MLP
 from hypnettorch.mnets.resnet_imgnet import ResNetIN
 
 import Utils.hnet_middle_regularizer as hreg
-from loss_functions import IBP_Loss
+from LossFunctions.classification_loss_function import IBP_Loss
 from Utils.prepare_non_forced_scenario_params import set_hyperparameters
 from Utils.dataset_utils import *
 from Utils.handy_functions import *
