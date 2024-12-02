@@ -209,23 +209,22 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 "seed": [1],
                 "custom_init": [True],
-                "perturbated_epsilon": [10, 15, 20],
-                "embedding_sizes": [96],
+                "perturbated_epsilon": [10, 15, 20, 40],
+                "embedding_sizes": [48,96,128],
                 "learning_rates": [0.001, 0.01],
-                "batch_sizes": [16, 32],
-                "dropout_rate": [-1, 0.25],
-                "embd_dropout_rate": [-1],
+                "batch_sizes": [16, 32, 128],
+                "dropout_rate": [-1],
                 "betas": [1.0, 0.01, 0.1],
-                "hypernetworks_hidden_layers": [[100, 100], [200, 200]],
+                "hypernetworks_hidden_layers": [[100, 100], [100, 100, 100]],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
-                "use_batch_norm": False,
-                "target_network": "ZenkeNet",
+                "use_batch_norm": True,
+                "target_network": "ResNet",
                 "use_chunks": False,
-                "number_of_epochs": 10,
+                "number_of_epochs": 100,
                 "augmentation": True,
-                "saving_folder": "./Results/TinyImageNet/best_hyperparams/"
+                "saving_folder": "./Results/TinyImageNet/"
             }
 
         else:
@@ -240,19 +239,18 @@ def set_hyperparameters(dataset,
                 "hypernetworks_hidden_layers": [[100]],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
-                "embd_dropout_rate": [-1, 0.25],
-                "dropout_rate": [-1, 0.25, 0.5],
+                "dropout_rate": [-1],
                 "optimizer": "adam",
-                "use_batch_norm": False,
-                "target_network": "ZenkeNet",
+                "use_batch_norm": True,
+                "target_network": "ResNet",
                 "use_chunks": False,
                 "number_of_epochs": 10,
                 "augmentation": True,
-                "saving_folder": "./Results/TinyImageNet/best_hyperparams/"
+                "saving_folder": "./Results/TinyImageNet/"
             }
-        hyperparams["lr_scheduler"] = False
+        hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
-        hyperparams["no_of_validation_samples"] = 250
+        hyperparams["no_of_validation_samples"] = 40 * 50
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet"]:
             hyperparams["shape"] = 64
             hyperparams["target_hidden_layers"] = None
