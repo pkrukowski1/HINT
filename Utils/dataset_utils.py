@@ -360,8 +360,10 @@ def prepare_split_mnist_tasks(datasets_folder,
     )
 
 def prepare_tinyimagenet_tasks(
-    datasets_folder, seed,
-    validation_size=250, number_of_tasks=40
+    datasets_folder: str = "./",
+    seed: int = 1993,
+    validation_size: int = 100, 
+    number_of_tasks: int = 40
     ):
     """
     Prepare a list of tasks related to the TinyImageNet dataset according
@@ -385,13 +387,18 @@ def prepare_tinyimagenet_tasks(
     tasks: List[TinyImageNet]
         A list of TinyImageNet objects representing the tasks.
     """
+    assert number_of_tasks in [5, 40], "There are only two available CL settings implemented: 5 tasks or 40 tasks"
+
     # Set randomly the order of classes
     rng = np.random.default_rng(seed)
     class_permutation = rng.permutation(200)
-    # 40 classification tasks with 5 classes in each
     handlers = []
-    for i in range(0, 5 * number_of_tasks, 5):
-        current_labels = class_permutation[i:(i + 5)]
+
+    number_of_classes = int(200 / number_of_tasks)
+
+    # 40 classification tasks with 5 classes in each or 5 tasks with 40 classes in each
+    for i in range(0, number_of_classes * number_of_tasks, number_of_classes):
+        current_labels = class_permutation[i:(i + number_of_classes)]
         print(f"Order of classes in the current task: {current_labels}")
         handlers.append(
             TinyImageNet(
@@ -401,4 +408,9 @@ def prepare_tinyimagenet_tasks(
                 labels=current_labels
             )
         )
+
     return handlers
+
+
+if __name__ == "__main__":
+    pass

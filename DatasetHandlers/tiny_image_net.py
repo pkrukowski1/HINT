@@ -32,7 +32,7 @@ class TinyImageNet(Dataset):
         use_data_augmentation=False,
         validation_size=250,
         seed=1,
-        labels=[i for i in range(5)],
+        labels=[i for i in range(5)]
     ):
         super().__init__()
         self.data_path = data_path
@@ -80,10 +80,10 @@ class TinyImageNet(Dataset):
 
         self._data["classification"] = True
         self._data["sequence"] = False
-        self._data["num_classes"] = 5
+        self._data["num_classes"] = len(labels)
         self._data["is_one_hot"] = use_one_hot
         self._data["in_shape"] = [64, 64, 3]
-        self._data["out_shape"] = [5 if use_one_hot else 1]
+        self._data["out_shape"] = [len(labels) if use_one_hot else 1]
 
         # Prepare IDs of consecutive classes
         self.ids = {}
@@ -334,7 +334,7 @@ class TinyImageNet(Dataset):
             if self._validation_size < 1:
                 # We assume that the number of samples from each class
                 # is exactly the same
-                no_of_samples = self.train_data.shape[0] / 5
+                no_of_samples = self.train_data.shape[0] / no_of_classes
                 self._no_of_val_samples = int(
                     no_of_classes * self._validation_size * no_of_samples
                 )
@@ -419,21 +419,21 @@ class TinyImageNet(Dataset):
         """
         Control whether the set was prepared according to the desired hyperparams.
         """
-        # Test set: 5 classes, 50 samples per class
-        assert self._data["test_inds"].shape[0] == 250
-        # Total number of samples: 250 in test set (50 * 5)
-        # and 500 * 5 in the concatenated training/validation sets.
+        # Test set: 5 classes, 50 samples per class or 40 classes, 50 samples per class
+        assert (self._data["test_inds"].shape[0] == 250 or self._data["test_inds"].shape[0] == 2000)
+        # Total number of samples: 250 in test set (50 * 5) or 2000 (50 * 40)
+        # and 500 * 5 or 500 * 40 in the concatenated training/validation sets.
         if not self._use_one_hot:
             labels_squeezed = self._data["out_data"].squeeze()
         else:
             labels_squeezed = self._to_one_hot(
                 self._data["out_data"], reverse=True
             ).squeeze()
-        assert labels_squeezed.shape[0] == 2750
-        assert self._data["in_data"].shape[0] == 2750
-        assert self._data["in_data"].shape[1] == 12288
+        assert labels_squeezed.shape[0] == 2750 or labels_squeezed.shape[0] == 22000
+        assert self._data["in_data"].shape[1] == 12288 and \
+               (self._data["in_data"].shape[0] == 22000 or self._data["in_data"].shape[0] == 2750)
         # 64 * 64 * 3 = 12288
-        # 2250 examples
+        # 2250 examples in case of 40 tasks and 22 000 examples in case of 5 tasks
         # Control test set
         test_labels = labels_squeezed[self._data["test_inds"]]
         temporary_labels = list(self.translate_temp_label_to_real_labels.keys())
@@ -450,7 +450,7 @@ class TinyImageNet(Dataset):
                 )
         # Control train set
         train_labels = labels_squeezed[self._data["train_inds"]]
-        no_of_train_samples_per_class = train_labels.shape[0] / 5
+        no_of_train_samples_per_class = train_labels.shape[0] / self._data["num_classes"]
         for label in temporary_labels:
             assert (
                 np.count_nonzero(train_labels == label)
@@ -483,7 +483,7 @@ class TinyImageNet(Dataset):
 if __name__ == "__main__":
     tinyimagenet = TinyImageNet(
         data_path="./Data",
-        validation_size=250,
+        validation_size=2000,
         use_one_hot=True,
-        labels=[1, 5, 13, 21, 36],
+        labels=[i for i in range(40)]
     )
