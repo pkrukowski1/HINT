@@ -22,6 +22,7 @@ import numpy as np
 from PIL import Image
 from sklearn.preprocessing import OneHotEncoder
 import numpy.matlib as npm
+from collections import Counter
 
 from hypnettorch.data.large_img_dataset import LargeImgDataset
 from hypnettorch.data.ilsvrc2012_data import ILSVRC2012Data
@@ -214,6 +215,7 @@ class CUB2002011(LargeImgDataset):
         # We use the same transforms as 
         train_transform, test_transform = \
             ILSVRC2012Data.torch_input_transforms()
+
         # Consider all images as training images. We split the dataset later.
         ds_train = datasets.ImageFolder(image_dir, train_transform)
 
@@ -287,7 +289,7 @@ class CUB2002011(LargeImgDataset):
         else:
             ds_val = None
 
-        val_counts = np.zeros(num_classes, dtype=np.int)
+        val_counts  = np.zeros(num_classes, dtype=np.int)
 
         for img_path, img_lbl in orig_samples:
             iid = img2id[img_path]
@@ -307,18 +309,31 @@ class CUB2002011(LargeImgDataset):
                         
         assert(len(ds_train.samples) >= validation_size_per_class*num_classes), \
             "The number of training samples should not be lower than the number of validation samples"
+        
+        # Get test labels counter object
+        _test_labels_counter = Counter([sample[1] for sample in ds_test.samples])
+        
+        
+        while (np.array(list(_test_labels_counter.values())) > 5).any():
+            for sample in ds_test.samples:
+                _, y = sample[0], sample[1]
+                if _test_labels_counter[y] > 5:
+                    ds_train.samples.append(sample)
+                    ds_test.samples.remove(sample)
+                    _test_labels_counter[y] -= 1
 
         self._torch_ds_train = ds_train
         self._torch_ds_test = ds_test
         self._torch_ds_val = ds_val
 
+
         #####################################
         ### Build internal data structure ###
         #####################################
-        num_train = len(self._torch_ds_train)
-        num_test = len(self._torch_ds_test)
+        num_train = len(self._torch_ds_train.samples)
+        num_test = len(self._torch_ds_test.samples)
         num_val = 0 if self._torch_ds_val is None else \
-            len(self._torch_ds_val)
+            len(self._torch_ds_val.samples)
         num_samples = num_train + num_test + num_val
 
         max_path_len = len(max(orig_samples, key=lambda t : len(t[0]))[0])
@@ -328,7 +343,7 @@ class CUB2002011(LargeImgDataset):
         self._data['num_classes'] = len(labels)
         self._data['is_one_hot'] = use_one_hot
 
-        self._data['in_shape'] = [32, 32, 3]
+        self._data['in_shape'] = [224, 224, 3]
         self._data['out_shape'] = [len(labels) if use_one_hot else 1]
 
         self._data['in_data'] = np.chararray([num_samples, 1],
@@ -359,13 +374,25 @@ class CUB2002011(LargeImgDataset):
         end = time.time()
         print('Elapsed time to read dataset: %f sec' % (end-start))
 
-        self.train_transform = transforms.Compose([
-            transforms.Resize(32),
+        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                         std=[0.229, 0.224, 0.225])
+
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize,
         ])
 
-        self.test_transform = transforms.Compose([
-            transforms.Resize(32),
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
         ])
+
+        self.train_transform = train_transform
+        self.test_transform  = test_transform
 
     def _to_one_hot(self, labels, reverse=False):
         """ Transform a list of labels into a 1-hot encoding.
@@ -515,7 +542,7 @@ class CUB2002011(LargeImgDataset):
             )
 
     @staticmethod
-    def torch_preprocess_images(x, device, transform, img_shape=[32,32,3]):
+    def torch_preprocess_images(x, device, transform, img_shape=[224,224,3]):
         """
         Prepare preprocessing of CUB-200 images with a selected
         PyTorch transformation.
@@ -539,20 +566,16 @@ class CUB2002011(LargeImgDataset):
         assert len(x.shape) == 2
         # First dimension is related to batch size and second is related
         # to the flattened image.
-        x = CUB2002011.load_images_to_tensor(x)
-        x = transform(x).to(device)
+        x = CUB2002011.load_images_to_tensor(x, transform)
+        x = x.to(device)
         x = x.permute(0, 2, 3, 1)
         x = x.contiguous().view(-1, np.prod(img_shape))
         return x
     
     # Function to load a batch of image paths and convert to tensors
     @staticmethod
-    def load_images_to_tensor(image_paths):
+    def load_images_to_tensor(image_paths, transform):
         tensors = []
-        transform = transforms.Compose([
-            transforms.Resize((32, 32)),             
-            transforms.ToTensor(), 
-            ])
         for path in image_paths:
             # Load the image
             img = Image.open(path[0]).convert('RGB')  # Ensure RGB format
