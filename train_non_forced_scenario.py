@@ -18,6 +18,7 @@ from VanillaNets.ResNet18 import ResNetBasic
 from VanillaNets.AlexNet import AlexNet
 from VanillaNets.LeNet_300_100 import LeNet
 from hypnettorch.mnets.mlp import MLP
+from hypnettorch.mnets.resnet_imgnet import ResNetIN
 
 import Utils.hnet_middle_regularizer as hreg
 from loss_functions import IBP_Loss
@@ -347,7 +348,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                 use_batch_norm=parameters["use_batch_norm"],
                                 bn_track_stats=False,
                                 dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
-        
     elif parameters["target_network"] == "ResNet":
         if parameters["dataset"] == "TinyImageNet" or parameters["dataset"] == "SubsetImageNet":
             mode = "tiny"
@@ -393,6 +393,18 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 cutout_mod=True,
                 mode=mode,
             ).to(parameters["device"])
+    elif parameters["target_network"] == "ResNetIN":
+        assert not parameters["full_interval"], "Full interval implementation of the chosen target network is not supported right now!"
+        target_network = ResNetIN(
+            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            num_classes=output_shape,
+            use_fc_bias=parameters["use_bias"],
+            bottleneck_blocks=False,
+            no_weights=True,
+            use_batch_norm=parameters["use_batch_norm"],
+            bn_track_stats=False,
+            cutout_mod=False
+        )
     elif parameters["target_network"] == "ZenkeNet":
         raise ValueError("ZenkeNet is not supported right now!")
     elif parameters["target_network"] == "AlexNet" \
@@ -656,7 +668,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
+    dataset = "CUB200"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
                                 # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
