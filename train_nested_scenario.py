@@ -1,25 +1,29 @@
 import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from IntervalNets.interval_MLP import IntervalMLP
-from IntervalNets.interval_modules import parse_logits
-import numpy as np
-import pandas as pd
-import torch.optim as optim
-from VanillaNets.ResNet18 import ResNetBasic
-from VanillaNets.AlexNet import AlexNet
-from IntervalNets.interval_ResNet import IntervalResNetBasic
-from copy import deepcopy
-import Utils.hnet_interval_regularizer as hreg
+import time
 from datetime import datetime
 from itertools import product
-from loss_functions import IBP_Loss
+import numpy as np
+import pandas as pd
+from copy import deepcopy
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+from VanillaNets.ResNet18 import ResNetBasic
+from VanillaNets.AlexNet import AlexNet
+
+from IntervalNets.interval_ResNet import IntervalResNetBasic
 from IntervalNets.hmlp_ibp_with_nesting import HMLP_IBP
+from IntervalNets.interval_MLP import IntervalMLP
+from IntervalNets.interval_modules import parse_logits
+
+from loss_functions import IBP_Loss
+import Utils.hnet_interval_regularizer as hreg
 from Utils.prepare_nested_scenario_params import set_hyperparameters
 from Utils.handy_functions import *
 from Utils.dataset_utils import *
-import time
+
 
 def train_single_task(hypernetwork,
                       target_network,
