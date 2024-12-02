@@ -452,7 +452,7 @@ def set_hyperparameters(dataset,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
-                "target_network": "ResNet",
+                "target_network": "ResNetIN",
                 "use_chunks": False,
                 "number_of_epochs": 200,
                 "augmentation": True
@@ -462,19 +462,19 @@ def set_hyperparameters(dataset,
             # single run experiment
             hyperparams = {
                 "seed": [1],
-                "embedding_sizes": [48],
+                "embedding_sizes": [4],
                 "betas": [0.01],
-                "batch_sizes": [16],
+                "batch_sizes": [4],
                 "learning_rates": [0.001],
-                "perturbated_epsilon": [0.1],
-                "hypernetworks_hidden_layers": [[100]],
+                "perturbated_epsilon": [0.01],
+                "hypernetworks_hidden_layers": [[20]],
                 "dropout_rate": [-1],
                 "use_batch_norm": True,
                 "use_chunks": False,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
-                "number_of_epochs": 1,
-                "target_network": "ResNet",
+                "number_of_epochs": 200,
+                "target_network": "ResNetIN",
                 "optimizer": "adam",
                 "augmentation": True
             }
@@ -487,8 +487,8 @@ def set_hyperparameters(dataset,
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 5
-        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet"]:
-            hyperparams["shape"] = 32
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet", "ResNetIN"]:
+            hyperparams["shape"] = 224
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 3072
