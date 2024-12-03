@@ -9,7 +9,7 @@ from evaluation import (
     prepare_and_load_weights_for_models,
 )
 
-from train_non_forced_scenario import reverse_predictions
+from train_non_forced_classification_scenario import reverse_predictions
 
 
 def translate_output_CIFAR_classes(labels, setup, task, mode):

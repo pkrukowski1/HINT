@@ -18,18 +18,30 @@ class IntervalMSELoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, lower_bound: torch.Tensor, 
-                upper_bound: torch.Tensor, 
-                y_values: torch.Tensor):
+    @property
+    def worst_case_error(self):
+        """
+        Getter for the worst-case MSE.
+        """
+        return self._worst_case_error
+    
+    @worst_case_error.setter
+    def worst_case_error(self, value):
+        """
+        Setter for the worst-case MSE.
+        """
+        self._worst_case_error = value
+
+    def forward(self, z_l: torch.Tensor, z_u: torch.Tensor, y: torch.Tensor, *args, **kwargs):
         
         """
         Parameters:
         -----------
-            lower_bound: torch.Tensor
+            z_l: torch.Tensor
                 Lower bound of a target network output.
-            upper_bound: torch.Tensor
+            z_u: torch.Tensor
                 Upper bound of a target network output.
-            y_values: torch.Tensor
+            y: torch.Tensor
                 GT values.
         
         Returns:
@@ -37,8 +49,11 @@ class IntervalMSELoss(nn.Module):
             Interval MSE loss.
         """
         
-        lower_bound_loss = (y_values - lower_bound).pow(2).sum(dim=-1)
-        upper_bound_loss = (y_values - upper_bound).pow(2).sum(dim=-1)
+        lower_bound_loss = (y - z_l).pow(2).sum(dim=-1)
+        upper_bound_loss = (y - z_u).pow(2).sum(dim=-1)
         max_loss = torch.maximum(lower_bound_loss, upper_bound_loss)
+        loss = max_loss.mean()
 
-        return max_loss.mean()
+        self.worst_case_error = loss.item()
+
+        return loss

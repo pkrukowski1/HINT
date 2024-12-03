@@ -1,6 +1,6 @@
 from Utils.prepare_non_forced_scenario_params import set_hyperparameters
 from Utils.dataset_utils import *
-from train_non_forced_scenario import (
+from train_non_forced_classification_scenario import (
     load_pickle_file,
     set_seed,
     intersection_of_embeds

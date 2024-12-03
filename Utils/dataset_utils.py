@@ -7,6 +7,8 @@ from DatasetHandlers.tiny_image_net import TinyImageNet
 from DatasetHandlers.cifar100_FeCAM import SplitCIFAR100Data_FeCAM
 from DatasetHandlers.split_cub200 import SplitCUB200Data
 
+from hypnettorch.data.special.regression1d_data import ToyRegression
+
 def generate_random_permutations(shape_of_data_instance,
                                  number_of_permutations):
     """
@@ -411,6 +413,71 @@ def prepare_tinyimagenet_tasks(
 
     return handlers
 
+
+def prepare_toy_regression_tasks(
+    seed: int = 1,
+    no_of_validation_samples: int = 50, 
+    number_of_tasks: int = 5
+    ):
+    """
+    Prepare a list of tasks related to the 1D Regression Dataset (https://hypnettorch.readthedocs.io/en/latest/special.html#d-regression-dataset).
+
+    Parameters:
+    ----------
+    seed: int
+        Necessary for data generation
+    no_of_validation_samples: int, optional
+        The number of validation samples in each task. By default, it is 50.
+    number_of_tasks: int, optional
+        Defines the number of continual learning tasks. By default, it is 40.
+
+    Returns:
+    --------
+    tasks: List[TinyImageNet]
+        A list of TinyImageNet objects representing the tasks.
+    """
+
+    assert number_of_tasks == 5, "Number of tasks should be equal to 5."
+
+    # Set randomly the order of classes
+    handlers = []
+    domain = np.linspace(0, 1, number_of_tasks+1)
+
+    # Generate functions
+    # functions = [
+    #     lambda x : x+3,
+    #     lambda x : 2*x**2-1,
+    #     lambda x : (x-3)**3,
+    #     lambda x : np.sin(x),
+    #     lambda x : np.tanh(x-8)
+    # ]
+    functions = [
+        lambda x : 2*x,
+        lambda x : 4*x**2-2,
+        lambda x : 8*x**3-12*x,
+        lambda x : 16*x**4 - 48*x**2 + 12,
+        lambda x : 32*x**5 - 160*x**3 + 120*x
+    ]
+
+    # 'number_of_tasks' regression tasks
+    for i in range(0, number_of_tasks):
+        current_domain = domain[i:i+2]
+        current_function = functions[i]
+        handlers.append(
+            ToyRegression(
+                train_inter=current_domain,
+                num_train=500,
+                test_inter=current_domain,
+                num_test=50,
+                val_inter=current_domain,
+                num_val=no_of_validation_samples,
+                map_function=current_function,
+                std=0.0,
+                rseed=seed
+            )
+        )
+
+    return handlers
 
 if __name__ == "__main__":
     pass

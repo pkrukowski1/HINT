@@ -50,7 +50,7 @@ class IBP_Loss(nn.Module):
         """
         self._worst_case_error = value
 
-    def forward(self, y_pred, y, z_l, z_u, kappa=0.5):
+    def forward(self, y_pred, y, z_l, z_u, *args, **kwargs):
         """
         Calculates the total loss for IBP.
 
@@ -72,6 +72,9 @@ class IBP_Loss(nn.Module):
         total_loss: torch.Tensor
             Total calculated loss.
         """
+
+        kappa = kwargs["kappa"]
+
         # Standard cross-entropy loss component
         loss_fit = self.bce_loss_func(y_pred, y)
 
