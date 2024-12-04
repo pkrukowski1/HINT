@@ -3,9 +3,11 @@
 
 import torch
 
+import numpy as np
+
 from hypnettorch.hnets import HyperNetInterface
 
-def get_current_targets(task_id, hnet, eps):
+def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
     """
     For all j < task_id, compute the output of the hypernetwork. This output
     will be detached from the graph before being added to the return list of
@@ -34,6 +36,8 @@ def get_current_targets(task_id, hnet, eps):
             targets).
         eps: float
             A perturbation value.
+        task_ids_to_be_regularized: List[int]
+            Task embedding ids to be regularized..
 
     Returns:
     --------
@@ -47,14 +51,14 @@ def get_current_targets(task_id, hnet, eps):
     hnet.eval()
 
     middle_ret = []
+    task_id_list = list(range(task_id)) if not task_ids_to_be_regularized else task_ids_to_be_regularized
 
     with torch.no_grad():
-
-        W_middle= hnet.forward(cond_id=list(range(task_id)),
-                                                ret_format='sequential',
-                                                perturbated_eps=eps,
-                                                return_extended_output=False
-                                                )
+        W_middle= hnet.forward(cond_id=task_id_list,
+                                ret_format='sequential',
+                                perturbated_eps=eps,
+                                return_extended_output=False
+                                )
         middle_ret = [[p.detach() for p in W_tid] for W_tid in W_middle]
 
     hnet.train(mode=hnet_mode)
@@ -62,7 +66,8 @@ def get_current_targets(task_id, hnet, eps):
     return middle_ret
 
 def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None, 
-                        mnet=None, prev_theta=None, prev_task_embs=None):
+                        mnet=None, prev_theta=None, prev_task_embs=None,
+                        task_ids_to_be_regularized=None):
     """
     This regularizer restricts the output-mapping for previous task embeddings.
     For all tasks :math:`j < \text{task\_id}`.
@@ -106,6 +111,13 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
             ``targets`` has to be specified. ``prev_task_embs`` are the task
             embeddings (conditional parameters) of the hypernetwork.
             See docstring of ``prev_theta`` for more details.
+        sample_last_n_tasks: bool
+            Flag to indicate whether randomly chosen n currently learned tasks'
+            embeddings should be regularized or no.
+        no_embeddings_to_be_regularized: int
+            Number of tasks' embeddings to be regularized.
+        task_ids_to_be_regularized: List[int]
+            Task embedding ids to be regularized.
 
     Returns:
     --------
@@ -125,7 +137,7 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
 
     # Number of tasks to be regularized.
     num_regs = task_id
-    ids_to_reg = list(range(num_regs))
+    ids_to_reg = list(range(task_id)) if not task_ids_to_be_regularized else task_ids_to_be_regularized
 
     # FIXME Assuming all unconditional parameters are internal.
     assert len(hnet.unconditional_params) == \
