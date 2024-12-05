@@ -29,15 +29,15 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 "embedding_sizes": [48],
-                "learning_rates": [0.0001],
+                "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.01],
-                "hypernetworks_hidden_layers": [[100, 100]],
-                "perturbated_epsilon": [0.5],
+                "betas": [0.1],
+                "hypernetworks_hidden_layers": [[10, 10]],
+                "perturbated_epsilon": [0.1],
                 "best_model_selection_method": "val_loss",
                 "dropout_rate": [-1],
                 # not for optimization
-                "seed": [1],
+                "seed": [1,2,3],
                 "saving_folder": "./Results/"
                 f"permuted_mnist/"
             }
@@ -60,7 +60,7 @@ def set_hyperparameters(dataset,
 
         # Both in the grid search and individual runs
         hyperparams["lr_scheduler"] = False
-        hyperparams["number_of_iterations"] = 1000
+        hyperparams["number_of_iterations"] = 5
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 500
         hyperparams["target_network"] = "LeNet"
@@ -535,6 +535,60 @@ def set_hyperparameters(dataset,
             }
 
         hyperparams["shape"] = 1
+        hyperparams["padding"] = 0
+        hyperparams["number_of_tasks"] = 5
+        hyperparams["augmentation"] = False
+
+        # Both in the grid search and individual runs
+        hyperparams["lr_scheduler"] = False
+        hyperparams["number_of_iterations"] = 4000
+        hyperparams["number_of_epochs"] = None
+        hyperparams["no_of_validation_samples"] = 50
+        hyperparams["target_network"] = "MLP"
+        hyperparams["target_hidden_layers"] = [10, 10]
+        hyperparams["resnet_number_of_layer_groups"] = None
+        hyperparams["resnet_widening_factor"] = None
+        hyperparams["optimizer"] = "adam"
+        hyperparams["use_chunks"] = False
+        hyperparams["use_batch_norm"] = False
+
+        # Full-interval model or simpler one
+        hyperparams["full_interval"] = True
+
+    if dataset == "GaussianDataset":
+        if grid_search:
+            hyperparams = {
+                "embedding_sizes": [2],
+                "learning_rates": [0.001],
+                "batch_sizes": [32],
+                "betas": [0.01],
+                "hypernetworks_hidden_layers": [[10, 10]],
+                "perturbated_epsilon": [1e-4],
+                "best_model_selection_method": "val_loss",
+                "dropout_rate": [-1],
+                # not for optimization
+                "seed": [1],
+                "saving_folder": "./Results/"
+                f"gaussian_dataset/"
+            }
+
+        else:
+            # single run experiment
+            hyperparams = {
+                "seed": [1],
+                "embedding_sizes": [48],
+                "learning_rates": [0.0001],
+                "batch_sizes": [4],
+                "betas": [0.01],
+                "perturbated_epsilon": [0.01],
+                "hypernetworks_hidden_layers": [[100, 100]],
+                "dropout_rate": [-1],
+                "best_model_selection_method": "val_loss",
+                "saving_folder": "./Results/"
+                f"toy_regression_1D/"
+            }
+
+        hyperparams["shape"] = 2
         hyperparams["padding"] = 0
         hyperparams["number_of_tasks"] = 5
         hyperparams["augmentation"] = False

@@ -8,6 +8,7 @@ from DatasetHandlers.cifar100_FeCAM import SplitCIFAR100Data_FeCAM
 from DatasetHandlers.split_cub200 import SplitCUB200Data
 
 from hypnettorch.data.special.regression1d_data import ToyRegression
+from DatasetHandlers.gaussian_data import get_gmm_tasks
 
 def generate_random_permutations(shape_of_data_instance,
                                  number_of_permutations):
@@ -433,13 +434,12 @@ def prepare_toy_regression_tasks(
 
     Returns:
     --------
-    tasks: List[TinyImageNet]
-        A list of TinyImageNet objects representing the tasks.
+    tasks: List[ToyRegression]
+        A list of ToyRegression objects representing the tasks.
     """
 
     assert number_of_tasks == 5, "Number of tasks should be equal to 5."
 
-    # Set randomly the order of classes
     handlers = []
     domain = np.linspace(0, 1, number_of_tasks+1)
 
@@ -476,6 +476,61 @@ def prepare_toy_regression_tasks(
                 rseed=seed
             )
         )
+
+    return handlers
+
+
+def prepare_gaussian_regression_tasks(
+    seed: int = 1,
+    no_of_validation_samples: int = 50, 
+    number_of_tasks: int = 5
+    ):
+    """
+    Prepare a list of tasks related to the GaussianData
+    (https://hypnettorch.readthedocs.io/en/latest/_modules/hypnettorch/data/special/gaussian_mixture_data.html#GaussianData).
+
+    Parameters:
+    ----------
+    seed: int
+        Necessary for data generation
+    no_of_validation_samples: int, optional
+        The number of validation samples in each task. By default, it is 50.
+    number_of_tasks: int, optional
+        Defines the number of continual learning tasks. By default, it is 40.
+
+    Returns:
+    --------
+    tasks: List[GaussianData]
+        A list of GaussianData objects representing the tasks.
+    """
+
+    assert number_of_tasks == 5, "Number of tasks should be equal to 5."
+    
+    # Generate Gaussians
+    means = np.array([
+        [5, 5],      # Gaussian 1
+        [15, 15],    # Gaussian 2
+        [25, 5],     # Gaussian 3
+        [5, 25],     # Gaussian 4
+        [25, 25]     # Gaussian 5
+    ])
+
+    covariances = [
+        [[3, 1], [1, 2]],       # Covariance for Gaussian 1
+        [[4, 1.5], [1.5, 3]],   # Covariance for Gaussian 2
+        [[2, 0.5], [0.5, 1]],   # Covariance for Gaussian 3
+        [[3, -1], [-1, 2]],     # Covariance for Gaussian 4
+        [[4, -1.5], [-1.5, 3]]  # Covariance for Gaussian 5
+    ]
+
+    handlers = get_gmm_tasks(
+        means=means,
+        covs=covariances,
+        num_train=500,
+        num_test=no_of_validation_samples,
+        num_val=no_of_validation_samples,
+        rseed=seed
+    )
 
     return handlers
 

@@ -1,5 +1,4 @@
 import torch
-import torch.optim as optim
 
 from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.interval_modules import parse_logits
@@ -72,7 +71,7 @@ def train_single_task(hypernetwork,
         raise ValueError("Wrong type of the selected optimizer!")
     if parameters["best_model_selection_method"] == "val_loss":
         # Store temporary best models to keep those with the highest
-        # validation accuracy.
+        # validation MSE.
         best_hypernetwork = deepcopy(hypernetwork).to(parameters["device"])
         best_target_network = deepcopy(target_network).to(parameters["device"])
         best_val_mse_loss = np.inf
@@ -282,8 +281,6 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
     Parameters:
     -----------
-    path_to_datasets: str
-        Path to files with datasets.
     parameters: dict
         Contains multiple experiment hyperparameters.
 
@@ -411,7 +408,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
     criterion = IntervalMSELoss()
     dataframe = pd.DataFrame(columns=[
-        "after_learning_of_task", "tested_task", "accuracy"])
+        "after_learning_of_task", "tested_task", "MSE"])
     
     if (parameters["target_network"] == "ResNet") and \
        parameters["use_batch_norm"]:
@@ -509,19 +506,14 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     return hypernetwork, target_network, dataframe
 
 
-def main_running_experiments(path_to_datasets,
-                             parameters):
+def main_running_experiments(parameters):
     
     """
     Perform a series of experiments based on the hyperparameters.
 
     Parameters:
     ----------
-      path_to_datasets: str
-      ----------------
-        Path to files with datasets
       parameters: Dict
-      ----------
         Contains multiple experiment hyperparameters
 
     Returns:
@@ -535,9 +527,14 @@ def main_running_experiments(path_to_datasets,
             seed=parameters["seed"],
             no_of_validation_samples=parameters["no_of_validation_samples"]
         )
+    elif parameters["dataset"] == "GaussianDataset":
+        dataset_tasks_list = prepare_gaussian_regression_tasks(
+            seed=parameters["seed"],
+            no_of_validation_samples=parameters["no_of_validation_samples"]
+        )
     else:
         raise ValueError("Wrong name of the dataset!")
-
+    
     start_time = time.time()
 
     hypernetwork, target_network, dataframe = build_multiple_task_experiment(
@@ -552,7 +549,7 @@ def main_running_experiments(path_to_datasets,
     no_of_last_task = parameters["number_of_tasks"] - 1
     accuracies = dataframe.loc[
         dataframe["after_learning_of_task"] == no_of_last_task
-    ]["accuracy"].values
+    ]["MSE"].values
     row_with_results = (
         f"{dataset_tasks_list[0].get_identifier()};"
         f'{parameters["augmentation"]};'
@@ -583,9 +580,7 @@ def main_running_experiments(path_to_datasets,
 
 
 if __name__ == "__main__":
-    path_to_datasets = "./Data"
-    dataset = "ToyRegression1D"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
-                                # "CUB200", "ToyRegression1D"
+    dataset = "GaussianDataset"  # "ToyRegression1D", "GaussianDataset"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = True
@@ -603,7 +598,7 @@ if __name__ == "__main__":
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "use_chunks;target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
-        "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy;"
+        "hypernet_activation_function;learning_rate;batch_size;beta;mean_mse;std_mse;"
         "elapsed_time"
     )
 
@@ -688,5 +683,4 @@ if __name__ == "__main__":
             set_seed(seed)
 
         hypernetwork, target_network, dataframe = \
-            main_running_experiments(path_to_datasets,
-                                     parameters)
+            main_running_experiments(parameters)
