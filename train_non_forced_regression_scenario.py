@@ -543,6 +543,14 @@ def main_running_experiments(parameters):
         use_chunks=parameters["use_chunks"]
     )
 
+    # TODO: Plot GT functions values vs predictions
+    plot_regression_results(
+        x: List[np.ndarray],  # One array per task
+        y_true: List[np.ndarray], # One array per task
+        y_pred: List[np.ndarray],
+        dataset_name = parameters["dataset"]
+    )
+
     elapsed_time = time.time() - start_time
 
     # Calculate statistics of grid search results
@@ -583,7 +591,7 @@ if __name__ == "__main__":
     dataset = "GaussianDataset"  # "ToyRegression1D", "GaussianDataset"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
