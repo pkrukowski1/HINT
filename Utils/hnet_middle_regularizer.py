@@ -3,8 +3,6 @@
 
 import torch
 
-import numpy as np
-
 from hypnettorch.hnets import HyperNetInterface
 
 def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
@@ -51,7 +49,7 @@ def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
     hnet.eval()
 
     middle_ret = []
-    task_id_list = list(range(task_id)) if not task_ids_to_be_regularized else task_ids_to_be_regularized
+    task_id_list = list(range(task_id)) if task_ids_to_be_regularized is None else task_ids_to_be_regularized
 
     with torch.no_grad():
         W_middle= hnet.forward(cond_id=task_id_list,
@@ -130,14 +128,14 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
     # will then pass to the forward method.
     assert hnet.unconditional_params is not None and \
         len(hnet.unconditional_params) > 0
-    assert middle_targets is None or len(middle_targets) == task_id
+    # assert middle_targets is None #or len(middle_targets) == task_id
     assert mnet is not None
     assert middle_targets is None or (prev_theta is None and prev_task_embs is None)
     assert prev_theta is None or prev_task_embs is not None
 
     # Number of tasks to be regularized.
-    num_regs = task_id
-    ids_to_reg = list(range(task_id)) if not task_ids_to_be_regularized else task_ids_to_be_regularized
+    ids_to_reg = list(range(task_id)) if task_ids_to_be_regularized is None else task_ids_to_be_regularized
+    num_regs = len(ids_to_reg)
 
     # FIXME Assuming all unconditional parameters are internal.
     assert len(hnet.unconditional_params) == \
@@ -149,7 +147,7 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
 
     middle_reg = 0
 
-    for i in ids_to_reg:
+    for idx, i in enumerate(ids_to_reg):
     
         middle_weights_predicted = hnet.forward(
                                                 cond_id=i,
@@ -158,8 +156,7 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
                                                 return_extended_output=False
                                             )
 
-
-        middle_target = middle_targets[i]
+        middle_target = middle_targets[idx]
     
         # Regularize all weights of the main network.
         middle_W_target = torch.cat([w.view(-1) for w in middle_target])
