@@ -585,7 +585,7 @@ def set_hyperparameters(dataset,
                 "dropout_rate": [-1],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/"
-                f"toy_regression_1D/"
+                f"gaussian_dataset/"
             }
 
         hyperparams["shape"] = 2
