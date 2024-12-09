@@ -1,29 +1,36 @@
-import torch
-
-from IntervalNets.interval_MLP import IntervalMLP
-from IntervalNets.interval_modules import parse_logits
-from IntervalNets.interval_ResNet import IntervalResNetBasic
-from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
-
 import os
+import sys
 import time
+from datetime import datetime
+from itertools import product
 import numpy as np
 import pandas as pd
 from copy import deepcopy
-from datetime import datetime
-from itertools import product
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+# Get the parent directory path
+parent_dir = os.path.abspath(os.path.join(os.getcwd(), '.'))
+
+# Add the parent directory to sys.path
+sys.path.insert(0, parent_dir)
 
 from VanillaNets.ResNet18 import ResNetBasic
 from VanillaNets.AlexNet import AlexNet
-from VanillaNets.LeNet_300_100 import LeNet
-from hypnettorch.mnets.mlp import MLP
-from hypnettorch.mnets.resnet_imgnet import ResNetIN
 
-import Utils.hnet_middle_regularizer as hreg
-from LossFunctions.regression_loss_function import IntervalMSELoss
-from Utils.prepare_non_forced_scenario_params import set_hyperparameters
-from Utils.dataset_utils import *
+from IntervalNets.interval_ResNet import IntervalResNetBasic
+from IntervalNets.hmlp_ibp_with_nesting import HMLP_IBP
+from IntervalNets.interval_MLP import IntervalMLP
+from IntervalNets.interval_modules import parse_logits
+
+from LossFunctions.classification_loss_function import IBP_Loss
+import Utils.hnet_interval_regularizer as hreg
+from Utils.prepare_nested_scenario_params import set_hyperparameters
 from Utils.handy_functions import *
+from Utils.dataset_utils import *
+
 
 def train_single_task(hypernetwork,
                       target_network,
@@ -40,7 +47,7 @@ def train_single_task(hypernetwork,
     hypernetwork: hypnettorch.hnets module (e.g., mlp_hnet.MLP)
         A hypernetwork that generates weights for the target network.
     target_network: hypnettorch.mnets module (e.g., mlp.MLP)
-        A target network that finally performs regression.
+        A target network that finally performs classification.
     criterion: torch.nn module
         Implements a loss function (e.g., CrossEntropyLoss).
     parameters: dictionary
@@ -59,22 +66,22 @@ def train_single_task(hypernetwork,
     # deep copy of the network it needs to be reinitialized
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     elif parameters["optimizer"] == "rmsprop":
         optimizer = torch.optim.RMSprop(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     else:
         raise ValueError("Wrong type of the selected optimizer!")
     if parameters["best_model_selection_method"] == "val_loss":
         # Store temporary best models to keep those with the highest
-        # validation MSE.
+        # validation accuracy.
         best_hypernetwork = deepcopy(hypernetwork).to(parameters["device"])
         best_target_network = deepcopy(target_network).to(parameters["device"])
-        best_val_mse_loss = np.inf
+        best_val_loss = 1e15
         
     elif parameters["best_model_selection_method"] != "last_model":
         raise ValueError("Wrong value of best_model_selection_method parameter!")
@@ -90,10 +97,10 @@ def train_single_task(hypernetwork,
         # Save previous hnet weights
         hypernetwork._prev_hnet_weights = deepcopy(hypernetwork.unconditional_params)
 
-        middle_reg_targets = hreg.get_current_targets(
-                                        task_id=current_no_of_task,
-                                        hnet=hypernetwork,
-                                        eps=parameters["perturbated_epsilon"])
+        lower_reg_targets, middle_reg_targets, upper_reg_targets = hreg.get_current_targets(
+                                                                                task_id=current_no_of_task,
+                                                                                hnet=hypernetwork,
+                                                                                eps=parameters["perturbated_epsilon"])
 
     if (parameters["target_network"] == "ResNet") and \
        parameters["use_batch_norm"]:
@@ -111,16 +118,36 @@ def train_single_task(hypernetwork,
                 parameters["number_of_epochs"]
             )
         # Scheduler can be set only when the number of epochs is given
+        # Scheduler can be set only when the number of epochs is given
         if parameters["lr_scheduler"]:
             current_epoch = 0
+            if parameters["target_network"] == "ResNet":
+                patience = 6
+                factor = 0.5
+                min_lr = 1e-6
+            else:
+                patience = 5
+                factor = np.sqrt(0.1)
+                min_lr = 0.5e-6
+            plateau_scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                "max",
+                factor=factor,
+                patience=patience,
+                min_lr=min_lr,
+                cooldown=0,
+                verbose=True,
+            )
 
     iterations_to_adjust = (parameters["number_of_iterations"] // 2)
     iterations_to_adjust = int(iterations_to_adjust)
 
     for iteration in range(parameters["number_of_iterations"]):
+        
         current_batch = current_dataset_instance.next_train_batch(
             parameters["batch_size"]
         )
+
         tensor_input = current_dataset_instance.input_to_torch_tensor(
             current_batch[0], parameters["device"], mode="train"
         )
@@ -128,6 +155,7 @@ def train_single_task(hypernetwork,
             current_batch[1], parameters["device"], mode="train"
         )
 
+        gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
         # Adjust kappa and epsilon
@@ -145,6 +173,7 @@ def train_single_task(hypernetwork,
                                                                                 perturbated_eps=eps)
 
         if parameters["full_interval"]:
+
             predictions = target_network.forward(x=tensor_input,
                                                 upper_weights=upper_weights,
                                                 middle_weights=target_weights,
@@ -163,10 +192,12 @@ def train_single_task(hypernetwork,
         # and the upper weights isn"t collapsed into "one point" (short interval)
         loss_weights = 0.0
         for W_u, W_l in zip(upper_weights, lower_weights):
+
             loss_weights += (W_u - W_l).abs().mean()
 
         loss_current_task = criterion(
-            y=tensor_output,
+            y_pred=middle_pred,
+            y=gt_output,
             z_l=lower_pred,
             z_u=upper_pred,
             kappa=kappa
@@ -178,9 +209,12 @@ def train_single_task(hypernetwork,
         loss_regularization = 0.
 
         if current_no_of_task > 0:
+
             loss_regularization = hreg.calc_fix_target_reg(
                 hypernetwork, current_no_of_task,
+                lower_targets=lower_reg_targets,
                 middle_targets=middle_reg_targets,
+                upper_targets=upper_reg_targets,
                 mnet=target_network, prev_theta=previous_hnet_theta,
                 prev_task_embs=previous_hnet_embeddings,
                 eps=parameters["perturbated_epsilon"]
@@ -194,7 +228,7 @@ def train_single_task(hypernetwork,
         if iteration > 0 or current_no_of_task > 0:
             header = ""
         else:
-            header = "current_no_of_task;iteration;total_loss;loss_current_task;" + \
+            header = "current_no_of_task;iteration;total_loss;cross_entropy_loss;" + \
                      "worst_case_error;loss_regularization;loss_weights"
             
         append_row_to_file(
@@ -240,8 +274,8 @@ def train_single_task(hypernetwork,
             elements=f'{current_no_of_task};{iteration};{loss_weights}'
             )
 
-            mse_loss = calculate_mse_loss(
-                criterion,
+            accuracy = 0.0
+            accuracy = calculate_accuracy(
                 current_dataset_instance,
                 target_network,
                 lower_weights,
@@ -256,16 +290,24 @@ def train_single_task(hypernetwork,
                 evaluation_dataset="validation")
             
             print(f"Task {current_no_of_task}, iteration: {iteration + 1}, "
-                f" loss: {loss.item()}, "
-                f" worst case error: {worst_case_error}, "
-                f" perturbated_epsilon: {eps}")
-            # If the interval MSE loss on the validation dataset is lower
+                  f" loss: {loss.item()}, validation accuracy: {accuracy}, "
+                  f" worst case error: {worst_case_error}, "
+                  f" perturbated_epsilon: {eps}")
+            # If the accuracy on the validation dataset is higher
             # than previously
-            if parameters["best_model_selection_method"] == "val_loss":
-                if mse_loss < best_val_mse_loss:
-                    best_val_mse_loss = mse_loss
+            if parameters["best_model_selection_method"] == "val_loss" and \
+                round(eps, 0) == parameters["perturbated_epsilon"]:
+                if loss.item() < best_val_loss:
+                    best_val_loss = loss.item()
                     best_hypernetwork = deepcopy(hypernetwork)
                     best_target_network = deepcopy(target_network)
+            
+            if parameters["number_of_epochs"] is not None and \
+               parameters["lr_scheduler"] and \
+               (((iteration + 1) % no_of_iterations_per_epoch) == 0):
+                print("Finishing the current epoch")
+                # scheduler.step()
+                plateau_scheduler.step(accuracy)
 
     if parameters["best_model_selection_method"] == "val_loss":
         return best_hypernetwork, best_target_network
@@ -277,61 +319,55 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                    parameters,
                                    use_chunks=False):
     """
-    Perform a series of experiments based on the hyperparameters.
+    Create a continual learning experiment with multiple tasks for a given dataset.
 
     Parameters:
     -----------
+    dataset_list_of_tasks: module
+        Contains a list of tasks for the CL scenario (e.g., permuted_mnist.PermutedMNISTList).
     parameters: dict
-        Contains multiple experiment hyperparameters.
+        Contains necessary hyperparameters describing an experiment.
+    use_chunks: bool, optional
+        Defines whether a hypernetwork should generate weights in chunks or not (default: False).
 
     Returns:
     --------
     Tuple[hypnettorch.hnets, hypnettorch.mnets, pd.DataFrame]
         A tuple containing:
-        - hypernetwork: A learned hypernetwork that generates weights for the target network.
-        - target_network: A learned target network that performs regression.
-        - dataframe: A Pandas DataFrame with single results from consecutive evaluations for all previous tasks.
+        - hypernetwork: A hypernetwork that generates weights for the target network.
+        - target_network: A target network that finally performs classification.
+        - dataframe: A Pandas DataFrame containing results from consecutive evaluations for all previous tasks.
     """
+
     if parameters["dataset"] == "SubsetImageNet":
         output_shape = dataset_list_of_tasks[0]._data["num_classes"]
     else:
         output_shape = list(
             dataset_list_of_tasks[0].get_train_outputs())[0].shape[0]
 
-    # Create a target network
+    # Create a target network which will be multilayer perceptron
+    # or ResNet/ZenkeNet with internal weights
     if parameters["target_network"] == "MLP":
-        if parameters["full_interval"]:
-            target_network = IntervalMLP(n_in=parameters["input_shape"],
-                                n_out=output_shape,
-                                hidden_layers=parameters["target_hidden_layers"],
-                                use_bias=parameters["use_bias"],
-                                no_weights=True,
-                                use_batch_norm=parameters["use_batch_norm"],
-                                bn_track_stats=False,
-                                dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
-        else:
-            target_network = MLP(n_in=parameters["input_shape"],
-                                n_out=output_shape,
-                                hidden_layers=parameters["target_hidden_layers"],
-                                use_bias=parameters["use_bias"],
-                                no_weights=True,
-                                use_batch_norm=parameters["use_batch_norm"],
-                                bn_track_stats=False,
-                                dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
+        target_network = IntervalMLP(n_in=parameters["input_shape"],
+                             n_out=output_shape,
+                             hidden_layers=parameters["target_hidden_layers"],
+                             use_bias=parameters["use_bias"],
+                             no_weights=True,
+                             use_batch_norm=parameters["use_batch_norm"],
+                             bn_track_stats=False,
+                             dropout_rate=parameters["dropout_rate"]).to(parameters["device"])
+        
     elif parameters["target_network"] == "ResNet":
         if parameters["dataset"] == "TinyImageNet" or parameters["dataset"] == "SubsetImageNet":
             mode = "tiny"
-        elif parameters["dataset"] in [
-            "CIFAR100",
-            "CIFAR100_FeCAM_setup",
-            "CIFAR10",
-            "CUB200"
-        ]:
+        elif parameters["dataset"] == "CIFAR100" or parameters["dataset"] == "CIFAR100_FeCAM_setup" \
+            or parameters["dataset"] == "CIFAR10":
             mode = "cifar"
         else:
             mode = "default"
         
         if parameters["full_interval"]:
+
             target_network = IntervalResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -348,6 +384,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 mode=mode,
             ).to(parameters["device"])
         else:
+
             target_network = ResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -363,22 +400,19 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 cutout_mod=True,
                 mode=mode,
             ).to(parameters["device"])
-    elif parameters["target_network"] == "ResNetIN":
-        assert not parameters["full_interval"], "Full interval implementation of the chosen target network is not supported right now!"
-        target_network = ResNetIN(
-            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            num_classes=output_shape,
-            use_fc_bias=parameters["use_bias"],
-            bottleneck_blocks=False,
-            no_weights=True,
-            use_batch_norm=parameters["use_batch_norm"],
-            bn_track_stats=False,
-            cutout_mod=False
-        )
+
+
     elif parameters["target_network"] == "ZenkeNet":
+        if parameters["dataset"] in ["CIFAR100", "CIFAR100_FeCAM_setup"]:
+            architecture = "cifar"
+        elif parameters["dataset"] == "TinyImageNet":
+            architecture = "tiny"
+        else:
+            raise ValueError("This dataset is currently not implemented!")
+
         raise ValueError("ZenkeNet is not supported right now!")
-    elif parameters["target_network"] == "AlexNet" \
-        and not parameters["full_interval"]:
+    
+    elif parameters["target_network"] == "AlexNet":
         target_network = AlexNet(
             in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
             num_classes=output_shape,
@@ -387,12 +421,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             bn_track_stats=False,
             distill_bn_stats=False
         )
-    elif parameters["target_network"] == "LeNet" \
-        and not parameters["full_interval"]:
-        target_network = LeNet(
-            in_shape=(28, 28, 1),
-            num_classes=output_shape
-        )
+    
     if not use_chunks:
         hypernetwork = HMLP_IBP(
             perturbated_eps=parameters["perturbated_epsilon"],
@@ -406,9 +435,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     else:
         raise Exception("Not implemented yet!")
 
-    criterion = IntervalMSELoss()
+    criterion = IBP_Loss()
     dataframe = pd.DataFrame(columns=[
-        "after_learning_of_task", "tested_task", "MSE"])
+        "after_learning_of_task", "tested_task", "accuracy"])
+    
+    results_from_interval_intersection = pd.DataFrame(columns=[
+                    "after_learning_of_task", "tested_task", "accuracy"])
     
     if (parameters["target_network"] == "ResNet") and \
        parameters["use_batch_norm"]:
@@ -423,6 +455,16 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
 
     for no_of_task in range(no_tasks):
 
+        if parameters["custom_init"] and no_of_task > 0:
+            
+           prev_emb = hypernetwork.conditional_params[no_of_task-1].detach().clone()
+           prev_emb.requires_grad = False
+
+           hypernetwork.conditional_params[no_of_task] = nn.Parameter(
+               data=prev_emb,
+               requires_grad=True
+           )
+
         hypernetwork, target_network = train_single_task(
             hypernetwork,
             target_network,
@@ -432,26 +474,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             no_of_task
         )
 
-        if no_of_task <= (parameters["number_of_tasks"] - 1):
-            
-            if no_of_task > 0:
-                # Remove previous parameters
-                os.remove(
-                    path=f'{parameters["saving_folder"]}/'
-                        f'hypernetwork_after_{no_of_task-1}_task.pt'
-                )
-
-                os.remove(
-                    path=f'{parameters["saving_folder"]}/'
-                        f'target_network_after_{no_of_task-1}_task.pt'
-                )
-
-                os.remove(
-                    path=f'{parameters["saving_folder"]}/'
-                        f'perturbation_vectors_after_{no_of_task-1}_task.pt'
-                )
-
-            # Save current state of networks
+        if no_of_task == (parameters["number_of_tasks"] - 1):
+        # Save current state of networks
             write_pickle_file(
                 f'{parameters["saving_folder"]}/'
                 f'hypernetwork_after_{no_of_task}_task',
@@ -462,18 +486,12 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 f'target_network_after_{no_of_task}_task',
                 target_network.weights
             )
-            write_pickle_file(
-                f'{parameters["saving_folder"]}/'
-                f'perturbation_vectors_after_{no_of_task}_task',
-                hypernetwork._perturbated_eps_T
-            )
         
         # Freeze the already learned embeddings and radii
         hypernetwork.detach_tensor(idx = no_of_task)
 
         # Evaluate previous tasks
-        dataframe = evaluate_previous_regression_tasks(
-            criterion,
+        dataframe = evaluate_previous_classification_tasks(
             hypernetwork,
             target_network,
             dataframe,
@@ -483,7 +501,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 "use_batch_norm_memory": use_batch_norm_memory,
                 "number_of_task": no_of_task,
                 "perturbated_epsilon": parameters["perturbated_epsilon"],
-                "full_interval": parameters["full_interval"],
+                "full_interval": parameters["full_interval"]
             }
         )
         dataframe = dataframe.astype({
@@ -493,7 +511,41 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
         dataframe.to_csv(f'{parameters["saving_folder"]}/'
                          f"results.csv",
                          sep=";")
-              
+        
+
+        with torch.no_grad():
+            
+            if no_of_task == 0:
+                common_emb = calculate_interval_intersection(hypernetwork=hypernetwork,
+                                                                parameters=parameters,
+                                                                current_task_id=no_of_task)
+                
+            else:
+                zl_common_emb, common_emb, zu_common_emb = calculate_interval_intersection(hypernetwork=hypernetwork,
+                                                                                            parameters=parameters,
+                                                                                            current_task_id=no_of_task)                
+            # Evaluate previous tasks for intersection
+            results_from_interval_intersection = evaluate_previous_tasks_for_intersection(
+                                                    hypernetwork,
+                                                    target_network,
+                                                    common_emb,
+                                                    results_from_interval_intersection,
+                                                    dataset_list_of_tasks,
+                                                    parameters={
+                                                        "device": parameters["device"],
+                                                        "use_batch_norm_memory": use_batch_norm_memory,
+                                                        "number_of_task": no_of_task,
+                                                        "perturbated_epsilon": parameters["perturbated_epsilon"],
+                                                        "full_interval": parameters["full_interval"]
+                                                    }
+                                                )
+            results_from_interval_intersection = results_from_interval_intersection.astype({
+                                                    "after_learning_of_task": "int",
+                                                    "tested_task": "int"
+                                                })
+            results_from_interval_intersection.to_csv(f'{parameters["saving_folder"]}/'
+                                                f"results_intersection.csv",
+                                                sep=";")
 
         # Plot intervals over tasks" embeddings plot
         interval_plot_save_path = f'{parameters["saving_folder"]}/plots/'
@@ -506,35 +558,83 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     return hypernetwork, target_network, dataframe
 
 
-def main_running_experiments(parameters):
+def main_running_experiments(path_to_datasets,
+                             parameters):
     
     """
     Perform a series of experiments based on the hyperparameters.
 
     Parameters:
-    ----------
-      parameters: Dict
-        Contains multiple experiment hyperparameters
+    -----------
+    path_to_datasets: str
+        Path to files with datasets.
+    parameters: dict
+        Contains multiple experiment hyperparameters.
 
     Returns:
     --------
-        Returns learned hypernetwork, target network and a dataframe
-        with single results.
+    Tuple[hypnettorch.hnets, hypnettorch.mnets, pd.DataFrame]
+        A tuple containing:
+        - hypernetwork: A learned hypernetwork that generates weights for the target network.
+        - target_network: A learned target network that performs classification.
+        - dataframe: A Pandas DataFrame with single results from consecutive evaluations for all previous tasks.
     """
-
-    if parameters["dataset"] == "ToyRegression1D":
-        dataset_tasks_list = prepare_toy_regression_tasks(
-            seed=parameters["seed"],
-            no_of_validation_samples=parameters["no_of_validation_samples"]
+    if parameters["dataset"] == "PermutedMNIST":
+        dataset_tasks_list = prepare_permuted_mnist_tasks(
+            path_to_datasets,
+            parameters["input_shape"],
+            parameters["number_of_tasks"],
+            parameters["padding"],
+            parameters["no_of_validation_samples"],
         )
-    elif parameters["dataset"] == "GaussianDataset":
-        dataset_tasks_list = prepare_gaussian_regression_tasks(
+    elif parameters["dataset"] == "CIFAR100":
+        dataset_tasks_list = prepare_split_cifar100_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+        )
+    elif parameters["dataset"] == "CIFAR10":
+        dataset_tasks_list = prepare_split_cifar10_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+        )
+    elif parameters["dataset"] == "SplitMNIST":
+        dataset_tasks_list = prepare_split_mnist_tasks(
+            path_to_datasets,
+            validation_size=parameters["no_of_validation_samples"],
+            use_augmentation=parameters["augmentation"],
+            number_of_tasks=parameters["number_of_tasks"],
+        )
+    elif parameters["dataset"] == "TinyImageNet":
+        dataset_tasks_list = prepare_tinyimagenet_tasks(
+            path_to_datasets,
             seed=parameters["seed"],
-            no_of_validation_samples=parameters["no_of_validation_samples"]
+            validation_size=parameters["no_of_validation_samples"],
+            number_of_tasks=parameters["number_of_tasks"],
+        )
+    elif parameters["dataset"] == "CIFAR100_FeCAM_setup":
+        dataset_tasks_list = prepare_split_cifar100_tasks_aka_FeCAM(
+            path_to_datasets,
+            number_of_tasks=parameters["number_of_tasks"],
+            no_of_validation_samples_per_class=parameters[
+                "no_of_validation_samples_per_class"
+            ],
+            use_augmentation=parameters["augmentation"],
+        )
+    elif parameters["dataset"] == "SubsetImageNet":
+        dataset_tasks_list = prepare_subset_imagenet_tasks(
+            path_to_datasets,
+            number_of_tasks=parameters["number_of_tasks"],
+            no_of_validation_samples_per_class=parameters[
+                "no_of_validation_samples_per_class"
+            ],
+            use_augmentation=parameters["augmentation"],
+            batch_size=parameters["batch_size"]
         )
     else:
         raise ValueError("Wrong name of the dataset!")
-    
+
     start_time = time.time()
 
     hypernetwork, target_network, dataframe = build_multiple_task_experiment(
@@ -542,28 +642,21 @@ def main_running_experiments(parameters):
         parameters,
         use_chunks=parameters["use_chunks"]
     )
-
-    # TODO: Plot GT functions values vs predictions
-    plot_regression_results(
-        x: List[np.ndarray],  # One array per task
-        y_true: List[np.ndarray], # One array per task
-        y_pred: List[np.ndarray],
-        dataset_name = parameters["dataset"]
-    )
-
     elapsed_time = time.time() - start_time
+    print(f"Elapsed time: {elapsed_time}")
 
     # Calculate statistics of grid search results
     no_of_last_task = parameters["number_of_tasks"] - 1
     accuracies = dataframe.loc[
         dataframe["after_learning_of_task"] == no_of_last_task
-    ]["MSE"].values
+    ]["accuracy"].values
     row_with_results = (
         f"{dataset_tasks_list[0].get_identifier()};"
         f'{parameters["augmentation"]};'
         f'{parameters["embedding_size"]};'
         f'{parameters["seed"]};'
         f'{str(parameters["hypernetwork_hidden_layers"]).replace(" ", "")};'
+        f'{parameters["use_chunks"]};'
         f'{parameters["target_network"]};'
         f'{str(parameters["target_hidden_layers"]).replace(" ", "")};'
         f'{parameters["resnet_number_of_layer_groups"]};'
@@ -575,7 +668,7 @@ def main_running_experiments(parameters):
         f'{parameters["beta"]};'
         f'{parameters["perturbated_epsilon"]};'
         f'{parameters["kappa"]};'
-        f"{np.mean(accuracies)};{np.std(accuracies)};"
+        f"{np.mean(accuracies)};{np.std(accuracies)}"
         f"{elapsed_time}"
     )
     append_row_to_file(
@@ -583,15 +676,26 @@ def main_running_experiments(parameters):
         f'{parameters["summary_results_filename"]}.csv',
         row_with_results
     )
+
+    # Plot heatmap for results
+    load_path = (f'{parameters["saving_folder"]}/'
+                 f"results.csv")
+    plot_heatmap(load_path)
+
+    # Plot heatmap for results intersection
+    load_path = (f'{parameters["saving_folder"]}/'
+                 f"results_intersection.csv")
+    plot_heatmap(load_path)
     
     return hypernetwork, target_network, dataframe
 
 
 if __name__ == "__main__":
-    dataset = "GaussianDataset"  # "ToyRegression1D", "GaussianDataset"
+    path_to_datasets = "./Data"
+    dataset = "TinyImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = False
+    create_grid_search = True
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
@@ -606,7 +710,7 @@ if __name__ == "__main__":
         "dataset_name;augmentation;embedding_size;seed;hypernetwork_hidden_layers;"
         "use_chunks;target_network;target_hidden_layers;"
         "layer_groups;widening;final_model;optimizer;"
-        "hypernet_activation_function;learning_rate;batch_size;beta;mean_mse;std_mse;"
+        "hypernet_activation_function;learning_rate;batch_size;beta;mean_accuracy;std_accuracy;"
         "elapsed_time"
     )
 
@@ -623,7 +727,8 @@ if __name__ == "__main__":
                 hyperparameters["batch_sizes"],
                 hyperparameters["seed"],
                 hyperparameters["perturbated_epsilon"],
-                hyperparameters["dropout_rate"])
+                hyperparameters["dropout_rate"],
+                hyperparameters["custom_init"])
     ):
         embedding_size = elements[0]
         learning_rate = elements[1]
@@ -632,6 +737,7 @@ if __name__ == "__main__":
         batch_size = elements[4]
         perturbated_eps = elements[6]
         dropout_rate = elements[7]
+        custom_init = elements[8]
         
         # Of course, seed is not optimized but it is easier to prepare experiments
         # for multiple seeds in such a way
@@ -672,6 +778,7 @@ if __name__ == "__main__":
             "perturbated_epsilon": perturbated_eps,
             "kappa": hyperparameters["kappa"],
             "dropout_rate": dropout_rate,
+            "custom_init": custom_init,
             "full_interval": hyperparameters["full_interval"]
         }
 
@@ -691,4 +798,5 @@ if __name__ == "__main__":
             set_seed(seed)
 
         hypernetwork, target_network, dataframe = \
-            main_running_experiments(parameters)
+            main_running_experiments(path_to_datasets,
+                                     parameters)

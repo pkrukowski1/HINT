@@ -295,6 +295,8 @@ def calculate_accuracy(data,
           solved. The number must be given when "use_batch_norm_memory" is True.
         - "full_interval": bool, a flag to indicate whether the model is full interval
           or not.
+        - "DIL_output_shape": int, defines output shape of a neural network. It is used
+            only when Domain-incremental scenario is applied.
     evaluation_dataset: string
         "validation" or "test"; defines whether a validation or a test set will be evaluated.
 
@@ -325,7 +327,6 @@ def calculate_accuracy(data,
             output_data, parameters["device"], mode="inference"
         )
 
-        gt_classes = test_output.max(dim=1)[1]
         if parameters["use_batch_norm_memory"]:
             condition = parameters["number_of_task"]
         else:
@@ -350,7 +351,14 @@ def calculate_accuracy(data,
                                                middle_weights,
                                                upper_weights,
                                                condition)
-        
+            
+        if "DIL_output_shape" not in parameters:
+            gt_classes = test_output.max(dim=1)[1]
+            
+        else:
+            gt_classes = test_output % parameters["DIL_output_shape"]
+            gt_classes = gt_classes.squeeze(1)
+
         predictions = logits.max(dim=1)[1]
         accuracy = (torch.sum(gt_classes == predictions, dtype=torch.float32) /
                     gt_classes.numel()) * 100.

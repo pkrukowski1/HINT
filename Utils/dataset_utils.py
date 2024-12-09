@@ -39,7 +39,8 @@ def generate_random_permutations(shape_of_data_instance,
 def prepare_split_cifar10_tasks(datasets_folder,
                                  validation_size,
                                  use_augmentation,
-                                 use_cutout=False):
+                                 use_cutout=False,
+                                 use_one_hot=True):
     """
     Prepare a list of 5 tasks, each with 2 classes. The i-th task, where i
     is in {0, 1, ..., 4}, will store samples from classes {2*i, 2*i + 1}.
@@ -54,6 +55,8 @@ def prepare_split_cifar10_tasks(datasets_folder,
         Potentially applies a data augmentation method from hypnettorch.
     use_cutout: bool, optional
         If True, applies the "apply_cutout" option from "torch_input_transforms".
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -64,7 +67,7 @@ def prepare_split_cifar10_tasks(datasets_folder,
     for i in range(0, 10, 2):
         handlers.append(SplitCIFAR10Data(
             datasets_folder,
-            use_one_hot=True,
+            use_one_hot=use_one_hot,
             validation_size=validation_size,
             use_data_augmentation=use_augmentation,
             use_cutout=use_cutout,
@@ -75,7 +78,8 @@ def prepare_split_cifar10_tasks(datasets_folder,
 def prepare_split_cifar100_tasks(datasets_folder,
                                  validation_size,
                                  use_augmentation,
-                                 use_cutout=False):
+                                 use_cutout=False,
+                                 use_one_hot=True):
     """
     Prepare a list of 10 tasks, each with 10 classes. The i-th task, where i
     is in {0, 1, ..., 9}, will store samples from classes {10*i, 10*i + 1, ..., 10*i + 9}.
@@ -90,6 +94,8 @@ def prepare_split_cifar100_tasks(datasets_folder,
         Potentially applies a data augmentation method from hypnettorch.
     use_cutout: bool, optional
         If True, applies the "apply_cutout" option from "torch_input_transforms".
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -100,7 +106,7 @@ def prepare_split_cifar100_tasks(datasets_folder,
     for i in range(0, 100, 10):
         handlers.append(SplitCIFAR100Data(
             datasets_folder,
-            use_one_hot=True,
+            use_one_hot=use_one_hot,
             validation_size=validation_size,
             use_data_augmentation=use_augmentation,
             use_cutout=use_cutout,
@@ -111,7 +117,8 @@ def prepare_split_cifar100_tasks(datasets_folder,
 
 def prepare_CUB200_tasks(datasets_folder,
                         validation_size_per_class,
-                        number_of_tasks=5):
+                        number_of_tasks=5,
+                        use_one_hot=True):
     """
     Prepare a list of 'number_of_tasks' sequential tasks, each with equally distributed number of classes. 
     The i-th task, where i is in {0, 1, ..., 'number_of_tasks'-1}, will store samples from classes
@@ -125,6 +132,8 @@ def prepare_CUB200_tasks(datasets_folder,
         The number of validation samples per class.
     number_of_tasks: int
         The number of sequential tasks.
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -136,7 +145,7 @@ def prepare_CUB200_tasks(datasets_folder,
     for i in range(0, 200, no_classes):
         handlers.append(SplitCUB200Data(
             datasets_folder,
-            use_one_hot=True,
+            use_one_hot=use_one_hot,
             validation_size_per_class=validation_size_per_class,
             labels=range(i, i + no_classes)
         ))
@@ -148,6 +157,7 @@ def prepare_split_cifar100_tasks_aka_FeCAM(
     no_of_validation_samples_per_class,
     use_augmentation,
     use_cutout=False,
+    use_one_hot=True
 ):
     """
     Prepare a list of incremental tasks with varying numbers of classes per task.
@@ -168,6 +178,8 @@ def prepare_split_cifar100_tasks_aka_FeCAM(
         Potentially applies a data augmentation method from hypnettorch.
     use_cutout: bool, optional
         If True, applies the "apply_cutout" option from "torch_input_transforms".
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -216,7 +228,7 @@ def prepare_split_cifar100_tasks_aka_FeCAM(
         handlers.append(
             SplitCIFAR100Data_FeCAM(
                 datasets_folder,
-                use_one_hot=True,
+                use_one_hot=use_one_hot,
                 validation_size=validation_size,
                 use_data_augmentation=use_augmentation,
                 use_cutout=use_cutout,
@@ -235,9 +247,9 @@ def prepare_subset_imagenet_tasks(
     no_of_validation_samples_per_class: int = 50, 
     setting: int = 4,
     use_augmentation = False,
-    use_cutout = False,
     number_of_tasks = 5,
-    batch_size = 16
+    batch_size = 16,
+    use_one_hot=True
     ):
     """
     Prepare a list of tasks related to the SubsetImageNet dataset according
@@ -253,13 +265,12 @@ def prepare_subset_imagenet_tasks(
     setting: int, optional
         Defines the number and type of continual learning tasks.
     use_augmentation: bool, optional
-        Potentially applies data augmentation methods from hypnettorch.
-    use_cutout: bool, optional
-        If True, applies the "apply_cutout" option from "torch_input_transforms".
     number_of_tasks: int, optional
         The total number of tasks to be created.
     batch_size: int, optional
         Batch size for training.
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -278,7 +289,7 @@ def prepare_subset_imagenet_tasks(
             SubsetImageNet(
                 path=datasets_folder,
                 validation_size=no_of_validation_samples_per_class,
-                use_one_hot=True,
+                use_one_hot=use_one_hot,
                 use_data_augmentation=use_augmentation,
                 task_id = i,
                 setting = setting,
@@ -293,7 +304,8 @@ def prepare_permuted_mnist_tasks(datasets_folder,
                                  input_shape,
                                  number_of_tasks,
                                  padding,
-                                 validation_size):
+                                 validation_size,
+                                 use_one_hot=True):
     """
     Prepare a list of tasks related to the PermutedMNIST dataset.
 
@@ -309,6 +321,9 @@ def prepare_permuted_mnist_tasks(datasets_folder,
         Padding value for the PermutedMNIST dataset.
     validation_size: int
         The number of validation samples.
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
+
 
     Returns:
     --------
@@ -322,7 +337,7 @@ def prepare_permuted_mnist_tasks(datasets_folder,
     return permuted_mnist.PermutedMNISTList(
         permutations,
         datasets_folder,
-        use_one_hot=True,
+        use_one_hot=use_one_hot,
         padding=padding,
         validation_size=validation_size
     )
@@ -331,7 +346,8 @@ def prepare_permuted_mnist_tasks(datasets_folder,
 def prepare_split_mnist_tasks(datasets_folder,
                               validation_size,
                               use_augmentation,
-                              number_of_tasks=5):
+                              number_of_tasks=5,
+                              use_one_hot=True):
     """
     Prepare a list of tasks related to the SplitMNIST dataset. By default,
     it creates 5 tasks containing consecutive pairs of classes:
@@ -347,6 +363,8 @@ def prepare_split_mnist_tasks(datasets_folder,
         Defines whether dataset augmentation will be applied.
     number_of_tasks: int, optional
         A number defining the total number of learning tasks. By default, it is 5.
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -355,7 +373,7 @@ def prepare_split_mnist_tasks(datasets_folder,
     """
     return get_split_mnist_handlers(
         datasets_folder,
-        use_one_hot=True,
+        use_one_hot=use_one_hot,
         validation_size=validation_size,
         num_classes_per_task=2,
         num_tasks=number_of_tasks,
@@ -366,7 +384,8 @@ def prepare_tinyimagenet_tasks(
     datasets_folder: str = "./",
     seed: int = 1993,
     validation_size: int = 100, 
-    number_of_tasks: int = 40
+    number_of_tasks: int = 40,
+    use_one_hot: bool = True
     ):
     """
     Prepare a list of tasks related to the TinyImageNet dataset according
@@ -384,6 +403,8 @@ def prepare_tinyimagenet_tasks(
         similar to the WSN setup.
     number_of_tasks: int, optional
         Defines the number of continual learning tasks. By default, it is 40.
+    use_one_hot: bool, Optional
+        If True, then one-hot encoding is applied.
 
     Returns:
     --------
@@ -407,7 +428,7 @@ def prepare_tinyimagenet_tasks(
             TinyImageNet(
                 data_path=datasets_folder,
                 validation_size=validation_size,
-                use_one_hot=True,
+                use_one_hot=use_one_hot,
                 labels=current_labels
             )
         )
