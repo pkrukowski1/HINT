@@ -452,7 +452,7 @@ def set_hyperparameters(dataset,
                 "resnet_widening_factor": 2,
                 "optimizer": "adam",
                 "use_batch_norm": True,
-                "target_network": "ResNetIN",
+                "target_network": "PretrainedResNet18",
                 "use_chunks": False,
                 "number_of_epochs": 200,
                 "augmentation": True
@@ -462,19 +462,19 @@ def set_hyperparameters(dataset,
             # single run experiment
             hyperparams = {
                 "seed": [1],
-                "embedding_sizes": [4],
+                "embedding_sizes": [48],
                 "betas": [0.01],
-                "batch_sizes": [4],
+                "batch_sizes": [32],
                 "learning_rates": [0.001],
                 "perturbated_epsilon": [0.01],
-                "hypernetworks_hidden_layers": [[20]],
+                "hypernetworks_hidden_layers": [[100,100]],
                 "dropout_rate": [-1],
                 "use_batch_norm": True,
                 "use_chunks": False,
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
                 "number_of_epochs": 200,
-                "target_network": "ResNetIN",
+                "target_network": "PretrainedResNet18",
                 "optimizer": "adam",
                 "augmentation": True
             }
@@ -487,7 +487,7 @@ def set_hyperparameters(dataset,
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 5
-        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet", "ResNetIN"]:
+        if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet", "PretrainedResNet18"]:
             hyperparams["shape"] = 224
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":

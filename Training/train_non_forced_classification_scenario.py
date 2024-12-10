@@ -24,6 +24,7 @@ from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from VanillaNets.ResNet18 import ResNetBasic
 from VanillaNets.AlexNet import AlexNet
 from VanillaNets.LeNet_300_100 import LeNet
+from VanillaNets.pretrained_ResNet18 import PretrainedResNet18
 from hypnettorch.mnets.mlp import MLP
 from hypnettorch.mnets.resnet_imgnet import ResNetIN
 
@@ -372,13 +373,13 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             "CIFAR100",
             "CIFAR100_FeCAM_setup",
             "CIFAR10",
-            "CUB200"
         ]:
             mode = "cifar"
         else:
             mode = "default"
         
         if parameters["full_interval"]:
+
             target_network = IntervalResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -394,7 +395,7 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 cutout_mod=True,
                 mode=mode,
             ).to(parameters["device"])
-        else:
+        else:  
             target_network = ResNetBasic(
                 in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
                 use_bias=False,
@@ -410,18 +411,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                 cutout_mod=True,
                 mode=mode,
             ).to(parameters["device"])
-    elif parameters["target_network"] == "ResNetIN":
-        assert not parameters["full_interval"], "Full interval implementation of the chosen target network is not supported right now!"
-        target_network = ResNetIN(
-            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-            num_classes=output_shape,
-            use_fc_bias=parameters["use_bias"],
-            bottleneck_blocks=False,
-            no_weights=True,
-            use_batch_norm=parameters["use_batch_norm"],
-            bn_track_stats=False,
-            cutout_mod=False
-        )
+    elif parameters["target_network"] == "PretrainedResNet18":
+        target_network = PretrainedResNet18(
+                    in_shape=(parameters["input_shape"], parameters["input_shape"], 3)
+                ).to(parameters["device"])
     elif parameters["target_network"] == "ZenkeNet":
         raise ValueError("ZenkeNet is not supported right now!")
     elif parameters["target_network"] == "AlexNet" \
@@ -433,13 +426,13 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             use_batch_norm=parameters["use_batch_norm"],
             bn_track_stats=False,
             distill_bn_stats=False
-        )
+        ).to(parameters["device"])
     elif parameters["target_network"] == "LeNet" \
         and not parameters["full_interval"]:
         target_network = LeNet(
             in_shape=(28, 28, 1),
             num_classes=output_shape
-        )
+        ).to(parameters["device"])
     if not use_chunks:
         hypernetwork = HMLP_IBP(
             perturbated_eps=parameters["perturbated_epsilon"],
@@ -685,11 +678,11 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
+    dataset = "CUB200"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
                                 # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"

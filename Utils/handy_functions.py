@@ -499,6 +499,8 @@ def evaluate_previous_tasks_for_intersection(hypernetwork,
           solved.
         - "full_interval": bool, a flag to indicate whether we have full intervals
           or not.
+        - "DIL_output_shape": int, number of neurons in the last linear layer. It is applicable
+            only when Domain-incremental learning is applied.
 
     Returns:
     --------
