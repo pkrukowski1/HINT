@@ -196,7 +196,7 @@ def set_hyperparameters(dataset,
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
-        hyperparams["number_of_iterations"] = 100
+        hyperparams["number_of_iterations"] = 2000
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 1000
         hyperparams["target_hidden_layers"] = [400, 400]

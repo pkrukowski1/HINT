@@ -13,7 +13,6 @@ import torch.optim as optim
 
 # Get the parent directory path
 parent_dir = os.path.abspath(os.path.join(os.getcwd(), '.'))
-print(parent_dir)
 # Add the parent directory to sys.path
 sys.path.insert(0, parent_dir)
 
@@ -155,8 +154,8 @@ def train_single_task(hypernetwork,
             current_batch[1], parameters["device"], mode="train"
         )
         
-        tensor_output %= parameters["DIL_output_shape"]
-        gt_output = tensor_output.max(dim=1)[1] % parameters["DIL_output_shape"]
+        gt_output = tensor_output % parameters["DIL_output_shape"]
+        gt_output = torch.tensor(gt_output.squeeze(1), dtype=torch.long)
         optimizer.zero_grad()
 
         # Adjust kappa and epsilon
@@ -646,7 +645,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "SplitMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "PermutedMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
     create_grid_search = False
