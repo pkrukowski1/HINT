@@ -523,11 +523,11 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 "seed": [1],
                 "embedding_sizes": [48],
-                "learning_rates": [0.0001],
+                "learning_rates": [0.001],
                 "batch_sizes": [4],
                 "betas": [0.01],
-                "perturbated_epsilon": [0.01],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "perturbated_epsilon": [0.001],
+                "hypernetworks_hidden_layers": [[25,25]],
                 "dropout_rate": [-1],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/"
@@ -545,7 +545,7 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 50
         hyperparams["target_network"] = "MLP"
-        hyperparams["target_hidden_layers"] = [10, 10]
+        hyperparams["target_hidden_layers"] = [50, 50]
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
@@ -577,11 +577,11 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 "seed": [1],
                 "embedding_sizes": [48],
-                "learning_rates": [0.0001],
+                "learning_rates": [0.001],
                 "batch_sizes": [4],
                 "betas": [0.01],
-                "perturbated_epsilon": [0.01],
-                "hypernetworks_hidden_layers": [[100, 100]],
+                "perturbated_epsilon": [0.001],
+                "hypernetworks_hidden_layers": [[25,25]],
                 "dropout_rate": [-1],
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/"
@@ -599,7 +599,7 @@ def set_hyperparameters(dataset,
         hyperparams["number_of_epochs"] = None
         hyperparams["no_of_validation_samples"] = 50
         hyperparams["target_network"] = "MLP"
-        hyperparams["target_hidden_layers"] = [10, 10]
+        hyperparams["target_hidden_layers"] = [50, 50]
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
