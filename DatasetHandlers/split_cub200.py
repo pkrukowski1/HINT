@@ -5,7 +5,6 @@ Split CUB200 Dataset
 The module contains a wrapper for data handlers for the SplitCUB200 task.
 """
 
-from torchvision import transforms
 import torchvision.datasets as datasets
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -22,7 +21,6 @@ import numpy as np
 from PIL import Image
 from sklearn.preprocessing import OneHotEncoder
 import numpy.matlib as npm
-from collections import Counter
 
 from hypnettorch.data.large_img_dataset import LargeImgDataset
 from hypnettorch.data.ilsvrc2012_data import ILSVRC2012Data
@@ -310,17 +308,20 @@ class CUB2002011(LargeImgDataset):
         assert(len(ds_train.samples) >= validation_size_per_class*num_classes), \
             "The number of training samples should not be lower than the number of validation samples"
         
-        # Get test labels counter object
-        _test_labels_counter = Counter([sample[1] for sample in ds_test.samples])
+        # # Get test labels counter object
+        # _test_labels_counter = Counter([sample[1] for sample in ds_test.samples])
         
         
-        while (np.array(list(_test_labels_counter.values())) > 5).any():
-            for sample in ds_test.samples:
-                _, y = sample[0], sample[1]
-                if _test_labels_counter[y] > 5:
-                    ds_train.samples.append(sample)
-                    ds_test.samples.remove(sample)
-                    _test_labels_counter[y] -= 1
+        # while (np.array(list(_test_labels_counter.values())) > 5).any():
+        #     for sample in ds_test.samples:
+        #         _, y = sample[0], sample[1]
+        #         if _test_labels_counter[y] > 5:
+        #             ds_train.samples.append(sample)
+        #             ds_test.samples.remove(sample)
+        #             _test_labels_counter[y] -= 1
+
+        # We use test set as validation set
+        ds_val = ds_test
 
         self._torch_ds_train = ds_train
         self._torch_ds_test = ds_test
@@ -372,24 +373,7 @@ class CUB2002011(LargeImgDataset):
               % (num_train, num_val, num_test) + 'samples.')
 
         end = time.time()
-        print('Elapsed time to read dataset: %f sec' % (end-start))
-
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
-
-        train_transform = transforms.Compose([
-            transforms.RandomResizedCrop(224),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize,
-        ])
-
-        test_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        print('Elapsed time to read dataset: %f sec' % (end-start))        
 
         self.train_transform = train_transform
         self.test_transform  = test_transform
