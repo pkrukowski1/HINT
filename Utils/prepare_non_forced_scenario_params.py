@@ -486,14 +486,14 @@ def set_hyperparameters(dataset,
         )
         hyperparams["lr_scheduler"] = True
         hyperparams["number_of_iterations"] = None
-        hyperparams["no_of_validation_samples"] = 5
+        hyperparams["no_of_validation_samples"] = 0
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet", "PretrainedResNet18"]:
             hyperparams["shape"] = 224
             hyperparams["target_hidden_layers"] = None
         elif hyperparams["target_network"] == "MLP":
             hyperparams["shape"] = 3072
             hyperparams["target_hidden_layers"] = [1000, 1000]
-        hyperparams["number_of_tasks"] = 5
+        hyperparams["number_of_tasks"] = 20
         hyperparams["padding"] = None
         hyperparams["best_model_selection_method"] = "val_loss"
 
