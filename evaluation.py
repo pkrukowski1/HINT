@@ -1,23 +1,31 @@
 from Utils.prepare_non_forced_scenario_params import set_hyperparameters
 from Utils.dataset_utils import *
+
 from Training.train_non_forced_classification_scenario import (
     load_pickle_file,
     set_seed,
-    intersection_of_embeds
+    intersection_of_embeds,
+    parse_logits
 )
+
 from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
-from VanillaNets.ResNet18 import ResNetBasic
 from IntervalNets.interval_ZenkeNet64 import IntervalZenkeNet
+
+from VanillaNets.ResNet18 import ResNetBasic
+
 import torch
 import torch.nn.functional as F
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 import os
 from scipy import stats
 from typing import Tuple, List, Dict
+from scipy.stats import multivariate_normal
 
 def load_dataset(dataset, path_to_datasets, hyperparameters):
     """""
@@ -68,6 +76,18 @@ def load_dataset(dataset, path_to_datasets, hyperparameters):
             ],
             use_augmentation=hyperparameters["augmentation"],
         )
+    elif dataset == "GaussianDataset":
+        return prepare_gaussian_regression_tasks(
+                    seed=hyperparameters["seed"] if isinstance(hyperparameters["seed"], int) else hyperparameters["seed"][0],
+                    no_of_validation_samples=hyperparameters["no_of_validation_samples"], 
+                    number_of_tasks=hyperparameters["number_of_tasks"]
+                    )
+    elif dataset == "ToyRegression1D":
+        return prepare_toy_regression_tasks(
+            seed=hyperparameters["seed"],
+            no_of_validation_samples=hyperparameters["no_of_validation_samples"], 
+            number_of_tasks=hyperparameters["number_of_tasks"]
+        )
     else:
         raise ValueError("This dataset is currently not handled!")
 
@@ -94,7 +114,7 @@ def prepare_target_network(hyperparameters, output_shape):
             n_out=output_shape,
             hidden_layers=hyperparameters["target_hidden_layers"],
             use_bias=hyperparameters["use_bias"],
-            no_weights=False,
+            no_weights=True,
         ).to(hyperparameters["device"])
     elif hyperparameters["target_network"] == "ResNet":
         if hyperparameters["dataset"] == "TinyImageNet" or hyperparameters["dataset"] == "SubsetImageNet":
@@ -111,7 +131,7 @@ def prepare_target_network(hyperparameters, output_shape):
                 num_classes=output_shape,
                 num_feature_maps=[16, 16, 32, 64, 128],
                 blocks_per_group=[2, 2, 2, 2],
-                no_weights=False,
+                no_weights=True,
                 use_batch_norm=hyperparameters["use_batch_norm"],
                 projection_shortcut=True,
                 bn_track_stats=False,
@@ -129,7 +149,7 @@ def prepare_target_network(hyperparameters, output_shape):
             in_shape=(hyperparameters["shape"], hyperparameters["shape"], 3),
             num_classes=output_shape,
             arch=architecture,
-            no_weights=False,
+            no_weights=True,
         ).to(hyperparameters["device"])
     else:
         raise NotImplementedError
@@ -176,7 +196,8 @@ def prepare_and_load_weights_for_models(
         "PermutedMNIST",
         "SplitMNIST",
         "CIFAR100_FeCAM_setup",
-        "SubsetImageNet"
+        "SubsetImageNet",
+        "GaussianDataset"
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
     hyperparameters = set_hyperparameters(dataset, grid_search=False)
@@ -211,10 +232,6 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}hypernetwork_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-    target_weights = load_pickle_file(
-        f"{path_to_model}target_network_after_"
-        f'{hyperparameters["number_of_tasks"] - 1}_task.pt'
-    )
 
     perturbation_vectors = load_pickle_file(
         f"{path_to_model}perturbation_vectors_"
@@ -226,19 +243,19 @@ def prepare_and_load_weights_for_models(
     # Check whether the number of target weights is exactly the same like
     # the loaded weights
     for prepared, loaded in zip(
-        [hypernetwork, target_network],
-        [hnet_weights, target_weights],
+        [hypernetwork],
+        [hnet_weights]
     ):
         no_of_loaded_weights = 0
         for item in loaded:
-            no_of_loaded_weights += item.shape.numel()
+            no_of_loaded_weights += item.shape.numel()       
+        
         assert prepared.num_params == no_of_loaded_weights
     return {
         "list_of_CL_tasks": dataset_tasks_list,
         "hypernetwork": hypernetwork,
         "hypernetwork_weights": hnet_weights,
         "target_network": target_network,
-        "target_network_weights": target_weights,
         "hyperparameters": hyperparameters,
     }
 
@@ -269,10 +286,10 @@ def evaluate_target_network(
     Returns:
     --------
         torch.Tensor: Logits from the target network.
-    """
-    if target_network_type == "ResNet":
-        assert condition is not None
-    if target_network_type == "ResNet":
+    """        
+    if "ResNet" in target_network_type:
+        assert condition is not None, "ResNet uses BatchNorm layers by default!"
+
         # Only ResNet needs information about the currently tested task
         return target_network.forward(
             network_input, weights=weights, condition=condition
@@ -1189,6 +1206,194 @@ def calculate_BWT_different_datasets(datasets_folder: str = './HINT_models') -> 
     (pd.DataFrame.from_dict(data=mean_results_dict, orient='index', columns=['Avg', 'Std']).to_csv(f'{datasets_folder}/avg_bwt_results.csv', header=True))
     return mean_results_dict
 
+def plot_regression_results(
+        x: List[np.ndarray],  # One array per task
+        y_pred: List[np.ndarray],  # One array per task
+        dataset_name: str = "GaussianDataset",
+        save_path: str = "./GaussianDataset.png",
+        t: float = 2.0
+    ):
+    """
+    Plot ground truth functions and predicted data for regression datasets for all tasks at once.
+
+    Parameters:
+    ----------
+    x: List[np.ndarray]
+        Input datapoints, one array per task.
+    y_pred: List[np.ndarray]
+        Output from the model, one array per task.
+    dataset_name: str
+        Name of the evaluated dataset.
+    save_folder: str
+        Contains the folder where the plot will be saved.
+    t: float, optional
+        Gaussian covariance scaling value (used only for the visualization).
+
+    Returns:
+    -------
+        None
+    """
+
+    if dataset_name == "ToyRegression1D":
+        fig, ax = plt.subplots(1, figsize=(15,8))
+
+        functions = [
+            lambda x : 2*x,
+            lambda x : 4*x**2-2,
+            lambda x : 8*x**3-12*x,
+            lambda x : 16*x**4 - 48*x**2 + 12,
+            lambda x : 32*x**5 - 160*x**3 + 120*x
+        ]
+
+        number_of_tasks = len(functions)
+
+        domain = np.linspace(0, 1, number_of_tasks+1)
+        _X = [domain[i:i+2] for i in range(number_of_tasks)]
+        X = [np.linspace(*_X[i], 100) for i in range(number_of_tasks)]
+        y_true = [np.array(functions[i](X[i])) for i in range(number_of_tasks)]
+        i = 0
+
+        for x_task, X_task, y_task, y_pred_task in zip(x, X, y_true, y_pred):
+            
+            plt.plot(X_task, y_task, label=f"task {i}, ground truth")
+            ax.scatter(x_task, y_pred_task, label=f"task {i}, predictions", alpha=1, edgecolor="black")
+            i += 1
+
+        plt.grid(True)
+        plt.legend()
+        plt.title("Toy Regression 1D - ground truth vs. predictions")
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+
+    elif dataset_name == "GaussianDataset":
+
+        # Generate Gaussians
+        means = np.array([
+            [5, 5],      # Gaussian 1
+            [15, 15],    # Gaussian 2
+            [25, 5],     # Gaussian 3
+            [5, 25],     # Gaussian 4
+            [25, 25]     # Gaussian 5
+        ])
+
+        covariances = [
+            [[3, 1], [1, 2]],       # Covariance for Gaussian 1
+            [[4, 1.5], [1.5, 3]],   # Covariance for Gaussian 2
+            [[2, 0.5], [0.5, 1]],   # Covariance for Gaussian 3
+            [[3, -1], [-1, 2]],     # Covariance for Gaussian 4
+            [[4, -1.5], [-1.5, 3]]  # Covariance for Gaussian 5
+        ]
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        i = 0
+
+        for xy, z_pred_task in zip(x, y_pred):
+            x_task = xy[:,0]
+            y_task = xy[:,1]
+            
+            ax.scatter(x_task, y_task, z_pred_task, alpha=0.3, label=f"task {i}, predictions", edgecolors='black')
+            mu = means[i]
+            covariance = covariances[i]
+
+            x_min, x_max = mu[0] - t*covariance[0][0], mu[0] + t*covariance[0][0]
+            y_min, y_max = mu[1] - t*covariance[1][1], mu[1] + t*covariance[1][1]
+
+            X, Y = np.mgrid[x_min:x_max:100j, y_min:y_max:200j]
+            XY = np.column_stack([X.flat, Y.flat])
+            Z = multivariate_normal.pdf(XY, mean=mu, cov=covariance)
+            Z = Z.reshape(X.shape)
+
+            surf = ax.plot_surface(X,Y,Z, alpha=0.6, label = f"task {i}, ground truth")
+            i += 1
+
+            # Fix for legend issue
+            surf._edgecolors2d = surf._edgecolors3d
+            surf._facecolors2d = surf._facecolors3d
+
+        ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5))
+        plt.title("Gaussian Mixture - ground truth vs. predictions")
+        plt.tight_layout()
+        plt.savefig(save_path, dpi=300)
+        plt.close()
+
+    else:
+        raise NotImplementedError("Regression results visualization is only available for ToyRegression and GaussianMixtures.")
+
 if __name__ == "__main__":
    
-   pass
+    # Declare hyperparameters
+    parameters = {
+        "seed": 1,
+        "embedding_sizes": [48],
+        "learning_rates": [0.001],
+        "batch_sizes": [4],
+        "betas": [0.01],
+        "perturbated_epsilon": [0.001],
+        "hypernetworks_hidden_layers": [[25,25]],
+        "dropout_rate": [-1],
+        "best_model_selection_method": "val_loss",
+        "saving_folder": "./Results/"
+        f"gaussian_dataset/",
+        "shape": 2,
+        "padding": 0,
+        "number_of_tasks": 5,
+        "augmentation": False,
+        "no_of_validation_samples": 50,
+        "target_network": "MLP",
+        "target_hidden_layers": [[50, 50]],
+
+        # Full-interval model or simpler one
+        "full_interval": True,
+
+        # General hyperparameters
+        "activation_function": torch.nn.ReLU(),
+        "use_bias": True,
+        "dataset": "GaussianDataset",
+        "device": "cuda" if torch.cuda.is_available() else "cpu"
+   }
+
+    # Load hypernetwork
+    model_dict = prepare_and_load_weights_for_models(
+        path_to_stored_networks="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/Results/gaussian_dataset/2024-12-11_14-59-45/",
+        path_to_datasets=None,
+        number_of_model=0,
+        dataset=parameters["dataset"],
+        seed=parameters["seed"]
+    )
+
+    dataset = load_dataset(
+        dataset="GaussianDataset",
+        path_to_datasets=None,
+        hyperparameters=parameters
+    )
+
+    hypernetwork = model_dict["hypernetwork"]
+    hnet_weights = model_dict["hypernetwork_weights"]
+    perturbated_eps = torch.tensor(parameters["perturbated_epsilon"])
+    target_network = model_dict["target_network"]
+    
+    with torch.no_grad():
+        x = [np.array(dataset[i]._data['in_data'])[dataset[i]._data['test_inds']] for i in range(5)]
+        hnet_output = [
+            hypernetwork.forward(
+                cond_id=i, 
+                weights=hnet_weights, 
+                perturbated_eps=perturbated_eps, 
+                return_extended_output=True) for i in range(5)
+        ]
+
+        lower_weights = [hnet_output[i][0] for i in range(5)]
+        middle_weights = [hnet_output[i][1] for i in range(5)]
+        upper_weights = [hnet_output[i][2] for i in range(5)]
+
+        y_pred = [parse_logits(target_network.forward(
+            torch.Tensor(x[i]),
+            upper_weights=upper_weights[i],
+            middle_weights=middle_weights[i],
+            lower_weights=lower_weights[i])) for i in range(5) 
+        ]
+
+        y_pred = [np.array(list(y_pred[i])[1]) for i in range(5)]
+
+    plot_regression_results(x, y_pred, save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/Gaussian_dataset")

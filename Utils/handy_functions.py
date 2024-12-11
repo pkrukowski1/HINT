@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 
 from IntervalNets.interval_modules import parse_logits
-from LossFunctions.regression_loss_function import IntervalMSELoss
 
 import numpy as np
 import pandas as pd
@@ -12,7 +11,6 @@ from datetime import datetime
 import os
 import random
 from typing import Tuple
-
 
 
 def set_seed(value):
