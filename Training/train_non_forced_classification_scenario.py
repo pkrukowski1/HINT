@@ -26,7 +26,6 @@ from VanillaNets.AlexNet import AlexNet
 from VanillaNets.LeNet_300_100 import LeNet
 from VanillaNets.pretrained_ResNet18 import PretrainedResNet18
 from hypnettorch.mnets.mlp import MLP
-from hypnettorch.mnets.resnet_imgnet import ResNetIN
 
 import Utils.hnet_middle_regularizer as hreg
 from LossFunctions.classification_loss_function import IBP_Loss
@@ -68,12 +67,12 @@ def train_single_task(hypernetwork,
     # deep copy of the network it needs to be reinitialized
     if parameters["optimizer"] == "adam":
         optimizer = torch.optim.Adam(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     elif parameters["optimizer"] == "rmsprop":
         optimizer = torch.optim.RMSprop(
-            [*hypernetwork.parameters(), *target_network.parameters()],
+            [*hypernetwork.parameters()],
             lr=parameters["learning_rate"]
         )
     else:
@@ -413,7 +412,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             ).to(parameters["device"])
     elif parameters["target_network"] == "PretrainedResNet18":
         target_network = PretrainedResNet18(
-                    in_shape=(parameters["input_shape"], parameters["input_shape"], 3)
+                    in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+                    num_classes=output_shape
                 ).to(parameters["device"])
     elif parameters["target_network"] == "ZenkeNet":
         raise ValueError("ZenkeNet is not supported right now!")
