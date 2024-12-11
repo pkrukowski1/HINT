@@ -441,12 +441,12 @@ def set_hyperparameters(dataset,
         if grid_search:
             hyperparams = {
                 "seed": [1],
-                "embedding_sizes": [48],
-                "betas": [0.01],
+                "embedding_sizes": [48,64,128],
+                "betas": [0.01, 0.05, 0.1],
                 "learning_rates": [0.001],
-                "batch_sizes": [32],
-                "hypernetworks_hidden_layers": [[100]],
-                "perturbated_epsilon": [5.0],
+                "batch_sizes": [16,32],
+                "hypernetworks_hidden_layers": [[100],[200],[100,100]],
+                "perturbated_epsilon": [1.0, 0.1, 0.01],
                 "dropout_rate": [-1],
                 "resnet_number_of_layer_groups": 3,
                 "resnet_widening_factor": 2,
@@ -484,7 +484,7 @@ def set_hyperparameters(dataset,
             f"CUB200/"
             f"final_run/"
         )
-        hyperparams["lr_scheduler"] = True
+        hyperparams["lr_scheduler"] = False
         hyperparams["number_of_iterations"] = None
         hyperparams["no_of_validation_samples"] = 0
         if hyperparams["target_network"] in ["ResNet", "ZenkeNet", "AlexNet", "PretrainedResNet18"]:
