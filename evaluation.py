@@ -157,6 +157,7 @@ def prepare_target_network(hyperparameters, output_shape):
 
 
 def prepare_and_load_weights_for_models(
+    hyperparameters,
     path_to_stored_networks,
     path_to_datasets,
     number_of_model,
@@ -169,9 +170,10 @@ def prepare_and_load_weights_for_models(
 
     Parameters:
     -----------
+        hyperparameters: dict
+            Dictionary with loaded hyperparameters.
         path_to_stored_networks: str
             Path for all models located in subfolders.
-
         number_of_model: int
             The number of the currently loaded model.
         dataset: str
@@ -197,10 +199,10 @@ def prepare_and_load_weights_for_models(
         "SplitMNIST",
         "CIFAR100_FeCAM_setup",
         "SubsetImageNet",
-        "GaussianDataset"
+        "GaussianDataset",
+        "ToyRegression1D"
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
-    hyperparameters = set_hyperparameters(dataset, grid_search=False)
     
     set_seed(seed)
     # Load proper dataset
@@ -237,7 +239,6 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}perturbation_vectors_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-
     hypernetwork._perturbated_eps_T = perturbation_vectors
 
     # Check whether the number of target weights is exactly the same like
@@ -1289,30 +1290,40 @@ def plot_regression_results(
         i = 0
 
         for xy, z_pred_task in zip(x, y_pred):
-            x_task = xy[:,0]
-            y_task = xy[:,1]
-            
+            x_task = xy[:, 0]
+            y_task = xy[:, 1]
+
+            # Scatter predictions
             ax.scatter(x_task, y_task, z_pred_task, alpha=0.3, label=f"task {i}, predictions", edgecolors='black')
             mu = means[i]
             covariance = covariances[i]
 
-            x_min, x_max = mu[0] - t*covariance[0][0], mu[0] + t*covariance[0][0]
-            y_min, y_max = mu[1] - t*covariance[1][1], mu[1] + t*covariance[1][1]
+            # Define the range for the Gaussian surface
+            t = 3  # Scaling factor for range based on covariance
+            x_min, x_max = mu[0] - t * covariance[0][0], mu[0] + t * covariance[0][0]
+            y_min, y_max = mu[1] - t * covariance[1][1], mu[1] + t * covariance[1][1]
 
-            X, Y = np.mgrid[x_min:x_max:100j, y_min:y_max:200j]
+            X, Y = np.mgrid[x_min:x_max:100j, y_min:y_max:100j]
             XY = np.column_stack([X.flat, Y.flat])
             Z = multivariate_normal.pdf(XY, mean=mu, cov=covariance)
             Z = Z.reshape(X.shape)
 
-            surf = ax.plot_surface(X,Y,Z, alpha=0.6, label = f"task {i}, ground truth")
+            # Plot the Gaussian surface
+            surf = ax.plot_surface(X, Y, Z, alpha=0.6, label=f"task {i}, ground truth")
+
+            # Add vertical lines for each predicted point
+            for x_pt, y_pt, z_pt in zip(x_task, y_task, z_pred_task):
+                ax.plot([x_pt, x_pt], [y_pt, y_pt], [0, z_pt], color='red', linewidth=1, alpha=0.8)
+
             i += 1
 
             # Fix for legend issue
             surf._edgecolors2d = surf._edgecolors3d
             surf._facecolors2d = surf._facecolors3d
 
+        # Legend and formatting
         ax.legend(loc='center left', bbox_to_anchor=(1.05, 0.5))
-        plt.title("Gaussian Mixture - ground truth vs. predictions")
+        plt.title("Gaussians - Ground Truth vs. Predictions")
         plt.tight_layout()
         plt.savefig(save_path, dpi=300)
         plt.close()
@@ -1321,56 +1332,54 @@ def plot_regression_results(
         raise NotImplementedError("Regression results visualization is only available for ToyRegression and GaussianMixtures.")
 
 if __name__ == "__main__":
+
+    #######################################################3
+    ### Plot regression results
+    #######################################################
+
+    ### GaussianDataset
    
     # Declare hyperparameters
-    parameters = {
-        "seed": 1,
-        "embedding_sizes": [48],
-        "learning_rates": [0.001],
-        "batch_sizes": [4],
-        "betas": [0.01],
-        "perturbated_epsilon": [0.001],
-        "hypernetworks_hidden_layers": [[25,25]],
-        "dropout_rate": [-1],
-        "best_model_selection_method": "val_loss",
-        "saving_folder": "./Results/"
-        f"gaussian_dataset/",
-        "shape": 2,
-        "padding": 0,
-        "number_of_tasks": 5,
-        "augmentation": False,
-        "no_of_validation_samples": 50,
-        "target_network": "MLP",
-        "target_hidden_layers": [[50, 50]],
-
-        # Full-interval model or simpler one
-        "full_interval": True,
-
-        # General hyperparameters
-        "activation_function": torch.nn.ReLU(),
-        "use_bias": True,
-        "dataset": "GaussianDataset",
-        "device": "cuda" if torch.cuda.is_available() else "cpu"
-   }
+    hyperparameters = {
+        'embedding_sizes': [16],
+        'hypernetworks_hidden_layers': [[50, 50]], 
+        'perturbated_epsilon': [0.01], 
+        'dropout_rate': [-1], 
+        'seed': 1,
+        'shape': 2, 
+        'padding': 0, 
+        'number_of_tasks': 5,
+        'target_network': 'MLP', 
+        'target_hidden_layers': [50, 50],
+        'use_chunks': False,
+        'use_batch_norm': False,
+        'full_interval': True, 
+        'activation_function': torch.nn.ReLU(), 
+        'use_bias': True, 
+        'dataset': 'GaussianDataset', 
+        'device': 'cpu',
+        "no_of_validation_samples": 20
+        }
 
     # Load hypernetwork
     model_dict = prepare_and_load_weights_for_models(
-        path_to_stored_networks="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/Results/gaussian_dataset/2024-12-11_14-59-45/",
+        path_to_stored_networks="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/GaussianDataset/",
+        hyperparameters=hyperparameters,
         path_to_datasets=None,
         number_of_model=0,
-        dataset=parameters["dataset"],
-        seed=parameters["seed"]
+        dataset=hyperparameters["dataset"],
+        seed=hyperparameters["seed"]
     )
 
     dataset = load_dataset(
-        dataset="GaussianDataset",
+        dataset=hyperparameters["dataset"],
         path_to_datasets=None,
-        hyperparameters=parameters
+        hyperparameters=hyperparameters
     )
 
     hypernetwork = model_dict["hypernetwork"]
     hnet_weights = model_dict["hypernetwork_weights"]
-    perturbated_eps = torch.tensor(parameters["perturbated_epsilon"])
+    perturbated_eps = torch.tensor(hyperparameters["perturbated_epsilon"])
     target_network = model_dict["target_network"]
     
     with torch.no_grad():
@@ -1396,4 +1405,79 @@ if __name__ == "__main__":
 
         y_pred = [np.array(list(y_pred[i])[1]) for i in range(5)]
 
-    plot_regression_results(x, y_pred, save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/Gaussian_dataset")
+    plot_regression_results(x, y_pred, save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/Gaussian_dataset.png")
+
+
+    ### ToyRegression1D
+   
+    # Declare hyperparameters
+    hyperparameters = {
+        'embedding_sizes': [16],
+        'hypernetworks_hidden_layers': [[50, 50]], 
+        'perturbated_epsilon': [0.01], 
+        'dropout_rate': [-1], 
+        'seed': 1,
+        'shape': 1, 
+        'padding': 0, 
+        'number_of_tasks': 5,
+        'target_network': 'MLP', 
+        'target_hidden_layers': [50, 50],
+        'use_chunks': False,
+        'use_batch_norm': False,
+        'full_interval': True, 
+        'activation_function': torch.nn.ReLU(), 
+        'use_bias': True, 
+        'dataset': 'ToyRegression1D', 
+        'device': 'cpu',
+        "no_of_validation_samples": 20
+        }
+
+    # Load hypernetwork
+    model_dict = prepare_and_load_weights_for_models(
+        path_to_stored_networks=f"/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/{hyperparameters['dataset']}/",
+        hyperparameters=hyperparameters,
+        path_to_datasets=None,
+        number_of_model=0,
+        dataset=hyperparameters["dataset"],
+        seed=hyperparameters["seed"]
+    )
+
+    dataset = load_dataset(
+        dataset=hyperparameters["dataset"],
+        path_to_datasets=None,
+        hyperparameters=hyperparameters
+    )
+
+    hypernetwork = model_dict["hypernetwork"]
+    hnet_weights = model_dict["hypernetwork_weights"]
+    perturbated_eps = torch.tensor(hyperparameters["perturbated_epsilon"])
+    target_network = model_dict["target_network"]
+    
+    with torch.no_grad():
+        x = [np.array(dataset[i]._data['in_data'])[dataset[i]._data['test_inds']] for i in range(5)]
+        hnet_output = [
+            hypernetwork.forward(
+                cond_id=i, 
+                weights=hnet_weights, 
+                perturbated_eps=perturbated_eps, 
+                return_extended_output=True) for i in range(5)
+        ]
+
+        lower_weights = [hnet_output[i][0] for i in range(5)]
+        middle_weights = [hnet_output[i][1] for i in range(5)]
+        upper_weights = [hnet_output[i][2] for i in range(5)]
+
+        y_pred = [parse_logits(target_network.forward(
+            torch.Tensor(x[i]),
+            upper_weights=upper_weights[i],
+            middle_weights=middle_weights[i],
+            lower_weights=lower_weights[i])) for i in range(5) 
+        ]
+
+        y_pred = [np.array(list(y_pred[i])[1]) for i in range(5)]
+
+    plot_regression_results(
+        x=x, 
+        y_pred=y_pred, 
+        dataset_name=hyperparameters["dataset"],
+        save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/ToyRegression1D.png")
