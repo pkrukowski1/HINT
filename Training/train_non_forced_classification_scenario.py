@@ -98,16 +98,11 @@ def train_single_task(hypernetwork,
         # Save previous hnet weights
         hypernetwork._prev_hnet_weights = deepcopy(hypernetwork.unconditional_params)
 
-        if current_no_of_task >= 40:
-            task_ids_to_be_regularized = np.random.choice(current_no_of_task, size=32, replace=False).tolist()
-        else:
-            task_ids_to_be_regularized = None
 
         middle_reg_targets = hreg.get_current_targets(
                                         task_id=current_no_of_task,
                                         hnet=hypernetwork,
                                         eps=parameters["perturbated_epsilon"],
-                                        task_ids_to_be_regularized=task_ids_to_be_regularized
                                         )
 
     if (parameters["target_network"] == "ResNet") and \
@@ -221,7 +216,6 @@ def train_single_task(hypernetwork,
                 mnet=target_network, prev_theta=previous_hnet_theta,
                 prev_task_embs=previous_hnet_embeddings,
                 eps=parameters["perturbated_epsilon"],
-                task_ids_to_be_regularized=task_ids_to_be_regularized
             )
         
         # Calculate total loss

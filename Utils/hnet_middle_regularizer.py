@@ -5,7 +5,7 @@ import torch
 
 from hypnettorch.hnets import HyperNetInterface
 
-def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
+def get_current_targets(task_id, hnet, eps):
     """
     For all j < task_id, compute the output of the hypernetwork. This output
     will be detached from the graph before being added to the return list of
@@ -34,8 +34,6 @@ def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
             targets).
         eps: float
             A perturbation value.
-        task_ids_to_be_regularized: List[int]
-            Task embedding ids to be regularized..
 
     Returns:
     --------
@@ -49,7 +47,7 @@ def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
     hnet.eval()
 
     middle_ret = []
-    task_id_list = list(range(task_id)) if task_ids_to_be_regularized is None else task_ids_to_be_regularized
+    task_id_list = list(range(task_id))
 
     with torch.no_grad():
         W_middle= hnet.forward(cond_id=task_id_list,
@@ -64,8 +62,7 @@ def get_current_targets(task_id, hnet, eps, task_ids_to_be_regularized=None):
     return middle_ret
 
 def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None, 
-                        mnet=None, prev_theta=None, prev_task_embs=None,
-                        task_ids_to_be_regularized=None):
+                        mnet=None, prev_theta=None, prev_task_embs=None):
     """
     This regularizer restricts the output-mapping for previous task embeddings.
     For all tasks :math:`j < \text{task\_id}`.
@@ -114,8 +111,6 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
             embeddings should be regularized or no.
         no_embeddings_to_be_regularized: int
             Number of tasks' embeddings to be regularized.
-        task_ids_to_be_regularized: List[int]
-            Task embedding ids to be regularized.
 
     Returns:
     --------
@@ -134,7 +129,7 @@ def calc_fix_target_reg(hnet, task_id, eps, middle_targets=None,
     assert prev_theta is None or prev_task_embs is not None
 
     # Number of tasks to be regularized.
-    ids_to_reg = list(range(task_id)) if task_ids_to_be_regularized is None else task_ids_to_be_regularized
+    ids_to_reg = list(range(task_id))
     num_regs = len(ids_to_reg)
 
     # FIXME Assuming all unconditional parameters are internal.
