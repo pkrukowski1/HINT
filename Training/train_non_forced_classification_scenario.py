@@ -24,7 +24,6 @@ from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from VanillaNets.ResNet18 import ResNetBasic
 from VanillaNets.AlexNet import AlexNet
 from VanillaNets.LeNet_300_100 import LeNet
-from VanillaNets.pretrained_ResNet18 import PretrainedResNet18
 from hypnettorch.mnets.mlp import MLP
 
 import Utils.hnet_middle_regularizer as hreg
@@ -123,7 +122,7 @@ def train_single_task(hypernetwork,
         # Scheduler can be set only when the number of epochs is given
         if parameters["lr_scheduler"]:
             current_epoch = 0
-            if parameters["target_network"] == "ResNet":
+            if "ResNet" in parameters["target_network"]:
                 patience = 6
                 factor = 0.5
                 min_lr = 1e-6
@@ -154,7 +153,7 @@ def train_single_task(hypernetwork,
         tensor_output = current_dataset_instance.output_to_torch_tensor(
             current_batch[1], parameters["device"], mode="train"
         )
-
+        tensor_output = torch.Tensor(tensor_output).to("cuda")
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
@@ -368,47 +367,32 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             "CIFAR10",
         ]:
             mode = "cifar"
+            num_feature_maps = [16, 16, 32, 64, 128]
+            cutout_mod = True
+        elif parameters["dataset"] == "CUB200":
+            mode = "cub"
+            num_feature_maps = [64, 64, 128, 256, 512]
+            cutout_mod = False
         else:
             mode = "default"
         
-        if parameters["full_interval"]:
-
-            target_network = IntervalResNetBasic(
-                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-                use_bias=False,
-                use_fc_bias=parameters["use_bias"],
-                bottleneck_blocks=False,
-                num_classes=output_shape,
-                num_feature_maps=[16, 16, 32, 64, 128],
-                blocks_per_group=[2, 2, 2, 2],
-                no_weights=True,
-                use_batch_norm=parameters["use_batch_norm"],
-                projection_shortcut=True,
-                bn_track_stats=False,
-                cutout_mod=True,
-                mode=mode,
-            ).to(parameters["device"])
-        else:  
-            target_network = ResNetBasic(
-                in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-                use_bias=False,
-                use_fc_bias=parameters["use_bias"],
-                bottleneck_blocks=False,
-                num_classes=output_shape,
-                num_feature_maps=[16, 16, 32, 64, 128],
-                blocks_per_group=[2, 2, 2, 2],
-                no_weights=True,
-                use_batch_norm=parameters["use_batch_norm"],
-                projection_shortcut=True,
-                bn_track_stats=False,
-                cutout_mod=True,
-                mode=mode,
-            ).to(parameters["device"])
-    elif parameters["target_network"] == "PretrainedResNet18":
-        target_network = PretrainedResNet18(
-                    in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
-                    num_classes=output_shape
-                ).to(parameters["device"])
+        assert not parameters["full_interval"], "Interval version of ResNet is not supported!"
+        
+        target_network = ResNetBasic(
+            in_shape=(parameters["input_shape"], parameters["input_shape"], 3),
+            use_bias=False,
+            use_fc_bias=parameters["use_bias"],
+            bottleneck_blocks=False,
+            num_classes=output_shape,
+            num_feature_maps=num_feature_maps,
+            blocks_per_group=[2, 2, 2, 2],
+            no_weights=True,
+            use_batch_norm=parameters["use_batch_norm"],
+            projection_shortcut=True,
+            bn_track_stats=False,
+            cutout_mod=cutout_mod,
+            mode=mode,
+        ).to(parameters["device"])
     elif parameters["target_network"] == "ZenkeNet":
         raise ValueError("ZenkeNet is not supported right now!")
     elif parameters["target_network"] == "AlexNet" \
@@ -676,7 +660,7 @@ if __name__ == "__main__":
                                 # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = False
+    create_grid_search = True
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"

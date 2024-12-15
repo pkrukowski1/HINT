@@ -78,8 +78,10 @@ class ResNetBasic(Classifier):
         mode: string
             Depending on the dataset, a different number of neurons
             in the linear layer will be present. If mode='default', the number of
-            channels from the previous layer will be set. If mode='tiny', 2048
-            neurons will be set while if mode='cifar', 512 neurons will be set.
+            channels from the previous layer will be set. 
+                - If mode='tiny', 2048 neurons will be set. 
+                - If mode='cifar', 512 neurons will be set.
+                - If mode='cub', 4608 neurons will be set.
         cutout_mod: bool
             Sometimes, networks from this family are used for
             smaller (CIFAR-like) images. In this case, one has to either
@@ -87,7 +89,7 @@ class ResNetBasic(Classifier):
             small images are too agressively downscaled at the very beginning).
 
             When activating this option, the first conv layer is modified as
-            described `here <https://github.com/uoguelph-mlrg/Cutout/blob/\
+            described `here <https://github.com/uoguelph-mlrg/Cutout/blob/
 287f934ea5fa00d4345c2cccecf3552e2b1c33e3/model/resnet.py#L66>`__, i.e., it uses
             a kernel size of ``3`` with stride ``1`` and the max-pooling layer
             is omitted.
@@ -371,6 +373,8 @@ class ResNetBasic(Classifier):
                         layer_shapes = [[curr_fs, 2048]]
                     elif mode == "cifar":
                         layer_shapes = [[curr_fs, 512]]
+                    elif mode == "cub":
+                        layer_shapes = [[curr_fs, 4608]]
                     if use_fc_bias:
                         layer_shapes.append([curr_fs])
 
