@@ -7,7 +7,6 @@ The module contains a wrapper for data handlers for the SplitCUB200 task.
 
 import torchvision.datasets as datasets
 import torch
-from torch.utils.data import DataLoader, TensorDataset
 
 import os
 import time
@@ -679,23 +678,7 @@ class CUB2002011(LargeImgDataset):
         Generally, the function is required to be comaptible with the rest of
         CL dataset handlers.
         """
-        return y
-    
-    def next_train_batch(self, batch_size, use_one_hot=None,
-                         return_ids=False):
-        """
-        Return the next random training batch.
-        """
-
-        if self.train_dataloder is None:
-            # Create train dataloader
-            train_tensors = TensorDataset(
-                self.get_train_inputs(),
-                self.get_train_outputs()
-            )
-            self.train_dataloder = DataLoader(train_tensors, batch_size=batch_size, shuffle=True)
-
-        return next(iter(self.train_dataloder))
+        return torch.Tensor(y)
         
 
 class SplitCUB200Data(CUB2002011):
