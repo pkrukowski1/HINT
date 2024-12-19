@@ -18,7 +18,6 @@ sys.path.insert(0, parent_dir)
 
 from IntervalNets.interval_MLP import IntervalMLP
 from IntervalNets.interval_modules import parse_logits
-from IntervalNets.interval_ResNet import IntervalResNetBasic
 from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 
 from VanillaNets.ResNet18 import ResNetBasic

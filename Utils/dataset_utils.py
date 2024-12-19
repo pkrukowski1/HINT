@@ -489,7 +489,7 @@ def prepare_toy_regression_tasks(
                 train_inter=current_domain,
                 num_train=500,
                 test_inter=current_domain,
-                num_test=50,
+                num_test=no_of_validation_samples,
                 val_inter=current_domain,
                 num_val=no_of_validation_samples,
                 map_function=current_function,
