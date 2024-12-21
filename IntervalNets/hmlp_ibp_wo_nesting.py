@@ -103,7 +103,6 @@ class HMLP_IBP(HMLP, HyperNetInterface):
                 If return_extended_output is set to False, then only middle target weights are
                 returned.
         """
-
         uncond_input, cond_input, uncond_weights, _ = \
             self._preprocess_forward_args(uncond_input=uncond_input,
                 cond_input=cond_input, cond_id=cond_id, weights=weights,

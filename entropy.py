@@ -9,7 +9,7 @@ from evaluation import (
     prepare_and_load_weights_for_models,
 )
 
-from train_non_forced_classification_scenario import reverse_predictions
+from Utils.handy_functions import reverse_predictions
 
 
 def translate_output_CIFAR_classes(labels, setup, task, mode):
@@ -184,7 +184,7 @@ def get_target_network_representation(
 
     with torch.no_grad():
 
-
+        
         (
             lower_target_weights,
             middle_target_weights,
@@ -197,7 +197,7 @@ def get_target_network_representation(
             return_extended_output=True
         )
 
-        if target_network_type == "ResNet":
+        if target_network_type in ["ResNet", "AlexNet"]:
                 condition = task
         else:
             condition = None
@@ -273,12 +273,12 @@ def extract_test_set_from_single_task(
         output_data, device, mode="inference"
     )
     gt_classes = test_output.max(dim=1)[1]
-    if dataset == "CIFAR100_FeCAM_setup":
+    if dataset in ["CIFAR100_FeCAM_setup", "CIFAR10"]:
         # Currently there is an assumption that only setup with
-        # 5 tasks will be used
-        
+        # 5 tasks will be used for CIFAR100_FeCAM_setup
+        mode = "CIFAR100" if dataset == "CIFAR100_FeCAM_setup" else "CIFAR10"
         gt_classes = translate_output_CIFAR_classes(
-            gt_classes, setup=5, task=no_of_task, mode="CIFAR100"
+            gt_classes, setup=5, task=no_of_task, mode=mode
         )
     elif dataset in ["PermutedMNIST", "SplitMNIST"]:
         mode = "permuted" if dataset == "PermutedMNIST" else "split"
@@ -388,15 +388,14 @@ def get_task_and_class_prediction_based_on_logits(
         # Calculate entropy based on results from all tasks
         for no_of_inferred_task in range(task_entropies.shape[0]):
 
-            softmaxed_inferred_task = F.softmax(
-                all_task_single_output_sample[no_of_inferred_task, 1, :], dim=-1
-            )
+            lower_logits = all_task_single_output_sample[no_of_inferred_task, 0, :]
+            upper_logits = all_task_single_output_sample[no_of_inferred_task, 2, :]
             
-            if not vanilla_entropy:
-                lower_logits = all_task_single_output_sample[no_of_inferred_task, 0, :]
-                upper_logits = all_task_single_output_sample[no_of_inferred_task, 2, :]
+            softmaxed_inferred_task = F.softmax((lower_logits + upper_logits)/2.0, dim=-1)
 
-                factor = 1 /(0.001 + (upper_logits - lower_logits).abs())
+
+            if not vanilla_entropy:
+                factor = 1 /(upper_logits - lower_logits + 1e-8).abs()
 
                 assert not torch.isnan(factor).any()
             else:
@@ -533,19 +532,19 @@ def calculate_entropy_and_predict_classes_separately(experiment_models):
 
 if __name__ == "__main__":
     
-    # alphas = np.linspace(0.01, 1.0, 5)
-    alphas = [1.0]
-    vanilla_entropy = True
+    # alphas = np.linspace(0.01, 0.5, 5)
+    alphas = [0.1]
+    vanilla_entropy = False
 
     # Options for *dataset*:
-    # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup'
-    dataset = "CIFAR100_FeCAM_setup"
+    # 'PermutedMNIST', 'SplitMNIST', 'CIFAR100_FeCAM_setup', 'CIFAR10'
+    dataset = "SplitMNIST"
     path_to_datasets = "./Data/"
 
     for alpha in alphas:
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-        path_to_stored_networks = f"./SavedModels/{dataset}/known_task_id/"
+        path_to_stored_networks = "./SavedModels/SplitMNIST/known_task_id/"
         path_to_save = f"./Results/{dataset}/{timestamp}/"
         os.makedirs(path_to_save, exist_ok=True)
 

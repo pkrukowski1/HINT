@@ -13,6 +13,7 @@ from IntervalNets.hmlp_ibp_wo_nesting import HMLP_IBP
 from IntervalNets.interval_ZenkeNet64 import IntervalZenkeNet
 
 from VanillaNets.ResNet18 import ResNetBasic
+from VanillaNets.AlexNet import AlexNet
 
 import torch
 import torch.nn.functional as F
@@ -96,6 +97,12 @@ def load_dataset(dataset, path_to_datasets, hyperparameters):
             ],
             number_of_tasks=20,
         )
+    elif dataset == "CIFAR10":
+        return prepare_split_cifar10_tasks(
+            path_to_datasets,
+            validation_size=hyperparameters["no_of_validation_samples"],
+            use_augmentation=hyperparameters["augmentation"]
+        )
     else:
         raise ValueError("This dataset is currently not handled!")
 
@@ -172,13 +179,23 @@ def prepare_target_network(hyperparameters, output_shape):
             arch=architecture,
             no_weights=True,
         ).to(hyperparameters["device"])
+    elif hyperparameters["target_network"] == "AlexNet" \
+        and not hyperparameters["full_interval"]:
+        target_network = AlexNet(
+            in_shape=(hyperparameters["shape"], hyperparameters["shape"], 3),
+            num_classes=output_shape,
+            no_weights=True,
+            use_batch_norm=hyperparameters["use_batch_norm"],
+            bn_track_stats=False,
+            distill_bn_stats=False
+        ).to(hyperparameters["device"])
+
     else:
         raise NotImplementedError
     return target_network
 
 
 def prepare_and_load_weights_for_models(
-    hyperparameters,
     path_to_stored_networks,
     path_to_datasets,
     number_of_model,
@@ -191,9 +208,6 @@ def prepare_and_load_weights_for_models(
 
     Parameters:
     -----------
-        hyperparameters: dict
-            Dictionary with loaded hyperparameters.
-        path_to_stored_networks: str
             Path for all models located in subfolders.
         number_of_model: int
             The number of the currently loaded model.
@@ -221,9 +235,12 @@ def prepare_and_load_weights_for_models(
         "CIFAR100_FeCAM_setup",
         "SubsetImageNet",
         "GaussianDataset",
-        "ToyRegression1D"
+        "ToyRegression1D",
+        "CIFAR10"
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
+
+    hyperparameters = set_hyperparameters(dataset, grid_search=True)
     
     set_seed(seed)
     # Load proper dataset
@@ -255,15 +272,14 @@ def prepare_and_load_weights_for_models(
         f"{path_to_model}hypernetwork_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
-
     perturbation_vectors = load_pickle_file(
         f"{path_to_model}perturbation_vectors_"
         f'after_{hyperparameters["number_of_tasks"] - 1}_task.pt'
     )
     hypernetwork._perturbated_eps_T = perturbation_vectors
-
     # Check whether the number of target weights is exactly the same like
     # the loaded weights
+    
     for prepared, loaded in zip(
         [hypernetwork],
         [hnet_weights]
@@ -273,6 +289,8 @@ def prepare_and_load_weights_for_models(
             no_of_loaded_weights += item.shape.numel()       
         
         assert prepared.num_params == no_of_loaded_weights
+
+   
     return {
         "list_of_CL_tasks": dataset_tasks_list,
         "hypernetwork": hypernetwork,
@@ -443,6 +461,89 @@ def plot_accuracy_curve(
 
     ax.set_ylim(top=y_lim_max)
     ax.legend(loc="upper left", bbox_to_anchor=(1.05, 1.0), fontsize=fontsize)
+    plt.tight_layout()
+    fig.savefig(f"{save_path}/{filename}")
+    plt.close()
+
+def plot_accuracy_curve_for_one_seed(
+        list_of_folders_path,
+        save_path,
+        filename,
+        dataset_name = "PermutedMNIST-250",
+        y_lim_max = 100.0,
+        fontsize = 10,
+        figsize = (8, 4)
+):
+    """
+    Saves the accuracy curve for the specified mode.
+
+    Parameters:
+    ---------
+        list_of_folders_path: List[str]
+            A list with paths to stored results, one path for each seed.
+        save_path: str
+            The path where plots will be stored.
+        filename: str
+            Name of the saved plot.
+        dataset_name: str
+            A dataset name.
+        beta_params: List[float]
+            A list with beta hyperparameters.
+        y_lim_max: float
+            An upper limit for the Y-axis.
+        fontsize: int
+            Font size of titles and axes.
+        figsize: Tuple[int]
+            A tuple with width and height of the figures.
+
+    Returns:
+    --------
+        None
+    """
+
+    os.makedirs(save_path, exist_ok=True)
+
+    tasks_list = [i+1 for i in range(250)]
+    title = "Results for PermutedMNIST-250"
+    legend_loc = "upper left"
+
+    file_suffix = "results.csv"
+
+    results_list = []
+    for folder in list_of_folders_path:
+        acc_path = os.path.join(folder, file_suffix)
+        results_list.append(pd.read_csv(acc_path, sep=";"))
+
+    acc_just_after_training = []
+    acc_after_all_training_sessions = []
+
+    for pd_results in results_list:
+        acc_just_after_training.append(pd_results.loc[
+            pd_results["after_learning_of_task"] == pd_results["tested_task"], "accuracy"].values)
+        acc_after_all_training_sessions.append(pd_results.loc[
+            pd_results["after_learning_of_task"] == pd_results["after_learning_of_task"].max(), "accuracy"].values)
+
+    acc_just_after_training = np.array(acc_just_after_training).mean(axis=0)
+    acc_after_all_training_sessions = np.array(acc_after_all_training_sessions).mean(axis=0)
+
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    ax.plot(tasks_list, acc_just_after_training, label="Just after training")
+    ax.plot(tasks_list, acc_after_all_training_sessions, label="After training of all tasks")
+
+    ax.set_title(title, fontsize=fontsize)
+    ax.set_xlabel("Number of task", fontsize=fontsize)
+    ax.set_ylabel("Accuracy [%]", fontsize=fontsize)
+    ax.grid()
+    
+    if dataset_name == "PermutedMNIST-250":
+        ax.set_xticks(range(1, tasks_list[-1] + 1, 50))
+    else:
+        ax.set_xticks(range(1, tasks_list[-1] + 1))
+   
+    ax.set_ylim(top=y_lim_max)
+    ax.legend(loc=legend_loc, fontsize=fontsize)
     plt.tight_layout()
     fig.savefig(f"{save_path}/{filename}")
     plt.close()
@@ -1373,174 +1474,4 @@ def plot_regression_results(
 
 if __name__ == "__main__":
 
-    # #######################################################3
-    # ### Plot regression results
-    # #######################################################
-
-    # ### GaussianDataset
-   
-    # # Declare hyperparameters
-    # hyperparameters = {
-    #     'embedding_sizes': [16],
-    #     'hypernetworks_hidden_layers': [[50, 50]], 
-    #     'perturbated_epsilon': [0.01], 
-    #     'dropout_rate': [-1], 
-    #     'seed': 1,
-    #     'shape': 2, 
-    #     'padding': 0, 
-    #     'number_of_tasks': 5,
-    #     'target_network': 'MLP', 
-    #     'target_hidden_layers': [50, 50],
-    #     'use_chunks': False,
-    #     'use_batch_norm': False,
-    #     'full_interval': True, 
-    #     'activation_function': torch.nn.ReLU(), 
-    #     'use_bias': True, 
-    #     'dataset': 'GaussianDataset', 
-    #     'device': 'cpu',
-    #     "no_of_validation_samples": 20
-    #     }
-
-    # # Load hypernetwork
-    # model_dict = prepare_and_load_weights_for_models(
-    #     path_to_stored_networks="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/GaussianDataset/",
-    #     hyperparameters=hyperparameters,
-    #     path_to_datasets=None,
-    #     number_of_model=0,
-    #     dataset=hyperparameters["dataset"],
-    #     seed=hyperparameters["seed"]
-    # )
-
-    # dataset = load_dataset(
-    #     dataset=hyperparameters["dataset"],
-    #     path_to_datasets=None,
-    #     hyperparameters=hyperparameters
-    # )
-
-    # hypernetwork = model_dict["hypernetwork"]
-    # hnet_weights = model_dict["hypernetwork_weights"]
-    # perturbated_eps = torch.tensor(hyperparameters["perturbated_epsilon"])
-    # target_network = model_dict["target_network"]
-    
-    # with torch.no_grad():
-    #     x = [np.array(dataset[i]._data['in_data'])[dataset[i]._data['test_inds']] for i in range(5)]
-    #     hnet_output = [
-    #         hypernetwork.forward(
-    #             cond_id=i, 
-    #             weights=hnet_weights, 
-    #             perturbated_eps=perturbated_eps, 
-    #             return_extended_output=True) for i in range(5)
-    #     ]
-
-    #     lower_weights = [hnet_output[i][0] for i in range(5)]
-    #     middle_weights = [hnet_output[i][1] for i in range(5)]
-    #     upper_weights = [hnet_output[i][2] for i in range(5)]
-
-    #     y_pred = [parse_logits(target_network.forward(
-    #         torch.Tensor(x[i]),
-    #         upper_weights=upper_weights[i],
-    #         middle_weights=middle_weights[i],
-    #         lower_weights=lower_weights[i])) for i in range(5) 
-    #     ]
-
-    #     y_pred = [np.array(list(y_pred[i])[1]) for i in range(5)]
-
-    # plot_regression_results(x, y_pred, save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/Gaussian_dataset.png")
-
-
-    # ### ToyRegression1D
-   
-    # # Declare hyperparameters
-    # hyperparameters = {
-    #     'embedding_sizes': [16],
-    #     'hypernetworks_hidden_layers': [[50, 50]], 
-    #     'perturbated_epsilon': [0.01], 
-    #     'dropout_rate': [-1], 
-    #     'seed': 1,
-    #     'shape': 1, 
-    #     'padding': 0, 
-    #     'number_of_tasks': 5,
-    #     'target_network': 'MLP', 
-    #     'target_hidden_layers': [50, 50],
-    #     'use_chunks': False,
-    #     'use_batch_norm': False,
-    #     'full_interval': True, 
-    #     'activation_function': torch.nn.ReLU(), 
-    #     'use_bias': True, 
-    #     'dataset': 'ToyRegression1D', 
-    #     'device': 'cpu',
-    #     "no_of_validation_samples": 10
-    #     }
-
-    # # Load hypernetwork
-    # model_dict = prepare_and_load_weights_for_models(
-    #     path_to_stored_networks=f"/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/{hyperparameters['dataset']}/",
-    #     hyperparameters=hyperparameters,
-    #     path_to_datasets=None,
-    #     number_of_model=0,
-    #     dataset=hyperparameters["dataset"],
-    #     seed=hyperparameters["seed"]
-    # )
-
-    # dataset = load_dataset(
-    #     dataset=hyperparameters["dataset"],
-    #     path_to_datasets=None,
-    #     hyperparameters=hyperparameters
-    # )
-
-    # hypernetwork = model_dict["hypernetwork"]
-    # hnet_weights = model_dict["hypernetwork_weights"]
-    # perturbated_eps = torch.tensor(hyperparameters["perturbated_epsilon"])
-    # target_network = model_dict["target_network"]
-    
-    # with torch.no_grad():
-    #     x = [np.array(dataset[i]._data['in_data'])[dataset[i]._data['test_inds']] for i in range(5)]
-    #     hnet_output = [
-    #         hypernetwork.forward(
-    #             cond_id=i, 
-    #             weights=hnet_weights, 
-    #             perturbated_eps=perturbated_eps, 
-    #             return_extended_output=True) for i in range(5)
-    #     ]
-
-    #     lower_weights = [hnet_output[i][0] for i in range(5)]
-    #     middle_weights = [hnet_output[i][1] for i in range(5)]
-    #     upper_weights = [hnet_output[i][2] for i in range(5)]
-
-    #     y_pred = [parse_logits(target_network.forward(
-    #         torch.Tensor(x[i]),
-    #         upper_weights=upper_weights[i],
-    #         middle_weights=middle_weights[i],
-    #         lower_weights=lower_weights[i])) for i in range(5) 
-    #     ]
-
-    #     y_pred = [np.array(list(y_pred[i])[1]) for i in range(5)]
-
-    # plot_regression_results(
-    #     x=x, 
-    #     y_pred=y_pred, 
-    #     dataset_name=hyperparameters["dataset"],
-    #     save_path="/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/regression/ToyRegression1D.png")
-
-
-    #######################################################
-    ### Plot Split CUB-200 results
-    #######################################################
-
-    list_of_folders_path = [
-        "/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/CUB200/0",
-        "/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/SavedModels/CUB200/1"
-    ]
-
-    save_path = "/home/patrykkrukowski/Projects/Hyper_IBP_CL/Hyper_IBP_CL/AblationResults/CUB200_results"
-
-    plot_accuracy_curve_with_barplot(
-        list_of_folders_path,
-        save_path,
-        filename = "acc_CUB200_non_forced.png",
-        dataset_name = "SplitCUB-200",
-        mode = 1,
-        y_lim_max = 98.5,
-        figsize = (8, 4),
-        fontsize = 12
-)
+    pass

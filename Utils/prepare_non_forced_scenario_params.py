@@ -385,16 +385,16 @@ def set_hyperparameters(dataset,
             hyperparams = {
                 "learning_rates": [0.001],
                 "batch_sizes": [128],
-                "betas": [0.01, 0.001, 0.1],
-                "hypernetworks_hidden_layers": [[100, 100], [50, 50], [25, 25]],
+                "betas": [0.001],
+                "hypernetworks_hidden_layers": [[50]],
                 "dropout_rate": [-1],
-                "use_batch_norm": False,
-                "target_network": "ResNet",
-                "perturbated_epsilon": [0.5, 1.0],
+                "use_batch_norm": True,
+                "target_network": "AlexNet",
+                "perturbated_epsilon": [0.5],
                 # seed is not for optimization but for ensuring multiple results
                 "seed": [1],
                 "best_model_selection_method": "val_loss",
-                "embedding_sizes": [24, 48, 72, 96],
+                "embedding_sizes": [48],
                 "augmentation": False,
                 "saving_folder": "./Results/CIFAR10/"
             }
@@ -416,7 +416,7 @@ def set_hyperparameters(dataset,
                 "best_model_selection_method": "val_loss",
                 "saving_folder": "./Results/CIFAR10/"
             }
-        hyperparams["lr_scheduler"] = True
+        hyperparams["lr_scheduler"] = False
         hyperparams["resnet_number_of_layer_groups"] = None
         hyperparams["resnet_widening_factor"] = None
         hyperparams["optimizer"] = "adam"
