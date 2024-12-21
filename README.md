@@ -1,15 +1,15 @@
-# HyperInterval: Hypernetwork approach to training weight interval regions in continual learning
+# HINT: Hypernetwork approach to training weight interval regions in continual learning
 
 ## Abstract
 Recently, a new Continual Learning (CL) paradigm was presented to control catastrophic forgetting, called  Interval Continual Learning (InterContiNet), which relies on enforcing interval constraints on the neural network parameter space. 
 Unfortunately, InterContiNet training is challenging due to the high dimensionality of the weight space, making intervals difficult to manage. 
-To address this issue, we introduce HyperInterval, a technique that employs interval arithmetic within the embedding space and utilizes a hypernetwork to map these intervals to the target network parameter space. We train interval embeddings for consecutive tasks and train a hypernetwork to transform these embeddings into weights of the target network. An embedding for a given task is trained along with the hypernetwork, preserving the response of the target network for the previous task embeddings. Interval arithmetic works with a more manageable, lower-dimensional embedding space rather than directly preparing intervals in a high-dimensional weight space. Our model allows faster and more efficient training. Furthermore, HyperInterval maintains the guarantee of not forgetting. At the end of training, we can choose one universal embedding to produce a single network dedicated to all tasks. In such a framework, hypernetwork is used only for training and can be seen as a meta-trainer.
-HyperInterval obtains significantly better results than InterContiNet and gives SOTA results on several benchmarks. 
+To address this issue, we introduce HINT, a technique that employs interval arithmetic within the embedding space and utilizes a hypernetwork to map these intervals to the target network parameter space. We train interval embeddings for consecutive tasks and train a hypernetwork to transform these embeddings into weights of the target network. An embedding for a given task is trained along with the hypernetwork, preserving the response of the target network for the previous task embeddings. Interval arithmetic works with a more manageable, lower-dimensional embedding space rather than directly preparing intervals in a high-dimensional weight space. Our model allows faster and more efficient training. Furthermore, HINT maintains the guarantee of not forgetting. At the end of training, we can choose one universal embedding to produce a single network dedicated to all tasks. In such a framework, hypernetwork is used only for training and can be seen as a meta-trainer.
+HINT obtains significantly better results than InterContiNet and gives SOTA results on several benchmarks. 
 
 ## Teaser
 Train interval embeddings for consecutive tasks and train a hypernetwork to transform these embeddings into weights of the target network.
 
-![Scheme of HyperInterval training method](HyperInterval.png)
+![Scheme of HINT training method](./imgs/HINT.png)
 
 ## Environment
 Use <code>environment.yml</code> file to create a conda environment with necessary libraries: <code>conda env create -f environment.yml</code>.
@@ -31,11 +31,9 @@ The datasets may be downloaded when the algorithm runs. For each dataset, the CL
 Folder <code>AblationResults</code> contains results of our ablation study, whereas <code>DatasetHandlers</code> and <code>Utils</code> contain handlers and functions for datasets used in the experiments, to apply specific data augmentation policies and task division.
 Moreover, folder <code>IntervalNets</code> contains interval implementation of the network architectures used in experiments and <code>VanillaNets</code> contains the basic convolutional network architectures, which are used when applying the interval relaxation technique to the training.
 
-To train HyperInterval in the task incremetal learning (TIL) scenraio, use the command <code>python train_non_forced_scenario.py</code>.
-To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_non_forced_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_non_forced_scenario_params.py</code> file.
+To train HINT in the Task-Incremetal Learning (TIL) scenraio, use the command <code>python train_non_forced_method_type_scenario.py</code> in <code>Training</code> folder, where <code>method_type</code> can be <code>classification</code> or <code>regression</code>. To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_non_forced_method_type_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_non_forced_scenario_params.py</code> file.
 
-To train in the class incremetal learning (CIL) scenraio with nesting protocols, use the command <code>python train_nested_scenario.py</code>.
-To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_nested_scenario.py</code> file and modify the lists with hyperparameters for the selected dataset in the <code>prepare_nested_scenario_params.py</code> file.
+To train in the Domain-Incremental Learning (DIL) scenario with nesting protocols, use the command <code>python train_nested_scenario.py</code>. This scenario works for classification for now. To conduct a grid search in this setup, one should set the variable <code>create_grid_search</code> to <code>True</code> in the <code>train_nested_scenario.py</code> file in <code>Training</code> folder and modify the lists with hyperparameters for the selected dataset in the <code>prepare_nested_scenario_params.py</code> file.
 
 To train in the CIL scenario with entropy, set the variable <code>dataset</code> to a name of any of the datasets supported, e.g., <code>dataset = "PermutedMNIST"</code> in the <code>entropy.py</code> file and use the command <code>python entropy.py</code>.
 
@@ -43,8 +41,8 @@ To train in the CIL scenario with entropy, set the variable <code>dataset</code>
 ## Citation
 
 ```
-@inproceedings{krukowski2024hyperinterval,
-  title={HyperInterval: Hypernetwork approach to training weight interval regions in continual learning}, 
+@inproceedings{krukowski2024HINT,
+  title={HINT: Hypernetwork approach to training weight interval regions in continual learning}, 
   author={Patryk Krukowski and Anna Bielawska and Kamil Książek and Paweł Wawrzyński and Paweł Batorski and Przemysław Spurek},
   year={2024}
 }
