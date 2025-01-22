@@ -152,7 +152,7 @@ def train_single_task(hypernetwork,
         tensor_output = current_dataset_instance.output_to_torch_tensor(
             current_batch[1], parameters["device"], mode="train"
         )
-        tensor_output = torch.Tensor(tensor_output).to("cuda")
+        tensor_output = torch.Tensor(tensor_output).to(parameters["device"])
         gt_output = tensor_output.max(dim=1)[1]
         optimizer.zero_grad()
 
@@ -374,6 +374,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             cutout_mod = False
         else:
             mode = "default"
+        num_feature_maps = [16, 16, 32, 64, 128]
+        cutout_mod = True
         
         assert not parameters["full_interval"], "Interval version of ResNet is not supported!"
         
@@ -655,7 +657,7 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "CUB200"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
+    dataset = "SubsetImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10",
                                 # "CUB200"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
