@@ -61,6 +61,7 @@ def train_single_task(hypernetwork,
     --------
     hypernetwork: modified module of the hypernetwork.
     target_network: modified module of the target network.
+    total_no_iterations: total number of iterations used to train one task.
     """
     # Optimizer cannot be located outside of this function because after
     # deep copy of the network it needs to be reinitialized
@@ -310,9 +311,9 @@ def train_single_task(hypernetwork,
                 plateau_scheduler.step(accuracy)
 
     if parameters["best_model_selection_method"] == "val_loss":
-        return best_hypernetwork, best_target_network
+        return best_hypernetwork, best_target_network, parameters["number_of_iterations"]
     else:
-        return hypernetwork, target_network
+        return hypernetwork, target_network, parameters["number_of_iterations"]
 
 
 def build_multiple_task_experiment(dataset_list_of_tasks,
@@ -453,6 +454,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
     # Declare total number of tasks
     no_tasks = parameters["number_of_tasks"]
 
+    time_per_task_dict = {}
+
     for no_of_task in range(no_tasks):
 
         if parameters["custom_init"] and no_of_task > 0:
@@ -464,8 +467,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                data=prev_emb,
                requires_grad=True
            )
-
-        hypernetwork, target_network = train_single_task(
+        start_time = time.time()
+        hypernetwork, target_network, total_no_iterations = train_single_task(
             hypernetwork,
             target_network,
             criterion,
@@ -473,6 +476,8 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
             dataset_list_of_tasks,
             no_of_task
         )
+
+        time_per_task_dict[no_of_task] = (time.time() - start_time, total_no_iterations)
 
         if no_of_task == (parameters["number_of_tasks"] - 1):
         # Save current state of networks
@@ -554,6 +559,10 @@ def build_multiple_task_experiment(dataset_list_of_tasks,
                                         save_folder=interval_plot_save_path,
                                         current_task=no_of_task,
                                         plot_universal_embedding=True)
+        
+    with open(f'{parameters["saving_folder"]}/time_per_task.txt', "w") as f:
+        for task_id, (time_taken, iterations) in time_per_task_dict.items():
+            f.write(f"Task {task_id}: Time = {time_taken:.4f}s, Iterations = {iterations}\n")
 
     return hypernetwork, target_network, dataframe
 
@@ -692,10 +701,10 @@ def main_running_experiments(path_to_datasets,
 
 if __name__ == "__main__":
     path_to_datasets = "./Data"
-    dataset = "TinyImageNet"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
+    dataset = "SplitMNIST"  # "PermutedMNIST", "CIFAR100", "SplitMNIST", "TinyImageNet", "CIFAR100_FeCAM_setup", "SubsetImageNet", "CIFAR10"
     part = 0
     TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # Generate timestamp
-    create_grid_search = True
+    create_grid_search = False
 
     if create_grid_search:
         summary_results_filename = "grid_search_results"
