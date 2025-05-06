@@ -201,6 +201,7 @@ def prepare_and_load_weights_for_models(
     number_of_model,
     dataset,
     seed,
+    hyperparameters
 ):
     """
     Prepare the hypernetwork and target network, and load stored weights
@@ -217,6 +218,8 @@ def prepare_and_load_weights_for_models(
             'CIFAR-10', 'SubsetImageNet'
         seed: int
             Defines a seed value for deterministic calculations.
+        hyperparameters: dict
+            Dictionary with all hyperparameters needed to load trained models.
 
     Returns:
     --------
@@ -240,7 +243,7 @@ def prepare_and_load_weights_for_models(
     ]
     path_to_model = f"{path_to_stored_networks}{number_of_model}/"
 
-    hyperparameters = set_hyperparameters(dataset, grid_search=True)
+    # hyperparameters = set_hyperparameters(dataset, grid_search=True)
     
     set_seed(seed)
     # Load proper dataset
@@ -1471,7 +1474,161 @@ def plot_regression_results(
 
     else:
         raise NotImplementedError("Regression results visualization is only available for ToyRegression and GaussianMixtures.")
+        
 
 if __name__ == "__main__":
+    # Given parameters
+    eps_list = [1.0, 0.0]
+    sigmas = np.linspace(start=1e-8, stop=1e-2, num=20)
 
-    pass
+    # Placeholder for accuracy storage
+    accuracy_results = {eps: [] for eps in eps_list}
+
+    for iteration, sigma in enumerate(sigmas):
+        print(f"{iteration+1} iteration is started!")
+        acc_per_sigma = {eps: [] for eps in eps_list}
+        for seed in range(1, 4):  # Averaging over 3 seeds
+            no_model = 0
+            for eps in eps_list:
+                hyperparams = {
+                    "learning_rates": [0.001],
+                    "batch_sizes": [128],
+                    "betas": [0.01],
+                    "hypernetworks_hidden_layers": [[75, 75]],
+                    "dropout_rate": [-1],
+                    "perturbated_epsilon": [eps],
+                    "seed": [seed],
+                    "best_model_selection_method": "val_loss",
+                    "embedding_sizes": [72],
+                    "augmentation": True,
+                    "target_network": "MLP",
+                    "no_of_validation_samples": 1000,
+                    "target_hidden_layers": [400, 400],
+                    "shape": 28**2,
+                    "number_of_tasks": 5,
+                    "dataset": "SplitMNIST",
+                    "use_bias": True,
+                    "device": "cpu",
+                    "use_chunks": False,
+                    "activation_function": torch.nn.ReLU()
+                }
+
+                model_list = prepare_and_load_weights_for_models(
+                    path_to_stored_networks="./SavedModels/NoiseExperiment/HINT/",
+                    path_to_datasets="./Data",
+                    number_of_model=no_model,
+                    dataset="SplitMNIST",
+                    hyperparameters=hyperparams,
+                    seed=seed
+                )
+
+                dataset_tasks_list = model_list["list_of_CL_tasks"]
+                hnet = model_list["hypernetwork"]
+                hnet_weights = model_list["hypernetwork_weights"]
+                target_network = model_list["target_network"]
+                target_network.eval()
+                hnet.eval()
+                accuracies = []
+                for task_id in range(5):
+                    current_dataset_instance = dataset_tasks_list[task_id]
+                    input_data = current_dataset_instance.get_test_inputs()
+                    output_data = current_dataset_instance.get_test_outputs()
+
+                    test_input = current_dataset_instance.input_to_torch_tensor(
+                        input_data, hyperparams["device"], mode="inference"
+                    )
+                    test_output = current_dataset_instance.output_to_torch_tensor(
+                        output_data, hyperparams["device"], mode="inference"
+                    )
+                    gt_output = test_output.max(dim=1)[1]
+                    test_input += sigma * (torch.randn_like(test_input) + 0.5)
+                    test_input = torch.clamp(test_input, 0.0, 1.0)
+
+                    lower_weights, target_weights, upper_weights, _ = hnet.forward(
+                        cond_id=task_id, return_extended_output=True,
+                        weights=hnet_weights, perturbated_eps=eps
+                    )
+
+                    predictions = target_network.forward(
+                        x=test_input,
+                        upper_weights=upper_weights,
+                        middle_weights=target_weights,
+                        lower_weights=lower_weights
+                    )
+
+                    _, logits, _ = parse_logits(predictions)
+                    predictions = logits.max(dim=1)[1]
+                    accuracy = (torch.sum(gt_output == predictions, dtype=torch.float32) /
+                                gt_output.numel()) * 100.
+                    accuracies.append(accuracy.item())
+
+                acc_per_sigma[eps].append(np.mean(accuracies))
+                no_model += 1
+
+        # Compute mean accuracy over seeds
+        for eps in eps_list:
+            accuracy_results[eps].append(np.mean(acc_per_sigma[eps]))
+    
+    # Save results to a txt file
+    with open("./AblationResults/NoiseExperiment/accuracy_results.txt", "w") as file:
+        file.write("Sigma,Epsilon,Accuracy\n")
+        for i, sigma in enumerate(sigmas):
+            for eps in eps_list:
+                file.write(f"{sigma},{eps},{accuracy_results[eps][i]}\n")
+
+    # Convert to numpy arrays for plotting
+    for eps in eps_list:
+        accuracy_results[eps] = np.array(accuracy_results[eps])
+
+    # Plotting
+    plt.figure(figsize=(8, 6))
+    for eps, acc_values in accuracy_results.items():
+        plt.plot(sigmas, acc_values, label=f"eps = {eps}")
+
+    plt.xscale("log")
+    plt.xlabel("Sigma (log scale)")
+    plt.ylabel("Accuracy (%)")
+    plt.title("Accuracy vs. Sigma for Different Epsilon Values")
+    plt.legend()
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.show()
+
+    # Load data from file
+    accuracy_results = {}
+    sigmas = []
+
+    with open("./AblationResults/NoiseExperiment/accuracy_results.txt", "r") as file:
+        lines = file.readlines()[1:]
+        for line in lines:
+            sigma, eps, accuracy = map(float, line.strip().split(','))
+            if sigma not in sigmas:
+                sigmas.append(sigma)
+            if eps not in accuracy_results:
+                accuracy_results[eps] = []
+            accuracy_results[eps].append(accuracy)
+
+    # Convert lists to numpy arrays
+    sigmas = np.array(sigmas)
+    for eps in accuracy_results:
+        accuracy_results[eps] = np.array(accuracy_results[eps])
+
+    # Plotting
+    plt.figure(figsize=(8, 6))
+    for eps, acc_values in accuracy_results.items():
+        plt.plot(sigmas, acc_values, label=f"eps = {eps}")
+
+    plt.xscale("log")
+    plt.xlabel("Perturbation value (log scale)", fontsize=14)
+    plt.ylabel("Accuracy (%)", fontsize=14)
+    plt.title("Accuracy for different perturbations applied to input data", fontsize=14)
+    plt.legend()
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.show()
+
+    # Save plot as PNG
+    plt.savefig("./AblationResults/NoiseExperiment/noise_experiment.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+        
+
